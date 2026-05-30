@@ -1929,3 +1929,60 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
   color: var(--ink-muted);
   font-weight: 600;
 }
+
+/* ===========================================================
+   RESPONSIVE LAYOUT (MOBILE)
+   =========================================================== */
+@media (max-width: 800px) {
+  .app-shell { padding: 16px; }
+  
+  .hero-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 24px;
+    gap: 16px;
+  }
+  .hero-card::after { display: none; }
+  .hero-actions { flex-direction: column; width: 100%; }
+  .hero-actions > * { width: 100%; }
+  
+  .metric-grid, .module-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  .check-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .two-column, .review-question.split, .review-response-grid, .history-card, .action-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .start-summary { text-align: left; }
+  
+  .streak-panel > div > div:first-child { justify-content: center; width: 100%; }
+  .streak-week { justify-content: space-between; width: 100%; margin-top: 12px; gap: 4px; }
+  .streak-day small { font-size: 10px; }
+  .streak-dot { width: 20px; height: 20px; }
+  
+  .domain-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .review-heading-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .wizard-steps .step {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .metric-grid, .module-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
