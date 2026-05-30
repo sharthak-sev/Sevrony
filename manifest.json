@@ -1,0 +1,17 @@
+{
+  "name": "SAT Interactive Practice",
+  "short_name": "SAT Practice",
+  "description": "Take timed, adaptive SAT practice tests with real question bank data. Track performance, review answers, and identify weaknesses.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

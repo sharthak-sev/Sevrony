@@ -148,9 +148,44 @@
     initPersistentDesmos();
     fileInput.addEventListener("change", handleFileImport);
     document.addEventListener("keydown", handleKeyboard);
+    
+    // Global Drag and Drop support
+    document.addEventListener("dragover", e => {
+      e.preventDefault();
+      const dropZone = document.querySelector(".drop-zone");
+      if (dropZone) dropZone.classList.add("drag-active");
+    });
+    document.addEventListener("dragleave", e => {
+      const dropZone = document.querySelector(".drop-zone");
+      if (dropZone && e.target === document.body) dropZone.classList.remove("drag-active");
+    });
+    document.addEventListener("drop", e => {
+      e.preventDefault();
+      const dropZone = document.querySelector(".drop-zone");
+      if (dropZone) dropZone.classList.remove("drag-active");
+      
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event("change"));
+      }
+    });
+
     await refreshLocalData();
     await restoreActiveTest();
     ensureConfigDefaults();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const debugQid = urlParams.get('debug');
+    if (debugQid) {
+      const q = state.questions.find(x => x.id === debugQid || x.externalId === debugQid || x.questionId === debugQid);
+      if (q) {
+        startCustomPractice({ subject: q.subject, domainCodes: [], difficulties: [], limit: 1, excludeAnswered: false }, [q]);
+        return;
+      } else {
+        state.notice = { type: "error", text: "Debug question not found in your local test banks. Import the bank first." };
+      }
+    }
+
     if (state.activeTest) {
       renderActiveTest();
     } else {
@@ -272,6 +307,25 @@
 
   function renderHome() {
     stopTicker();
+
+    if (state.questions.length === 0 && ["dashboard", "history", "config", "mistakes", "results", "review"].includes(state.view)) {
+      state.view = "marketing";
+    }
+
+    if (state.view === "marketing") {
+      app.className = "";
+      app.innerHTML = renderMarketing();
+      bindHomeEvents();
+      return;
+    }
+
+    if (state.view === "onboarding") {
+      app.className = "";
+      app.innerHTML = renderOnboarding();
+      bindHomeEvents();
+      return;
+    }
+
     app.className = "app-shell";
     app.innerHTML = `
       ${renderTopbar()}
@@ -288,6 +342,72 @@
     `;
     bindHomeEvents();
     renderMath(app);
+  }
+
+  function renderMarketing() {
+    return `
+      <section class="marketing-hero">
+        <div class="marketing-content">
+          <img src="logo.png" alt="Logo" class="marketing-logo" style="width: 120px; height: auto; border-radius: 20px; margin-bottom: 24px;">
+          <h1 style="font-size: 3rem; margin-bottom: 16px; letter-spacing: -0.02em;">Master the SAT, Locally.</h1>
+          <p style="font-size: 1.25rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto 32px; line-height: 1.6;">
+            The authentic Bluebook practice experience. Completely offline, zero accounts, zero costs.
+          </p>
+          <button class="primary-btn" type="button" data-action="start-onboarding" style="padding: 16px 32px; font-size: 1.125rem; border-radius: 8px;">
+            Get Started
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderOnboarding() {
+    return `
+      <section class="onboarding-wrapper">
+        <div class="setup-wizard panel">
+          <div class="panel-heading" style="text-align: center; border-bottom: none; margin-bottom: 8px;">
+            <h2 style="font-size: 2rem;">Welcome to your Dashboard</h2>
+            <p style="color: var(--text-secondary); margin-top: 8px;">Before you begin, you need to import your practice questions.</p>
+          </div>
+          
+          <div class="wizard-steps">
+            <div class="step">
+              <span class="step-num">1</span>
+              <div>
+                <h3>Install the Exporter</h3>
+                <ol style="margin-top: 8px; padding-left: 20px; color: var(--text-secondary); line-height: 1.6; font-size: 15px;">
+                  <li>Download and extract the ZIP file below.</li>
+                  <li>Open Chrome (or Edge) and go to <strong>Extensions</strong>.</li>
+                  <li>Enable <strong>Developer mode</strong>.</li>
+                  <li>Click <strong>Load unpacked</strong> and select the extracted folder.</li>
+                </ol>
+                <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+                  <a href="https://github.com/sharthak-sev/sat-qb-exporter" target="_blank" rel="noopener noreferrer" class="ghost-btn">View on GitHub</a>
+                  <a href="https://github.com/sharthak-sev/sat-qb-exporter/archive/refs/heads/main.zip" class="primary-btn">Download ZIP</a>
+                </div>
+              </div>
+            </div>
+            <div class="step">
+              <span class="step-num">2</span>
+              <div>
+                <h3>Export your Data</h3>
+                <p>Log into <a href="https://mypractice.collegeboard.org/questionbank/search" target="_blank" rel="noopener noreferrer" style="color: var(--bb-blue);">mypractice.collegeboard.org</a>. Once authenticated, open the extension popup, choose your filters, and click <strong>Export as Interactive Test</strong>.</p>
+              </div>
+            </div>
+            <div class="step">
+              <span class="step-num">3</span>
+              <div>
+                <h3>Import to App</h3>
+                <div class="drop-zone" data-action="import">
+                  <span style="font-size: 24px; display: block; margin-bottom: 8px;">📂</span>
+                  Click here or drag your <strong>.sat-test</strong> file to begin
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
   }
 
   function renderTopbar() {
@@ -347,6 +467,96 @@
     `;
   }
 
+  function calculateStreakData(sessions) {
+    if (!sessions || !sessions.length) return { current: 0, longest: 0, week: [] };
+    const toDateStr = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+
+    const activeDates = new Set();
+    for (const s of sessions) {
+       if (!s.completedAt || s.id === "__active_test__") continue;
+       const d = new Date(s.completedAt);
+       if (!isNaN(d)) activeDates.add(toDateStr(d));
+    }
+
+    const today = new Date();
+    const todayStr = toDateStr(today);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = toDateStr(yesterday);
+
+    let current = 0;
+    if (activeDates.has(todayStr) || activeDates.has(yesterdayStr)) {
+       let d = new Date(today);
+       if (!activeDates.has(toDateStr(d))) d.setDate(d.getDate() - 1);
+       while (activeDates.has(toDateStr(d))) {
+          current++;
+          d.setDate(d.getDate() - 1);
+       }
+    }
+
+    const sortedDates = Array.from(activeDates).sort();
+    let longest = 0;
+    let temp = 0;
+    let prev = null;
+
+    for (const dStr of sortedDates) {
+       const [y, m, day] = dStr.split('-');
+       const d = new Date(y, m-1, day);
+       if (!prev) {
+          temp = 1;
+       } else {
+          const diffDays = Math.round((d - prev) / (1000 * 60 * 60 * 24));
+          if (diffDays === 1) temp++;
+          else if (diffDays > 1) temp = 1;
+       }
+       if (temp > longest) longest = temp;
+       prev = d;
+    }
+
+    const week = [];
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    for (let i = 0; i < 7; i++) {
+       const d = new Date(startOfWeek);
+       d.setDate(d.getDate() + i);
+       const dStr = toDateStr(d);
+       week.push({ day: ["S","M","T","W","T","F","S"][i], active: activeDates.has(dStr), isToday: dStr === todayStr, isFuture: d > today });
+    }
+
+    return { current, longest, week };
+  }
+
+  function renderStreakWidget() {
+    const data = calculateStreakData(state.sessions);
+    const weekDots = data.week.map(w => {
+      let cssClass = "streak-dot";
+      if (w.active) cssClass += " active";
+      if (w.isToday) cssClass += " today";
+      if (w.isFuture) cssClass += " future";
+      return `<div class="streak-day"><div class="${cssClass}"></div><small>${w.day}</small></div>`;
+    }).join("");
+
+    return `
+      <section class="panel streak-panel" style="margin-top: 24px; margin-bottom: 24px; padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+          <div style="display: flex; gap: 32px; flex-wrap: wrap;">
+            <div>
+              <p class="eyebrow">Current Streak</p>
+              <h2 style="font-size: 28px; color: var(--amber); margin-top: 4px;">🔥 ${data.current} Day${data.current === 1 ? '' : 's'}</h2>
+            </div>
+            <div>
+              <p class="eyebrow">Longest Streak</p>
+              <h2 style="font-size: 28px; color: var(--bb-blue); margin-top: 4px;">👑 ${data.longest} Day${data.longest === 1 ? '' : 's'}</h2>
+            </div>
+          </div>
+          <div class="streak-week" style="display: flex; gap: 12px;">
+            ${weekDots}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   function renderDashboard() {
     const metrics = buildMetrics(state.questions, state.responses);
     const mathCount = metrics.bank.bySubject.math || 0;
@@ -377,6 +587,8 @@
           <button class="ghost-btn large" type="button" data-action="retry-mistakes" style="background:var(--paper);border-color:var(--line)">Retry Mistakes</button>
         </div>
       </section>
+
+      ${renderStreakWidget()}
 
       <section class="metric-grid">
         ${renderMetric("Math Bank", mathCount, "questions imported")}
@@ -780,6 +992,7 @@
             <strong>${escapeHtml(question.domain)} · ${escapeHtml(response.moduleTitle || SUBJECTS[question.subject] || "")}</strong>
           </div>
           <div class="review-meta">
+            <button type="button" class="ghost-btn icon-btn report-btn" data-action="report-question" data-qid="${escapeHtml(question.id)}" title="Report issue with question">🚩</button>
             <span class="time-pill">${formatDuration(response.timeSpentSeconds || 0)}</span>
             ${renderReviewStatus(response)}
           </div>
@@ -1103,6 +1316,23 @@
   async function handleHomeAction(event) {
     const action = event.currentTarget.dataset.action;
 
+    if (action === "report-question") {
+      const qid = event.currentTarget.dataset.qid;
+      if (typeof Sentry !== "undefined") {
+        const debugUrl = `${window.location.origin}${window.location.pathname}?debug=${qid}`;
+        Sentry.captureMessage(`Flagged: ${qid}\nDebug URL: ${debugUrl}`, {
+          level: "warning",
+          tags: { question_id: qid },
+          extra: { debug_url: debugUrl },
+          fingerprint: ['user-flagged', qid]
+        });
+      }
+      showNotice("Question flagged for review. Thank you!", "info");
+      renderHome();
+      return;
+    }
+
+    if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
     if (action === "open-support") { state.showSupport = true; renderHome(); }
     if (action === "close-support") { state.showSupport = false; renderHome(); }

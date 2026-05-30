@@ -6,6 +6,11 @@
   <title>SAT Interactive Practice</title>
   <link rel="icon" type="image/png" href="logo.png">
   <meta name="description" content="Take timed, adaptive SAT practice tests with real question bank data. Track performance, review answers, and identify weaknesses — all offline and free.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+
+  <!-- Sentry Error Logging -->
+  <script src="https://js.sentry-cdn.com/610da841a6875eae790cbc1fd6ea96b1.min.js" crossorigin="anonymous"></script>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,5 +34,12 @@
   <input id="fileInput" type="file" accept=".sat-test,application/json" hidden>
   <script src="db.js"></script>
   <script src="app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(err => console.error("SW reg failed", err));
+      });
+    }
+  </script>
 </body>
 </html>
