@@ -8,6 +8,14 @@
 
 This is a standalone, offline, frontend-only practice environment designed to simulate a testing experience similar to the official format using your exported question banks.
 
+## Key Features
+
+- **PWA Ready**: Install the app directly to your device (Windows, macOS, iOS, Android) for a native, fullscreen experience. Once loaded, it works completely offline via Service Workers.
+- **Gamification & Streaks**: Stay motivated by tracking your daily practice streaks and visualizing your activity on the dashboard.
+- **In-App Issue Reporting**: Flag broken or poorly formatted questions directly from the test review screen to help improve the question bank. *(Note: Please disable ad-blockers like uBlock Origin or Brave Shields when using the app, as they often block the reporting telemetry).*
+- **Adaptive Testing**: Simulate the official digital SAT with adaptive routing based on your performance in Module 1.
+- **Targeted Practice**: Generate custom tests focusing on specific subjects, or use the "Retry Mistakes" feature to focus on your weak points.
+
 ## Workflow
 
 1. Use the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) extension to save questions from your College Board account and click **Export as Interactive Test** to save a `.sat-test` file.
