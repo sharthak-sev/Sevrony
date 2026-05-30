@@ -11,7 +11,7 @@ This is a standalone, offline, frontend-only practice environment designed to si
 ## Workflow
 
 1. Use the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) extension to save questions from your College Board account and click **Export as Interactive Test** to save a `.sat-test` file.
-2. Open this app.
+2. Open this app. [sat-test-app](https://sharthak-sev.github.io/sat-test-app/)
 3. Click **Import .sat-test** and load the exported file.
 4. Use **Create New Test** to start either:
    - **Custom Practice**: Single-subject practice focusing on specific areas with a per-question count-up timer.
