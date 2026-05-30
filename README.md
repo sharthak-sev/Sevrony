@@ -31,6 +31,17 @@ Then visit `http://localhost:4173`.
 
 No build step, package install, accounts, or backend servers are required. **Everything is strictly offline.**
 
+## Cross-Platform Advantage
+
+Unlike the official Bluebook app which is restricted to Windows, Mac, and specific managed iPads/Chromebooks, this web-based app **runs flawlessly on almost any device with a modern browser**:
+
+- **Windows & macOS**
+- **Linux** (Fun fact: this app was developed entirely on Linux!)
+- **Android & iOS** (Tablets and smartphones)
+- **ChromeOS** (Even unmanaged personal Chromebooks)
+
+Because it runs directly in your browser without requiring installation, you can practice the SAT anywhere, on any device you own.
+
 ## Browser Compatibility & Automatic Backups
 
 The app features an **Automatic Backups** system that silently saves your progress to a chosen folder on your hard drive after every test. This relies on the **File System Access API**.
