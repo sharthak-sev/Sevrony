@@ -301,7 +301,7 @@
           </span>
         </button>
         <nav class="top-actions">
-          <button class="ghost-btn" type="button" data-action="open-support" style="color: #7c3aed; border: 1px solid #7c3aed;">☕ Buy me a coffee</button>
+          <button class="ghost-btn" type="button" data-action="open-support" style="color: #7c3aed; border: 1px solid #7c3aed;">❤️ Support the author</button>
           <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
           <button class="ghost-btn" type="button" data-action="config">Create New Test</button>
           <button class="ghost-btn" type="button" data-action="history">Past Tests</button>
@@ -318,7 +318,7 @@
           <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center;">
             <div>
               <p class="eyebrow">Support this project</p>
-              <h2>Buy me a coffee ☕</h2>
+              <h2>Support the author ❤️</h2>
             </div>
             <button class="ghost-btn" type="button" data-action="close-support" style="padding: 4px 8px;">✕</button>
           </div>
@@ -457,7 +457,7 @@
       <section class="panel support-panel" style="margin-top: 32px;">
         <div class="panel-heading">
           <p class="eyebrow">Support this project</p>
-          <h2>Buy me a coffee ☕</h2>
+          <h2>Support the author ❤️</h2>
         </div>
         <p class="muted">If this tool helped your SAT prep, you can support its development!</p>
         <div style="margin-top: 16px;">
