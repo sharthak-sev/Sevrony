@@ -456,7 +456,12 @@
           <h2>Buy me a coffee ☕</h2>
         </div>
         <p class="muted">If this tool helped your SAT prep, you can support its development!</p>
-        <div class="support-code-wrap">
+        <div style="margin-top: 16px;">
+          <a href="https://ko-fi.com/sevrony" target="_blank" rel="noopener noreferrer">
+            <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi" style="height: 36px; border-radius: 4px;">
+          </a>
+        </div>
+        <div class="support-code-wrap" style="margin-top: 16px;">
           <span>UPI ID:</span>
           <code title="Copy UPI ID">sharthak-jaiswal@fam</code>
         </div>
