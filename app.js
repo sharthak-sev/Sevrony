@@ -356,7 +356,8 @@
     _currentRoute = newRoute;
     document.documentElement.dataset.transition = type;
     const t = document.startViewTransition(() => doRender());
-    t.finished.finally(() => delete document.documentElement.dataset.transition);
+    t.ready.catch(() => {});
+    t.finished.catch(() => {}).finally(() => delete document.documentElement.dataset.transition);
   }
 
   function renderHome() {
