@@ -144,10 +144,42 @@
     init();
   }
 
+  // Lockdown Mode Utilities
+  function enterFullscreen() {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }
+
+  function exitFullscreen() {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function handleVisibilityChange() {
+    if (state.activeTest?.mode === "full" && document.hidden) {
+      const test = state.activeTest;
+      test.infractions = (test.infractions || 0) + 1;
+      persistActiveTest();
+      showNotice(`Warning: You left the test window during a Full Test. (Infraction ${test.infractions})`, "error");
+      renderActiveTest();
+    }
+  }
+
+  function handleBeforeUnload(e) {
+    if (state.activeTest?.mode === "full") {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  }
+
   async function init() {
     initPersistentDesmos();
     fileInput.addEventListener("change", handleFileImport);
     document.addEventListener("keydown", handleKeyboard);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     
     // Global Drag and Drop support
     document.addEventListener("dragover", e => {
@@ -305,6 +337,28 @@
      RENDERING — HOME VIEWS
      =========================================================== */
 
+  let _currentRoute = null;
+
+  function routeTransition(newRoute, doRender) {
+    if (!document.startViewTransition || _currentRoute === newRoute || _currentRoute === null) {
+      _currentRoute = newRoute;
+      doRender();
+      return;
+    }
+    let type = "context";
+    if (
+      (_currentRoute === "dashboard" && ["config", "review", "results", "mistakes", "activeTest"].includes(newRoute)) ||
+      (_currentRoute === "marketing" && newRoute === "onboarding") ||
+      (_currentRoute === "onboarding" && newRoute === "dashboard")
+    ) {
+      type = "drill";
+    }
+    _currentRoute = newRoute;
+    document.documentElement.dataset.transition = type;
+    const t = document.startViewTransition(() => doRender());
+    t.finished.finally(() => delete document.documentElement.dataset.transition);
+  }
+
   function renderHome() {
     stopTicker();
 
@@ -312,49 +366,50 @@
       state.view = "marketing";
     }
 
-    if (state.view === "marketing") {
-      app.className = "";
-      app.innerHTML = renderMarketing();
-      bindHomeEvents();
-      return;
-    }
+    routeTransition(state.view, () => {
+      if (state.view === "marketing") {
+        app.className = "";
+        app.innerHTML = renderMarketing();
+        bindHomeEvents();
+        return;
+      }
 
-    if (state.view === "onboarding") {
-      app.className = "";
-      app.innerHTML = renderOnboarding();
-      bindHomeEvents();
-      return;
-    }
+      if (state.view === "onboarding") {
+        app.className = "";
+        app.innerHTML = renderOnboarding();
+        bindHomeEvents();
+        return;
+      }
 
-    app.className = "app-shell";
-    app.innerHTML = `
-      ${renderTopbar()}
-      ${state.notice ? renderNotice(state.notice) : ""}
-      <main class="main-grid">
-        ${state.view === "results" && state.lastResult ? renderSessionDashboard(state.lastResult) : ""}
-        ${state.view === "config" ? renderTestConfig() : ""}
-        ${state.view === "history" ? renderTestHistory() : ""}
-        ${state.view === "review" ? renderTestReview() : ""}
-        ${state.view === "dashboard" ? renderDashboard() : ""}
-        ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
-        ${state.view === "backup" ? renderBackupView() : ""}
-      </main>
-      ${state.showSupport ? renderSupportModal() : ""}
-    `;
-    bindHomeEvents();
-    renderMath(app);
+      app.className = "app-shell";
+      app.innerHTML = `
+        ${renderTopbar()}
+        ${state.notice ? renderNotice(state.notice) : ""}
+        <main class="main-grid">
+          ${state.view === "results" && state.lastResult ? renderSessionDashboard(state.lastResult) : ""}
+          ${state.view === "config" ? renderTestConfig() : ""}
+          ${state.view === "history" ? renderTestHistory() : ""}
+          ${state.view === "review" ? renderTestReview() : ""}
+          ${state.view === "dashboard" ? renderDashboard() : ""}
+          ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
+          ${state.view === "backup" ? renderBackupView() : ""}
+        </main>
+      `;
+      bindHomeEvents();
+      renderMath(app);
+    });
   }
 
   function renderMarketing() {
     return `
       <section class="marketing-hero">
         <div class="marketing-content">
-          <img src="logo.png" alt="Logo" class="marketing-logo" style="width: 120px; height: auto; border-radius: 20px; margin-bottom: 24px;">
-          <h1 style="font-size: 3rem; margin-bottom: 16px; letter-spacing: -0.02em;">Sevrony: Master the SAT, Locally.</h1>
-          <p style="font-size: 1.25rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto 32px; line-height: 1.6;">
+          <img src="logo.png" alt="Logo" class="marketing-logo">
+          <h1>Sevrony: Master the SAT, Locally.</h1>
+          <p>
             The authentic Bluebook practice experience. Completely offline, zero accounts, zero costs.
           </p>
-          <button class="primary-btn" type="button" data-action="start-onboarding" style="padding: 16px 32px; font-size: 1.125rem; border-radius: 8px;">
+          <button class="primary-btn" type="button" data-action="start-onboarding">
             Get Started
           </button>
         </div>
@@ -422,7 +477,7 @@
           </span>
         </button>
         <nav class="top-actions">
-          <button class="ghost-btn" type="button" data-action="open-support" style="color: #7c3aed; border: 1px solid #7c3aed;">❤️ Support the author</button>
+          <button class="ghost-btn support-btn" type="button" data-action="open-support">❤️ Support the author</button>
           <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
           <button class="ghost-btn" type="button" data-action="config">Create New Test</button>
           <button class="ghost-btn" type="button" data-action="history">Past Tests</button>
@@ -432,31 +487,51 @@
     `;
   }
 
-  function renderSupportModal() {
-    return `
-      <div class="overlay-backdrop" style="display: flex;">
-        <section class="support-modal panel">
-          <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <p class="eyebrow">Support this project</p>
-              <h2>Support the author ❤️</h2>
-            </div>
-            <button class="ghost-btn" type="button" data-action="close-support" style="padding: 4px 8px;">✕</button>
-          </div>
-          <div style="text-align: center; margin: 20px 0;">
-            <a href="https://ko-fi.com/sevrony" target="_blank" rel="noopener noreferrer" style="display: inline-block; margin-bottom: 16px;">
-              <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi" style="height: 36px; border-radius: 4px;">
-            </a>
-            <br>
-            <img src="qr.png" alt="Payment QR Code" style="width: 200px; height: 200px; border-radius: var(--radius-sm); border: 1px solid var(--line);">
-          </div>
-          <div class="support-code-wrap" style="width: 100%; justify-content: center;">
-            <span>UPI ID:</span>
-            <code title="Copy UPI ID">sharthak-jaiswal@fam</code>
-          </div>
-        </section>
+  function showSupportModal() {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "modal-content support-modal panel";
+    
+    modal.innerHTML = `
+      <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:16px;">
+        <div>
+          <p class="eyebrow" style="margin:0; font-size:12px;">Support this project</p>
+          <h2 style="margin:4px 0 0; font-size:1.25rem;">Support the author ❤️</h2>
+        </div>
+        <button class="ghost-btn cancel-btn" type="button" style="padding: 4px 8px; border:none; height:32px; min-height:32px;">✕</button>
+      </div>
+      <div style="text-align: center; margin: 20px 0;">
+        <a href="https://ko-fi.com/sevrony" target="_blank" rel="noopener noreferrer" style="display: inline-block; margin-bottom: 16px;">
+          <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi" style="height: 36px; border-radius: 4px;">
+        </a>
+        <br>
+        <img src="qr.png" alt="Payment QR Code" style="width: 200px; height: 200px; border-radius: var(--radius-sm); border: 1px solid var(--line);">
+      </div>
+      <div class="support-code-wrap" style="width: 100%; display:flex; justify-content: center; align-items:center; gap:8px;">
+        <span>UPI ID:</span>
+        <code title="Copy UPI ID">sharthak-jaiswal@fam</code>
       </div>
     `;
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+      overlay.classList.add("visible");
+      modal.classList.add("visible");
+    });
+
+    const close = () => {
+      overlay.classList.remove("visible");
+      modal.classList.remove("visible");
+      setTimeout(() => overlay.remove(), 250);
+    };
+
+    modal.querySelector(".cancel-btn").onclick = close;
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close();
+    };
   }
 
   function renderNotice(notice) {
@@ -774,6 +849,16 @@
                 <small>Uses your local response history.</small>
               </span>
             </label>
+            ${state.config.subject !== "both" ? `
+            <label class="toggle-card" style="margin-top: 12px;">
+              <input type="checkbox" name="immediateFeedback" ${state.config.immediateFeedback ? "checked" : ""}>
+              <span class="toggle-ui"></span>
+              <span>
+                <strong>Immediate Feedback</strong>
+                <small>Get results and explanations instantly after each question.</small>
+              </span>
+            </label>
+            ` : ""}
           </div>
         </section>
 
@@ -941,16 +1026,7 @@
       .filter(r => r.sessionId === session.id)
       .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
-    let responses = allResponses;
-    if (state.reviewFilterIncorrect || state.reviewFilterSkipped) {
-      responses = allResponses.filter(r => {
-        const isSkipped = !isAnsweredResponse(r);
-        const isWrong = !isSkipped && !r.isCorrect;
-        if (state.reviewFilterIncorrect && isWrong) return true;
-        if (state.reviewFilterSkipped && isSkipped) return true;
-        return false;
-      });
-    }
+    const responses = allResponses;
 
     return `
       <section class="review-heading panel">
@@ -975,19 +1051,22 @@
           </label>
         </div>
       </section>
-      <section class="review-list">
+      <section class="review-list ${state.reviewFilterIncorrect ? 'filter-incorrect' : ''} ${state.reviewFilterSkipped ? 'filter-skipped' : ''}">
         ${responses.length ? responses.map((r, i) => renderReviewedQuestion(questionMap.get(r.questionId), r, i)).join("") : `
-          <article class="panel empty-message">All questions were answered correctly!</article>
+          <article class="panel empty-message">${allResponses.length === 0 ? "No questions were answered." : "All questions were answered correctly!"}</article>
         `}
+        <article class="panel empty-message css-empty-message" style="display: none;">No questions match those filters.</article>
       </section>
     `;
   }
 
   function renderReviewedQuestion(question, response, index) {
     const num = (response.sequence ?? index) + 1;
+    const isSkipped = !isAnsweredResponse(response);
+    const status = isSkipped ? "skipped" : response.isCorrect ? "correct" : "incorrect";
     if (!question) {
       return `
-        <article class="panel review-card">
+        <article class="panel review-card" data-status="${status}">
           <div class="review-card-header">
             <strong>Question ${num}</strong>
             ${renderReviewStatus(response)}
@@ -998,7 +1077,7 @@
     }
 
     return `
-      <article class="panel review-card">
+      <article class="panel review-card" data-status="${status}">
         <div class="review-card-header">
           <div>
             <span class="question-number">Question ${num}</span>
@@ -1352,11 +1431,26 @@
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
     if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
-    if (action === "open-support") { state.showSupport = true; renderHome(); }
-    if (action === "close-support") { state.showSupport = false; renderHome(); }
+    if (action === "open-support") {
+      showSupportModal();
+    }
     if (action === "config") { state.view = "config"; state.notice = null; ensureConfigDefaults(); renderHome(); }
-    if (action === "history") { state.view = "history"; state.notice = null; renderHome(); }
-    if (action === "history-tab") { state.historyTab = event.currentTarget.dataset.tab || "full"; renderHome(); }
+    if (action === "history") {
+      const fullTests = state.sessions.filter(s => s.mode === "full");
+      const subjectTests = state.sessions.filter(s => s.mode !== "full");
+      if (fullTests.length === 0 && subjectTests.length > 0) {
+        state.historyTab = "subject";
+      } else {
+        state.historyTab = "full";
+      }
+      state.view = "history";
+      state.notice = null;
+      renderHome();
+    }
+    if (action === "history-tab") {
+      state.historyTab = event.currentTarget.dataset.tab || "full";
+      renderHome();
+    }
     if (action === "retry-mistakes") {
       const { wrongQuestions, skippedQuestions } = getMistakesData();
       const allMistakes = [...wrongQuestions, ...skippedQuestions];
@@ -1445,29 +1539,52 @@
       const type = event.currentTarget.dataset.type;
       if (type === "incorrect") state.reviewFilterIncorrect = event.currentTarget.checked;
       if (type === "skipped") state.reviewFilterSkipped = event.currentTarget.checked;
-      renderHome();
+      
+      const list = app.querySelector(".review-list");
+      if (list) {
+        list.classList.toggle("filter-incorrect", state.reviewFilterIncorrect);
+        list.classList.toggle("filter-skipped", state.reviewFilterSkipped);
+      }
     }
     if (action === "import") { fileInput.click(); }
     if (action === "dismiss-notice") { state.notice = null; renderHome(); }
     if (action === "reset") {
-      if (!window.confirm("Clear all imported question banks, sessions, and history?")) return;
-      await DB.clearAll();
-      state.lastResult = null;
-      state.view = "dashboard";
-      await refreshLocalData();
-      showNotice("Local data cleared.", "info");
-      renderHome();
+      showConfirmModal("Clear all imported question banks, sessions, and history?", "Clear All", async () => {
+        await DB.clearAll();
+        state.lastResult = null;
+        state.view = "dashboard";
+        await refreshLocalData();
+        showNotice("Local data cleared.", "info");
+        renderHome();
+      });
     }
     if (action === "delete-session") {
       const sessionId = event.currentTarget.dataset.sessionId;
-      if (!sessionId || !window.confirm("Delete this test and all its responses?")) return;
-      const responseIds = state.responses.filter(r => r.sessionId === sessionId).map(r => r.id);
-      await DB.remove("sessions", sessionId);
-      if (responseIds.length) await DB.removeMany("responses", responseIds);
-      await refreshLocalData();
-      showNotice("Test deleted.", "info");
-      renderHome();
-      syncBackup(false);
+      if (!sessionId) return;
+      const btn = event.currentTarget;
+      showConfirmModal("Delete this test and all its responses?", "Delete Test", () => {
+        const card = btn.closest('.history-card');
+        if (card) {
+          card.style.transition = "all 0.3s ease";
+          card.style.opacity = "0";
+          card.style.transform = "scale(0.95)";
+          setTimeout(async () => {
+            await finishDelete();
+          }, 300);
+        } else {
+          finishDelete();
+        }
+
+        async function finishDelete() {
+          const responseIds = state.responses.filter(r => r.sessionId === sessionId).map(r => r.id);
+          await DB.remove("sessions", sessionId);
+          if (responseIds.length) await DB.removeMany("responses", responseIds);
+          await refreshLocalData();
+          showNotice("Test deleted.", "info");
+          renderHome();
+          syncBackup(false);
+        }
+      });
     }
     
     if (action === "link-backup") { await linkBackupFolder(); renderHome(); }
@@ -1604,17 +1721,18 @@
         const banksData = payload.questionBanks || payload.banks;
 
         if (!banksData || !payload.questions) throw new Error("Invalid backup format");
-        if (!window.confirm("Restore backup? This will overwrite your current progress.")) return;
+        
+        showConfirmModal("Restore backup? This will overwrite your current progress.", "Restore", async () => {
+          await DB.clearAll();
+          if (banksData.length) await DB.putMany("questionBanks", banksData);
+          if (payload.questions.length) await DB.putMany("questions", payload.questions);
+          if (payload.sessions && payload.sessions.length) await DB.putMany("sessions", payload.sessions);
+          if (payload.responses && payload.responses.length) await DB.putMany("responses", payload.responses);
 
-        await DB.clearAll();
-        if (banksData.length) await DB.putMany("questionBanks", banksData);
-        if (payload.questions.length) await DB.putMany("questions", payload.questions);
-        if (payload.sessions && payload.sessions.length) await DB.putMany("sessions", payload.sessions);
-        if (payload.responses && payload.responses.length) await DB.putMany("responses", payload.responses);
-
-        await refreshLocalData();
-        showBackupMsg("Backup restored successfully.", "success");
-        renderHome();
+          await refreshLocalData();
+          showBackupMsg("Backup restored successfully.", "success");
+          renderHome();
+        });
       } catch (err) {
         console.error(err);
         showBackupMsg("Failed to restore backup.", "error");
@@ -1760,6 +1878,7 @@
       domainCodes: domains.length ? domains : getAvailableDomains(subject).map(d => d.code),
       difficulties: difficulties.length ? difficulties : ["E", "M", "H"],
       excludeAnswered: data.get("excludeAnswered") === "on",
+      immediateFeedback: data.get("immediateFeedback") === "on",
       limit: clamp(parseInt(data.get("limit"), 10) || 20, 1, 200)
     };
   }
@@ -1815,6 +1934,7 @@
       lastQuestionEnteredAt: Date.now(), notice: null
     };
     state.eliminatedChoices = {};
+    enterFullscreen();
     persistActiveTest();
     renderActiveTest();
   }
@@ -1824,31 +1944,33 @@
      =========================================================== */
 
   function renderActiveTest() {
-    app.className = "test-shell";
     if (!state.activeTest) { renderHome(); return; }
 
-    const test = state.activeTest;
-    if (test.phase === "break") {
-      app.innerHTML = renderBreakScreen();
-    } else if (test.phase === "module-review") {
-      app.innerHTML = renderModuleCheckScreen();
-    } else if (test.phase === "transition") {
-      app.innerHTML = renderTransitionScreen();
-    } else {
-      app.innerHTML = renderQuestionScreen();
-    }
+    routeTransition("activeTest", () => {
+      app.className = "test-shell";
+      const test = state.activeTest;
+      if (test.phase === "break") {
+        app.innerHTML = renderBreakScreen();
+      } else if (test.phase === "module-review") {
+        app.innerHTML = renderModuleCheckScreen();
+      } else if (test.phase === "transition") {
+        app.innerHTML = renderTransitionScreen();
+      } else {
+        app.innerHTML = renderQuestionScreen();
+      }
 
-    // Overlays
-    const pd = document.getElementById("persistent-desmos");
-    if (pd) pd.style.display = state.showDesmos ? "flex" : "none";
-    if (state.showRefSheet) app.insertAdjacentHTML("beforeend", renderRefSheetOverlay());
-    if (state.showShortcuts) app.insertAdjacentHTML("beforeend", renderShortcutsOverlay());
+      // Overlays
+      const pd = document.getElementById("persistent-desmos");
+      if (pd) pd.style.display = state.showDesmos ? "flex" : "none";
+      if (state.showRefSheet) app.insertAdjacentHTML("beforeend", renderRefSheetOverlay());
+      if (state.showShortcuts) app.insertAdjacentHTML("beforeend", renderShortcutsOverlay());
 
-    bindTestEvents();
-    startTicker();
-    updateLiveTimers();
-    fitQuestionContent();
-    renderMath(app);
+      bindTestEvents();
+      startTicker();
+      updateLiveTimers();
+      fitQuestionContent();
+      renderMath(app);
+    });
   }
 
   function fitQuestionContent() {
@@ -1864,6 +1986,7 @@
     const question = ctx.question;
     const answer = getCurrentAnswer();
     const isFull = test.mode === "full";
+    const response = (test.mode === "custom" && test.config.immediateFeedback) ? test.responses[test.currentIndex] : null;
     const fitColumns = shouldUseAnswerColumns(question);
     const answeredCount = isFull
       ? ctx.module.questions.filter(q => hasAnswer(test.answers[q.id])).length
@@ -1924,7 +2047,8 @@
             </div>
             <div class="question-content-layout ${fitColumns ? "fit-columns" : ""}">
               <div class="html-content prompt">${sanitizeHtml(question.prompt)}</div>
-              ${renderAnswerArea(question, answer)}
+              ${renderAnswerArea(question, answer, response)}
+              ${response ? renderImmediateExplanation(question, response) : ""}
             </div>
           </article>
         </section>
@@ -1944,12 +2068,13 @@
     `;
   }
 
-  function renderAnswerArea(question, answer) {
+  function renderAnswerArea(question, answer, response) {
+    const isSubmitted = !!response;
     if (question.type === "spr" || !question.answerOptions.length) {
       return `
-        <div class="spr-card">
+        <div class="spr-card ${isSubmitted ? (response.isCorrect ? "correct" : "incorrect") : ""}">
           <label for="sprAnswer">Enter your answer</label>
-          <input id="sprAnswer" type="text" inputmode="decimal" autocomplete="off" value="${escapeAttr(answer)}" data-answer-input>
+          <input id="sprAnswer" type="text" inputmode="decimal" autocomplete="off" value="${escapeAttr(answer)}" data-answer-input ${isSubmitted ? "disabled" : ""}>
           <small>Student-produced response — scored by exact match.</small>
         </div>
       `;
@@ -1957,21 +2082,45 @@
 
     const elim = state.eliminatedChoices[question.id] || {};
     return `
-      <div class="choice-list">
-        ${question.answerOptions.map(opt => `
-          <div class="choice-row ${elim[opt.letter] ? "eliminated" : ""}">
+      <div class="choice-list ${isSubmitted ? "submitted" : ""}">
+        ${question.answerOptions.map(opt => {
+          let statusClass = "";
+          if (isSubmitted) {
+            const isCorrectAnswer = (question.correctAnswers || []).includes(opt.letter);
+            const isUserAnswer = answer === opt.letter;
+            if (isCorrectAnswer) statusClass = "correct-choice";
+            else if (isUserAnswer) statusClass = "incorrect-choice";
+          }
+          return `
+          <div class="choice-row ${elim[opt.letter] ? "eliminated" : ""} ${statusClass}">
             <button class="choice-button ${answer === opt.letter ? "selected" : ""} ${elim[opt.letter] ? "eliminated" : ""}"
-              type="button" data-test-action="select-option" data-value="${escapeAttr(opt.letter)}">
+              type="button" data-test-action="${isSubmitted ? "noop" : "select-option"}" data-value="${escapeAttr(opt.letter)}" ${isSubmitted ? "disabled" : ""}>
               <span class="choice-letter">${escapeHtml(opt.letter)}</span>
               <span class="choice-content">${sanitizeHtml(opt.content)}</span>
             </button>
+            ${!isSubmitted ? `
             <button class="choice-elim-btn ${elim[opt.letter] ? "active" : ""}" type="button"
               data-test-action="eliminate-option" data-value="${escapeAttr(opt.letter)}"
               title="${elim[opt.letter] ? "Undo cross-out" : "Cross out"}" aria-label="Eliminate option ${escapeAttr(opt.letter)}">
               <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
             </button>
+            ` : ""}
           </div>
-        `).join("")}
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function renderImmediateExplanation(question, response) {
+    return `
+      <div class="explanation-card" style="margin-top: 24px; animation: slide-up-fade 0.2s ease-out forwards;">
+        ${state.showRationale ? `
+          <strong>Explanation</strong>
+          <div class="html-content rationale" style="margin-top: 12px;">${sanitizeHtml(question.rationale || "No explanation included in this export.")}</div>
+        ` : `
+          <button class="ghost-btn" type="button" data-test-action="show-rationale">Show Explanation</button>
+        `}
       </div>
     `;
   }
@@ -1984,6 +2133,9 @@
     const test = state.activeTest;
     const isLast = ctx.index === ctx.list.length - 1;
     if (test.mode === "custom") {
+      if (test.config.immediateFeedback && !test.responses[test.currentIndex]) {
+        return `<button class="primary-btn" type="button" data-test-action="next-custom">Submit</button>`;
+      }
       return `<button class="primary-btn" type="button" data-test-action="next-custom">${isLast ? "Finish" : "Next"}</button>`;
     }
     if (isLast) {
@@ -2204,6 +2356,7 @@
     if (action === "close-refsheet") { state.showRefSheet = false; renderActiveTest(); }
     if (action === "show-shortcuts") { state.showShortcuts = true; renderActiveTest(); }
     if (action === "close-shortcuts") { state.showShortcuts = false; renderActiveTest(); }
+    if (action === "show-rationale") { state.showRationale = true; renderActiveTest(); }
   }
 
   function setCurrentAnswer(value, shouldRender) {
@@ -2237,12 +2390,29 @@
     const question = test.questions[test.currentIndex];
     const answer = test.currentAnswer;
 
-    const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
-    const response = makeResponse(question, answer, elapsed, test, true);
-    if (response) test.responses.push(response);
+    if (test.config.immediateFeedback && !test.responses[test.currentIndex]) {
+      if (!hasAnswer(answer)) {
+        test.notice = "Please select or type an answer before checking.";
+        renderActiveTest();
+        return;
+      }
+      const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
+      const response = makeResponse(question, answer, elapsed, test, true);
+      test.responses[test.currentIndex] = response;
+      test.notice = null;
+      persistActiveTest();
+      renderActiveTest();
+      return;
+    }
 
+    if (!test.config.immediateFeedback) {
+      const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
+      const response = makeResponse(question, answer, elapsed, test, true);
+      test.responses[test.currentIndex] = response;
+    }
+    
     if (test.currentIndex >= test.questions.length - 1) {
-      finishActiveTest(test.responses);
+      finishActiveTest(test.responses.filter(Boolean));
       return;
     }
 
@@ -2250,6 +2420,7 @@
     test.currentAnswer = "";
     test.currentQuestionStartedAt = Date.now();
     test.notice = null;
+    state.showRationale = false;
     persistActiveTest();
     renderActiveTest();
   }
@@ -2257,12 +2428,14 @@
   function endCustomTest() {
     const test = state.activeTest;
     const question = test.questions[test.currentIndex];
-    if (hasAnswer(test.currentAnswer)) {
-      const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
-      const response = makeResponse(question, test.currentAnswer, elapsed, test);
-      if (response) test.responses.push(response);
+    if (!test.config.immediateFeedback || !test.responses[test.currentIndex]) {
+      if (hasAnswer(test.currentAnswer)) {
+        const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
+        const response = makeResponse(question, test.currentAnswer, elapsed, test);
+        if (response) test.responses[test.currentIndex] = response;
+      }
     }
-    finishActiveTest(test.responses);
+    finishActiveTest(test.responses.filter(Boolean));
   }
 
   function navigateQuestion(delta) {
@@ -2431,6 +2604,7 @@
     state.notice = null;
     state.transitionLocked = false;
     state.eliminatedChoices = {};
+    exitFullscreen();
     await refreshLocalData();
     renderHome();
     syncBackup(false);
@@ -2700,7 +2874,12 @@
     const test = state.activeTest;
     if (!test) return "00:00";
     if (state.hideTimer) return "Hidden";
-    if (test.mode === "custom") return formatTimer(Math.floor((Date.now() - test.currentQuestionStartedAt) / 1000));
+    if (test.mode === "custom") {
+      if (test.config.immediateFeedback && test.responses[test.currentIndex]) {
+        return formatTimer(test.responses[test.currentIndex].timeSpentSeconds);
+      }
+      return formatTimer(Math.floor((Date.now() - test.currentQuestionStartedAt) / 1000));
+    }
     if (test.phase === "break") return formatTimer(Math.max(0, Math.ceil((test.breakEndsAt - Date.now()) / 1000)));
     if (test.phase === "transition") return "—";
     return formatTimer(Math.max(0, Math.ceil((test.moduleEndsAt - Date.now()) / 1000)));
@@ -2893,8 +3072,43 @@
   }
 
   /* ===========================================================
-     HTML SANITIZATION & MATH RENDERING
+     HTML SANITIZATION & MODAL
      =========================================================== */
+
+  function showConfirmModal(message, confirmText, onConfirm) {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "modal-content confirm-modal";
+    
+    modal.innerHTML = `
+      <p class="modal-message">${escapeHtml(message)}</p>
+      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+        <button class="ghost-btn cancel-btn">Cancel</button>
+        <button class="danger-btn confirm-btn">${escapeHtml(confirmText)}</button>
+      </div>
+    `;
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+      overlay.classList.add("visible");
+      modal.classList.add("visible");
+    });
+
+    const close = () => {
+      overlay.classList.remove("visible");
+      modal.classList.remove("visible");
+      setTimeout(() => overlay.remove(), 250);
+    };
+
+    modal.querySelector(".cancel-btn").onclick = close;
+    modal.querySelector(".confirm-btn").onclick = () => {
+      close();
+      onConfirm();
+    };
+  }
 
   function sanitizeHtml(value) {
     const tpl = document.createElement("template");
