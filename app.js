@@ -402,67 +402,142 @@
 
   function renderMarketing() {
     return `
-      <section class="marketing-hero">
-        <div class="marketing-content">
-          <img src="logo.png" alt="Logo" class="marketing-logo">
-          <h1>Sevrony: Master the SAT, Locally.</h1>
-          <p>
-            The authentic Bluebook practice experience. Completely offline, zero accounts, zero costs.
+      <div class="font-marketing min-h-[80vh] flex flex-col justify-center items-center py-16 px-4 sm:px-6 lg:px-8 bg-background">
+        
+        <!-- Hero Section -->
+        <div class="text-center max-w-4xl mx-auto space-y-8 opacity-0 animate-fade-in-up">
+          <div class="inline-flex items-center justify-center p-4 border border-border/60 bg-muted/20 rounded-2xl mb-6 shadow-sm">
+            <img src="logo.png" alt="Sevrony Logo" class="w-14 h-14 object-contain" />
+          </div>
+          
+          <h1 class="text-5xl md:text-6xl font-bold tracking-tighter text-foreground leading-tight" style="margin: 0; padding: 0;">
+            Master the SAT, <span class="text-muted-foreground">Locally.</span>
+          </h1>
+          
+          <p class="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mt-6 font-medium" style="margin-bottom: 2.5rem;">
+            The authentic Bluebook practice experience. Zero accounts, zero costs. Focus purely on your score.
           </p>
-          <button class="primary-btn" type="button" data-action="start-onboarding">
-            Get Started
-          </button>
+          
+          <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
+            <button class="inline-flex items-center justify-center rounded-md text-sm font-semibold transition-colors bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-8 shadow-sm cursor-pointer" type="button" data-action="start-onboarding">
+              Get Started Free
+            </button>
+            <a href="https://github.com/sharthak-sev/sat-qb-exporter" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center rounded-md text-sm font-semibold transition-colors border border-input bg-background hover:bg-accent hover:text-accent-foreground h-12 px-8 shadow-sm cursor-pointer" style="text-decoration: none;">
+              View Exporter Extension
+            </a>
+          </div>
         </div>
-      </section>
+
+        <!-- Features Section -->
+        <div class="mt-32 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto text-left">
+          
+          <!-- Feature 1 -->
+          <div class="p-8 rounded-2xl bg-muted/40 text-card-foreground border border-border/50">
+            <div class="h-10 w-10 flex items-center justify-center mb-6 text-foreground">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <h3 class="text-lg font-bold tracking-tight mb-2 text-foreground" style="margin: 0 0 8px 0;">100% Free</h3>
+            <p class="text-muted-foreground text-sm leading-relaxed" style="margin: 0;">No subscriptions. Practice anywhere without distractions.</p>
+          </div>
+
+          <!-- Feature 2 -->
+          <div class="p-8 rounded-2xl bg-muted/40 text-card-foreground border border-border/50">
+            <div class="h-10 w-10 flex items-center justify-center mb-6 text-foreground">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>
+            </div>
+            <h3 class="text-lg font-bold tracking-tight mb-2 text-foreground" style="margin: 0 0 8px 0;">Real Question Bank</h3>
+            <p class="text-muted-foreground text-sm leading-relaxed" style="margin: 0;">Import official College Board questions and take adaptive tests that accurately simulate exam day.</p>
+          </div>
+
+          <!-- Feature 3 -->
+          <div class="p-8 rounded-2xl bg-muted/40 text-card-foreground border border-border/50">
+            <div class="h-10 w-10 flex items-center justify-center mb-6 text-foreground">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+            <h3 class="text-lg font-bold tracking-tight mb-2 text-foreground" style="margin: 0 0 8px 0;">Deep Review</h3>
+            <p class="text-muted-foreground text-sm leading-relaxed" style="margin: 0;">Review every past test, read detailed rationales, and track your performance to improve your score.</p>
+          </div>
+
+        </div>
+      </div>
     `;
   }
 
   function renderOnboarding() {
     return `
-      <section class="onboarding-wrapper">
-        <div class="setup-wizard panel">
-          <div class="panel-heading" style="text-align: center; border-bottom: none; margin-bottom: 8px;">
-            <h2 style="font-size: 2rem;">Welcome to your Dashboard</h2>
-            <p style="color: var(--text-secondary); margin-top: 8px;">Before you begin, you need to import your practice questions.</p>
+      <div class="font-marketing min-h-[80vh] flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="w-full max-w-3xl border border-border bg-card text-card-foreground rounded-xl shadow-sm opacity-0 animate-fade-in-up">
+          
+          <!-- Header -->
+          <div class="flex flex-col space-y-1.5 p-6 border-b border-border text-center sm:text-left">
+            <h2 class="text-2xl font-bold tracking-tight text-foreground" style="margin: 0;">Welcome to your Dashboard</h2>
+            <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 0 0;">Before you begin, you need to import your practice questions.</p>
           </div>
           
-          <div class="wizard-steps">
-            <div class="step">
-              <span class="step-num">1</span>
-              <div>
-                <h3>Install the Exporter</h3>
-                <ol style="margin-top: 8px; padding-left: 20px; color: var(--text-secondary); line-height: 1.6; font-size: 15px;">
+          <!-- Content -->
+          <div class="p-6 space-y-8">
+            
+            <!-- Step 1 -->
+            <div class="flex gap-4">
+              <div class="flex flex-col items-center">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm z-10 shrink-0">1</div>
+                <div class="w-px h-full bg-border mt-2"></div>
+              </div>
+              <div class="pb-8 flex-1">
+                <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">Install the Exporter Extension</h3>
+                <ol class="mt-2 text-sm text-muted-foreground list-decimal list-inside space-y-1" style="margin: 8px 0 0 0; padding-left: 0;">
                   <li>Download and extract the ZIP file below.</li>
-                  <li>Open Chrome (or Edge) and go to <strong>Extensions</strong>.</li>
-                  <li>Enable <strong>Developer mode</strong>.</li>
-                  <li>Click <strong>Load unpacked</strong> and select the extracted folder.</li>
+                  <li>Open Chrome (or Edge) and go to <strong class="text-foreground">Extensions</strong>.</li>
+                  <li>Enable <strong class="text-foreground">Developer mode</strong> (top right).</li>
+                  <li>Click <strong class="text-foreground">Load unpacked</strong> and select the extracted folder.</li>
                 </ol>
-                <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
-                  <a href="https://github.com/sharthak-sev/sat-qb-exporter" target="_blank" rel="noopener noreferrer" class="ghost-btn">View on GitHub</a>
-                  <a href="https://github.com/sharthak-sev/sat-qb-exporter/archive/refs/heads/main.zip" class="primary-btn">Download ZIP</a>
+                <div class="flex flex-wrap gap-3 mt-4">
+                  <a href="https://github.com/sharthak-sev/sat-qb-exporter/archive/refs/heads/main.zip" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 shadow-sm cursor-pointer" style="text-decoration: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    Download ZIP
+                  </a>
+                  <a href="https://github.com/sharthak-sev/sat-qb-exporter" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer shadow-sm" style="text-decoration: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+                    View on GitHub
+                  </a>
                 </div>
               </div>
             </div>
-            <div class="step">
-              <span class="step-num">2</span>
-              <div>
-                <h3>Export your Data</h3>
-                <p>Log into <a href="https://mypractice.collegeboard.org/questionbank/search" target="_blank" rel="noopener noreferrer" style="color: var(--bb-blue);">mypractice.collegeboard.org</a>. Once authenticated, open the extension popup, choose your filters, and click <strong>Export as Interactive Test</strong>.</p>
+            
+            <!-- Step 2 -->
+            <div class="flex gap-4">
+              <div class="flex flex-col items-center">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm z-10 shrink-0">2</div>
+                <div class="w-px h-full bg-border mt-2"></div>
+              </div>
+              <div class="pb-8 flex-1">
+                <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">Export your Data</h3>
+                <p class="mt-2 text-sm text-muted-foreground leading-relaxed" style="margin: 8px 0 0 0;">
+                  Log into <a href="https://mypractice.collegeboard.org/questionbank/search" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-medium" style="text-decoration: none;">mypractice.collegeboard.org</a>. Once authenticated, open the extension popup, choose your desired filters, and click <strong class="text-foreground">Export as Interactive Test</strong>.
+                </p>
               </div>
             </div>
-            <div class="step">
-              <span class="step-num">3</span>
-              <div>
-                <h3>Import to App</h3>
-                <div class="drop-zone" data-action="import">
-                  <span style="font-size: 24px; display: block; margin-bottom: 8px;">📂</span>
-                  Click here or drag your <strong>.sat-test</strong> file to begin
+            
+            <!-- Step 3 -->
+            <div class="flex gap-4">
+              <div class="flex flex-col items-center">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm z-10 shrink-0">3</div>
+              </div>
+              <div class="flex-1">
+                <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">Import to Sevrony</h3>
+                <div class="drop-zone mt-4 border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer group" data-action="import" style="margin-top: 16px;">
+                  <div class="flex justify-center mb-3 text-muted-foreground group-hover:text-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                  </div>
+                  <p class="text-sm font-medium text-foreground" style="margin: 0;">Click here or drag your <strong class="text-primary">.sat-test</strong> file</p>
+                  <p class="text-xs text-muted-foreground mt-1" style="margin: 4px 0 0 0;">to begin your practice</p>
                 </div>
               </div>
             </div>
+
           </div>
         </div>
-      </section>
+      </div>
     `;
   }
 
