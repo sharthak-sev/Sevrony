@@ -1,6 +1,6 @@
 {
-  "name": "SAT Interactive Practice",
-  "short_name": "SAT Practice",
+  "name": "Sevrony",
+  "short_name": "Sevrony",
   "description": "Take timed, adaptive SAT practice tests with real question bank data. Track performance, review answers, and identify weaknesses.",
   "start_url": "./index.html",
   "display": "standalone",

@@ -337,6 +337,7 @@
         ${state.view === "review" ? renderTestReview() : ""}
         ${state.view === "dashboard" ? renderDashboard() : ""}
         ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
+        ${state.view === "backup" ? renderBackupView() : ""}
       </main>
       ${state.showSupport ? renderSupportModal() : ""}
     `;
@@ -416,7 +417,7 @@
         <button class="brand-mark" type="button" data-action="dashboard" aria-label="Open dashboard">
           <img class="brand-icon" src="logo.png" alt="SAT Logo">
           <span>
-            <strong>Interactive Practice</strong>
+            <strong>Sevrony</strong>
             <small>Local question bank · Timed tests</small>
           </span>
         </button>
@@ -425,7 +426,7 @@
           <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
           <button class="ghost-btn" type="button" data-action="config">Create New Test</button>
           <button class="ghost-btn" type="button" data-action="history">Past Tests</button>
-          <button class="primary-btn" type="button" data-action="import">Import .sat-test</button>
+          <button class="ghost-btn" type="button" data-action="backup">Data & Backups</button>
         </nav>
       </header>
     `;
@@ -615,32 +616,6 @@
       </section>
 
       <section class="panel two-column" style="margin-top: 32px;">
-        <div style="border-right: 1px solid var(--border); padding-right: 24px;">
-          <div class="panel-heading">
-            <p class="eyebrow">Data Security</p>
-            <h2>Automatic Backups</h2>
-          </div>
-          <p class="muted" style="margin-bottom:16px;">Link a backup folder to automatically save your progress after every test.</p>
-          ${state.backupHandle 
-            ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"><div class="success-dot"></div><span>Backup folder linked</span><button class="ghost-btn" data-action="unlink-backup">Unlink</button></div>
-               <button class="ghost-btn" data-action="force-backup">Sync Now</button>`
-            : `<button class="secondary-btn" data-action="link-backup">Link Backup Folder</button>`}
-          ${state.backupMessage ? `<p style="color:var(--${state.backupMessage.type === 'error' ? 'red' : 'blue'}); font-size:13px; margin-top:8px;">${state.backupMessage.text}</p>` : ''}
-        </div>
-        <div style="padding-left: 24px;">
-          <div class="panel-heading">
-            <p class="eyebrow">Data Portability</p>
-            <h2>Manual Transfer</h2>
-          </div>
-          <p class="muted" style="margin-bottom:16px;">If you can't link a folder, or want to move your progress to another device, you can manually download and restore a backup file.</p>
-          <div style="display: flex; gap: 8px;">
-            <button class="ghost-btn" data-action="download-backup">Download Backup</button>
-            <button class="secondary-btn" data-action="restore-backup">Restore File</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel two-column" style="margin-top: 32px;">
         <div>
           <div class="panel-heading">
             <p class="eyebrow">Timing</p>
@@ -680,6 +655,44 @@
         <div class="support-code-wrap" style="margin-top: 16px;">
           <span>UPI ID:</span>
           <code title="Copy UPI ID">sharthak-jaiswal@fam</code>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderBackupView() {
+    return `
+      <section class="hero-card compact-hero">
+        <div>
+          <p class="eyebrow">Data & Backups</p>
+          <h1>Manage your local data.</h1>
+          <p>Secure your test history or transfer it between devices.</p>
+        </div>
+      </section>
+
+      <section class="panel two-column" style="margin-top: 32px;">
+        <div style="border-right: 1px solid var(--border); padding-right: 24px;">
+          <div class="panel-heading">
+            <p class="eyebrow">Data Security</p>
+            <h2>Automatic Backups</h2>
+          </div>
+          <p class="muted" style="margin-bottom:16px;">Link a backup folder to automatically save your progress after every test.</p>
+          ${state.backupHandle 
+            ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"><div class="success-dot"></div><span>Backup folder linked</span><button class="ghost-btn" data-action="unlink-backup">Unlink</button></div>
+               <button class="ghost-btn" data-action="force-backup">Sync Now</button>`
+            : `<button class="secondary-btn" data-action="link-backup">Link Backup Folder</button>`}
+          ${state.backupMessage ? `<p style="color:var(--${state.backupMessage.type === 'error' ? 'red' : 'blue'}); font-size:13px; margin-top:8px;">${state.backupMessage.text}</p>` : ''}
+        </div>
+        <div style="padding-left: 24px;">
+          <div class="panel-heading">
+            <p class="eyebrow">Data Portability</p>
+            <h2>Manual Transfer</h2>
+          </div>
+          <p class="muted" style="margin-bottom:16px;">If you can't link a folder, or want to move your progress to another device, you can manually download and restore a backup file.</p>
+          <div style="display: flex; gap: 8px;">
+            <button class="ghost-btn" data-action="download-backup">Download Backup</button>
+            <button class="secondary-btn" data-action="restore-backup">Restore File</button>
+          </div>
         </div>
       </section>
     `;
@@ -1308,6 +1321,10 @@
         if (e.target.name === "subject") {
           state.config.domainCodes = getAvailableDomains(state.config.subject).map(d => d.code);
           renderHome();
+        } else {
+          const newCount = countFilteredQuestions(state.config);
+          const countEl = form.querySelector('.start-summary strong');
+          if (countEl) countEl.textContent = newCount;
         }
       });
     }
@@ -1334,6 +1351,7 @@
 
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
+    if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
     if (action === "open-support") { state.showSupport = true; renderHome(); }
     if (action === "close-support") { state.showSupport = false; renderHome(); }
     if (action === "config") { state.view = "config"; state.notice = null; ensureConfigDefaults(); renderHome(); }
@@ -3184,9 +3202,8 @@
   function showNotice(text, type) { state.notice = { text, type }; }
 
   function showBackupMsg(text, type = "success") {
-    state.backupMessage = { text, type };
-    if (state.backupMsgTimer) clearTimeout(state.backupMsgTimer);
-    state.backupMsgTimer = setTimeout(() => { state.backupMessage = null; if (state.view === "dashboard") renderHome(); }, 10000);
+    showNotice(text, type);
+    renderHome();
   }
   function findDomainLabel(subject, code) { return (DOMAIN_FALLBACKS[subject] || []).find(d => d.code === code)?.label || ""; }
   function hasAnswer(value) { return String(value || "").trim().length > 0; }
