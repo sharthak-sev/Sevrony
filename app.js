@@ -552,7 +552,7 @@
           </span>
         </button>
         <nav class="top-actions">
-          <button class="ghost-btn support-btn" type="button" data-action="open-support">❤️ Support the author</button>
+          <button class="ghost-btn support-btn" type="button" data-action="open-support" style="display: inline-flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> Support the author</button>
           <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
           <button class="ghost-btn" type="button" data-action="config">Create New Test</button>
           <button class="ghost-btn" type="button" data-action="history">Past Tests</button>
@@ -572,7 +572,7 @@
       <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:16px;">
         <div>
           <p class="eyebrow" style="margin:0; font-size:12px;">Support this project</p>
-          <h2 style="margin:4px 0 0; font-size:1.25rem;">Support the author ❤️</h2>
+          <h2 style="margin:4px 0 0; font-size:1.25rem; display: flex; align-items: center; gap: 8px;">Support the author <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></h2>
         </div>
         <button class="ghost-btn cancel-btn" type="button" style="padding: 4px 8px; border:none; height:32px; min-height:32px;">✕</button>
       </div>
@@ -693,11 +693,11 @@
           <div style="display: flex; gap: 32px; flex-wrap: wrap;">
             <div>
               <p class="eyebrow">Current Streak</p>
-              <h2 style="font-size: 28px; color: var(--amber); margin-top: 4px;">🔥 ${data.current} Day${data.current === 1 ? '' : 's'}</h2>
+              <h2 style="font-size: 28px; color: var(--amber); margin-top: 4px; display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> ${data.current} Day${data.current === 1 ? '' : 's'}</h2>
             </div>
             <div>
               <p class="eyebrow">Longest Streak</p>
-              <h2 style="font-size: 28px; color: var(--bb-blue); margin-top: 4px;">👑 ${data.longest} Day${data.longest === 1 ? '' : 's'}</h2>
+              <h2 style="font-size: 28px; color: var(--bb-blue); margin-top: 4px; display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg> ${data.longest} Day${data.longest === 1 ? '' : 's'}</h2>
             </div>
           </div>
           <div class="streak-week" style="display: flex; gap: 12px;">
@@ -794,7 +794,7 @@
       <section class="panel support-panel" style="margin-top: 32px;">
         <div class="panel-heading">
           <p class="eyebrow">Support this project</p>
-          <h2>Support the author ❤️</h2>
+          <h2 style="display: flex; align-items: center; gap: 8px;">Support the author <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></h2>
         </div>
         <p class="muted">If this tool helped your SAT prep, you can support its development!</p>
         <div style="margin-top: 16px;">
@@ -1159,7 +1159,9 @@
             <strong>${escapeHtml(question.domain)} · ${escapeHtml(response.moduleTitle || SUBJECTS[question.subject] || "")}</strong>
           </div>
           <div class="review-meta">
-            <button type="button" class="ghost-btn icon-btn report-btn" data-action="report-question" data-qid="${escapeHtml(question.id)}" title="Report issue with question">🚩</button>
+            <button type="button" class="ghost-btn icon-btn report-btn" data-action="report-question" data-qid="${escapeHtml(question.id)}" title="Report issue with question">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+            </button>
             <span class="time-pill">${formatDuration(response.timeSpentSeconds || 0)}</span>
             ${renderReviewStatus(response)}
           </div>
