@@ -350,7 +350,7 @@
       <section class="marketing-hero">
         <div class="marketing-content">
           <img src="logo.png" alt="Logo" class="marketing-logo" style="width: 120px; height: auto; border-radius: 20px; margin-bottom: 24px;">
-          <h1 style="font-size: 3rem; margin-bottom: 16px; letter-spacing: -0.02em;">Master the SAT, Locally.</h1>
+          <h1 style="font-size: 3rem; margin-bottom: 16px; letter-spacing: -0.02em;">Sevrony: Master the SAT, Locally.</h1>
           <p style="font-size: 1.25rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto 32px; line-height: 1.6;">
             The authentic Bluebook practice experience. Completely offline, zero accounts, zero costs.
           </p>
