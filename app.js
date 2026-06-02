@@ -408,7 +408,7 @@
         <!-- Hero Section -->
         <div class="text-center max-w-4xl mx-auto space-y-8 opacity-0 animate-fade-in-up">
           <div class="inline-flex items-center justify-center p-4 border border-border/60 bg-muted/20 rounded-2xl mb-6 shadow-sm">
-            <img src="logo.png" alt="Sevrony Logo" class="w-14 h-14 object-contain" />
+            <img src="logo.svg" alt="Sevrony Logo" class="w-14 h-14 object-contain" />
           </div>
           
           <h1 class="text-5xl md:text-6xl font-bold tracking-tighter text-foreground leading-tight" style="margin: 0; padding: 0;">
@@ -546,7 +546,7 @@
     return `
       <header class="topbar">
         <button class="brand-mark" type="button" data-action="dashboard" aria-label="Open dashboard">
-          <img class="brand-icon" src="logo.png" alt="SAT Logo">
+          <img class="brand-icon" src="logo.svg" alt="Sevrony Logo">
           <span>
             <strong>Sevrony</strong>
             <small>Local question bank · Timed tests</small>

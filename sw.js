@@ -5,7 +5,7 @@ const ASSETS_TO_CACHE = [
   "./styles.css",
   "./app.js",
   "./db.js",
-  "./logo.png"
+  "./logo.svg"
 ];
 
 // Install Event
