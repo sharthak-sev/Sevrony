@@ -4,6 +4,33 @@
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
+  const TELEMETRY_CONSENT_KEY = "sevrony.telemetryConsent";
+  const TELEMETRY_ACCEPTED = "accepted";
+  const TELEMETRY_DECLINED = "declined";
+  const POSTHOG_TOKEN = "phc_sChR2EdGVdwA9yins4d7MeNqiHUqEiicXcTtM3DZ7cPn";
+  const POSTHOG_API_HOST = "https://us.i.posthog.com";
+  const SENTRY_LOADER_URL = "https://js.sentry-cdn.com/610da841a6875eae790cbc1fd6ea96b1.min.js";
+  const COLLEGE_BOARD_BASE_URL = "https://mypractice.collegeboard.org/";
+
+  const SAT_SANITIZE_CONFIG = {
+    ALLOWED_TAGS: [
+      "a", "abbr", "b", "blockquote", "br", "caption", "circle", "code", "col", "colgroup", "dd", "del", "div", "dl", "dt", "ellipse", "em",
+      "figcaption", "figure", "g", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "li", "line", "math", "menclose",
+      "mfenced", "mfrac", "mi", "mn", "mo", "mover", "mpadded", "mphantom", "mprescripts", "mroot", "mrow", "mspace",
+      "msqrt", "mstyle", "msub", "msubsup", "msup", "mtable", "mtd", "mtext", "mtr", "munder", "munderover", "none",
+      "ol", "p", "path", "polygon", "polyline", "pre", "rect", "s", "small", "span", "strong", "sub", "sup", "svg",
+      "table", "tbody", "td", "text", "tfoot", "th", "thead", "tr", "tspan", "u", "ul"
+    ],
+    ALLOWED_ATTR: [
+      "alt", "aria-describedby", "aria-label", "aria-labelledby", "class", "close", "colspan", "cx", "cy", "d", "display",
+      "fill", "height", "href", "id", "open", "points", "r", "role", "rowspan", "rx", "ry", "separators", "src", "stroke",
+      "stroke-linecap", "stroke-linejoin", "stroke-width", "title", "transform", "type", "viewBox", "viewbox", "width", "x", "x1",
+      "x2", "xmlns", "y", "y1", "y2"
+    ],
+    ALLOW_DATA_ATTR: false,
+    FORBID_ATTR: ["style", "srcset", "formaction", "xlink:href", "target", "download", "ping", "autofocus"],
+    FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "meta", "style", "form", "input", "button", "textarea", "select", "option", "video", "audio", "source", "canvas"]
+  };
 
   const SUBJECTS = {
     math: "Math",
@@ -68,37 +95,17 @@
 
   const KEYBOARD_SHORTCUTS = [
     { action: "Open/Close Keyboard Shortcuts", shortcut: "F1" },
-    { action: "Navigate Exam Regions (Forward)", shortcut: "F6" },
-    { action: "Navigate Exam Regions (back)", shortcut: "Shift + F6" },
-    { action: "Zoom In", shortcut: "Control + Plus (+)" },
-    { action: "Zoom Out", shortcut: "Control + Minus (-)" },
-    { action: "Zoom back to 100%", shortcut: "Control + 0" },
-    { action: "Back", shortcut: "Control + Alt +B" },
-    { action: "Next", shortcut: "Control + Alt + X" },
-    { action: "Open/Cose Question Menu", shortcut: "Control + Alt + G" },
-    { action: "Help", shortcut: "Control + Alt + H" },
-    { action: "Open/Close Directions", shortcut: "Control + Alt + Shift + D" },
-    { action: "Open/Close Line Reader", shortcut: "Control + L" },
-    { action: "Hide/Show Timer or Close 5-Minute Message", shortcut: "Control + Alt + T" },
-    { action: "Pause Timer (with certain accommodations only)", shortcut: "Control + Alt + P" },
-    { action: "Mark for Review", shortcut: "Control + Alt + V" },
-    { action: "Highlights & Notes", shortcut: "Control + H" },
-    { action: "Open/Close Calculator", shortcut: "Control + Alt + C" },
-    { action: "Open/Close Reference Sheet", shortcut: "Control + Alt + R" },
-    { action: "Select/Deselect Option A", shortcut: "Control + Shift + 1" },
-    { action: "Select/Deselect Option B", shortcut: "Control + Shift + 2" },
-    { action: "Select/Deselect Option C", shortcut: "Control + Shift + 3" },
-    { action: "Select/Deselect Option D", shortcut: "Control + Shift + 4" },
-    { action: "Select/Deselect Option E", shortcut: "Control + Shift + 5" },
-    { action: "Option Eliminator Mode", shortcut: "Control + Alt + O" },
-    { action: "Eliminate Option A", shortcut: "Control + Alt + 1" },
-    { action: "Eliminate Option B", shortcut: "Control + Alt + 2" },
-    { action: "Eliminate Option C", shortcut: "Control + Alt + 3" },
-    { action: "Eliminate Option D", shortcut: "Control + Alt + 4" },
-    { action: "Eliminate Option E", shortcut: "Control + Alt + 5" },
+    { action: "Close overlays", shortcut: "Escape" },
+    { action: "Next / Submit current question", shortcut: "Enter, ArrowRight, or Control + Alt + X" },
+    { action: "Back one question in full tests", shortcut: "ArrowLeft or Control + Alt + B" },
     { action: "Mark for Review", shortcut: "Alt + P" },
-    { action: "Highlights & Notes", shortcut: "Control" },
-    { action: "Open/Close Calculator", shortcut: "Alt + C" }
+    { action: "Mark for Review", shortcut: "M or Control + Alt + V" },
+    { action: "Open/Close Calculator", shortcut: "Alt + C or Control + Alt + C" },
+    { action: "Open/Close Reference Sheet", shortcut: "Control + Alt + R" },
+    { action: "Hide/Show Timer", shortcut: "Alt + T or Control + Alt + T" },
+    { action: "Select option A-D", shortcut: "A, B, C, D" },
+    { action: "Select option A-D", shortcut: "Control + Shift + 1-4" },
+    { action: "Cross out option A-D", shortcut: "Control + Alt + 1-4" }
   ];
 
   /* ===========================================================
@@ -120,6 +127,8 @@
     selectedMistakeDomains: null,
     selectedMistakeTypes: null,
     notice: null,
+    telemetryConsent: readTelemetryConsent(),
+    telemetryLoading: null,
     config: {
       subject: "math",
       domainCodes: [],
@@ -181,6 +190,7 @@
     window.scrollTo(0, 0);
 
     initPersistentDesmos();
+    initTelemetryConsent();
     fileInput.addEventListener("change", handleFileImport);
     document.addEventListener("keydown", handleKeyboard);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -315,6 +325,169 @@
     document.head.appendChild(script);
   }
 
+  function initTelemetryConsent() {
+    if (isTelemetryAccepted()) {
+      enableTelemetry();
+    }
+    renderTelemetryBanner();
+  }
+
+  function readTelemetryConsent() {
+    try {
+      const value = localStorage.getItem(TELEMETRY_CONSENT_KEY);
+      return value === TELEMETRY_ACCEPTED || value === TELEMETRY_DECLINED ? value : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function isTelemetryAccepted() {
+    return state.telemetryConsent === TELEMETRY_ACCEPTED;
+  }
+
+  function setTelemetryConsent(value) {
+    if (value !== TELEMETRY_ACCEPTED && value !== TELEMETRY_DECLINED) return;
+    state.telemetryConsent = value;
+    try {
+      localStorage.setItem(TELEMETRY_CONSENT_KEY, value);
+    } catch (_) { /* ignore storage failures */ }
+
+    if (value === TELEMETRY_ACCEPTED) {
+      enableTelemetry();
+    } else if (window.posthog?.opt_out_capturing) {
+      window.posthog.opt_out_capturing();
+    }
+    renderTelemetryBanner();
+  }
+
+  function resetTelemetryConsent() {
+    state.telemetryConsent = null;
+    try {
+      localStorage.removeItem(TELEMETRY_CONSENT_KEY);
+    } catch (_) { /* ignore storage failures */ }
+    if (window.posthog?.opt_out_capturing) {
+      window.posthog.opt_out_capturing();
+    }
+    renderTelemetryBanner();
+  }
+
+  function renderTelemetryBanner() {
+    const existing = document.querySelector(".telemetry-banner");
+    if (existing) existing.remove();
+    if (state.telemetryConsent) return;
+
+    const banner = document.createElement("section");
+    banner.className = "telemetry-banner";
+    banner.setAttribute("aria-label", "Telemetry consent");
+    banner.innerHTML = `
+      <div>
+        <strong>Privacy choice</strong>
+        <p>Sevrony stores study data locally. With your consent, the hosted app loads PostHog and Sentry for anonymous usage stats and issue reports.</p>
+      </div>
+      <div class="telemetry-actions">
+        <button type="button" class="ghost-btn" data-telemetry-action="details">Details</button>
+        <button type="button" class="ghost-btn" data-telemetry-action="decline">Decline</button>
+        <button type="button" class="primary-btn" data-telemetry-action="accept">Accept</button>
+      </div>
+    `;
+    banner.querySelector("[data-telemetry-action='accept']").addEventListener("click", () => {
+      setTelemetryConsent(TELEMETRY_ACCEPTED);
+      captureTelemetry("Telemetry Consent Accepted");
+    });
+    banner.querySelector("[data-telemetry-action='decline']").addEventListener("click", () => {
+      setTelemetryConsent(TELEMETRY_DECLINED);
+    });
+    banner.querySelector("[data-telemetry-action='details']").addEventListener("click", () => {
+      state.view = "privacy";
+      state.notice = null;
+      renderHome();
+    });
+    document.body.appendChild(banner);
+  }
+
+  function enableTelemetry() {
+    if (!isTelemetryAccepted()) return Promise.resolve(false);
+    if (state.telemetryLoading) return state.telemetryLoading;
+    state.telemetryLoading = Promise.all([loadPostHog(), loadSentry()])
+      .then(() => true)
+      .catch(err => {
+        console.warn("Telemetry failed to load", err);
+        return false;
+      });
+    return state.telemetryLoading;
+  }
+
+  function loadPostHog() {
+    if (window.posthog?.__loaded) return Promise.resolve(true);
+
+    return new Promise(resolve => {
+      if (!window.posthog?._i) {
+        !function(t,e){var o,n,p,r;e.__SV||(window.posthog&&window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="Di ji init en nn Ar tn an Yi capture calculateEventProperties dn register register_once register_for_session unregister unregister_for_session gn getFeatureFlag getFeatureFlagPayload getFeatureFlagResult isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync mn identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty fn hn createPersonProfile setInternalOrTestUser pn Ji opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing un debug $r vn getPageViewId captureTraceFeedback captureTraceMetric Zi".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+      }
+
+      window.posthog.init(POSTHOG_TOKEN, {
+        api_host: POSTHOG_API_HOST,
+        defaults: "2026-01-30",
+        person_profiles: "identified_only",
+        autocapture: false,
+        capture_pageview: false,
+        capture_pageleave: false,
+        capture_dead_clicks: false,
+        disable_session_recording: true,
+        disable_surveys: true,
+        enable_heatmaps: false,
+        mask_all_text: true,
+        mask_all_element_attributes: true,
+        advanced_disable_feature_flags: true,
+        property_denylist: ["name", "filename", "answer", "correctAnswers", "question", "prompt", "stimulus", "rationale"],
+        secure_cookie: location.protocol === "https:",
+        loaded: () => resolve(true)
+      });
+      setTimeout(() => resolve(Boolean(window.posthog)), 5000);
+    });
+  }
+
+  function loadSentry() {
+    if (window.Sentry) return Promise.resolve(true);
+    return loadScriptOnce("sentry-loader", SENTRY_LOADER_URL);
+  }
+
+  function loadScriptOnce(id, src) {
+    return new Promise(resolve => {
+      const existing = document.getElementById(id);
+      if (existing) {
+        if (existing.dataset.loaded === "true") {
+          resolve(true);
+          return;
+        }
+        if (existing.dataset.failed === "true") {
+          resolve(false);
+          return;
+        }
+        existing.addEventListener("load", () => resolve(true), { once: true });
+        existing.addEventListener("error", () => resolve(false), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      script.crossOrigin = "anonymous";
+      script.onload = () => { script.dataset.loaded = "true"; resolve(true); };
+      script.onerror = () => { script.dataset.failed = "true"; resolve(false); };
+      document.head.appendChild(script);
+    });
+  }
+
+  function captureTelemetry(eventName, properties = {}) {
+    if (!isTelemetryAccepted()) return;
+    enableTelemetry().then(() => {
+      if (window.posthog?.capture) {
+        window.posthog.capture(eventName, properties);
+      }
+    });
+  }
+
   async function refreshLocalData() {
     const [banks, questions, sessions, responses] = await Promise.all([
       DB.getAll("questionBanks"),
@@ -349,7 +522,7 @@
 
     if (!document.startViewTransition || !isRouteChanging || _currentRoute === null) {
       _currentRoute = newRoute;
-      if (isRouteChanging && window.posthog) window.posthog.capture('$pageview', { view: newRoute });
+      if (isRouteChanging) captureTelemetry("$pageview", { view: newRoute });
       doRender();
       if (isRouteChanging) {
         window.scrollTo(0, 0);
@@ -365,7 +538,7 @@
       type = "drill";
     }
     _currentRoute = newRoute;
-    if (window.posthog) window.posthog.capture('$pageview', { view: newRoute });
+    captureTelemetry("$pageview", { view: newRoute });
     document.documentElement.dataset.transition = type;
     const t = document.startViewTransition(() => {
       doRender();
@@ -424,6 +597,11 @@
   }
 
   function renderPrivacy() {
+    const consentLabel = state.telemetryConsent === TELEMETRY_ACCEPTED
+      ? "Accepted"
+      : state.telemetryConsent === TELEMETRY_DECLINED
+        ? "Declined"
+        : "Not chosen";
     return `
       <main class="page-container" style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
         <div style="margin-bottom: 32px; display: flex; align-items: center; gap: 16px;">
@@ -440,30 +618,37 @@
           <div>
             <h2 style="font-size: 1.5rem; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--green);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              Local-First Philosophy
+              Local Study Data
             </h2>
             <p style="line-height: 1.6; color: var(--muted-foreground);">
-              Sevrony is designed with privacy and performance as its core principles. 
-              <strong>All your question data, responses, and session history remain strictly local on your device.</strong>
-              We use IndexedDB (your browser's local storage database) to save your progress. This means your study data never leaves your computer or phone.
+              Sevrony stores imported question banks, answers, timings, backups, and test history in your browser using IndexedDB.
+              The app has no backend database for your study data. Manual and automatic backups are files you create or folders you choose.
             </p>
           </div>
 
           <div>
             <h2 style="font-size: 1.5rem; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue);"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
-              Anonymous Telemetry
+              Optional Telemetry
             </h2>
             <p style="line-height: 1.6; color: var(--muted-foreground);">
-              To help us understand how the app is being used and to improve its features, we collect basic, anonymous telemetry using PostHog.
-              This includes general usage statistics like page views, feature interactions (e.g., clicking "Start Test"), and error reports.
+              Telemetry is off until you accept it. If accepted, the hosted app loads PostHog for basic anonymous usage events and Sentry for error/question reports.
+              Autocapture and session recording are disabled, and events avoid file names, answers, question text, and exact scores.
             </p>
             <ul style="line-height: 1.6; color: var(--muted-foreground); margin-top: 8px; padding-left: 20px;">
-              <li>We do <strong>not</strong> track your specific answers to test questions.</li>
-              <li>We do <strong>not</strong> collect personally identifiable information (PII) such as your name, email, or exact location.</li>
-              <li>The data collected is aggregated and used solely for improving the Sevrony experience.</li>
+              <li>Question reports send the question ID and a debug URL only after consent.</li>
+              <li>Declining telemetry keeps the practice app usable.</li>
+              <li>Your current telemetry choice is <strong>${escapeHtml(consentLabel)}</strong>.</li>
             </ul>
+            <button type="button" class="ghost-btn" data-action="reset-telemetry" style="margin-top: 12px;">Reset Telemetry Choice</button>
           </div>
+
+          <div>
+            <h2 style="font-size: 1.5rem; margin-top: 0; margin-bottom: 12px;">Remote Assets</h2>
+            <p style="line-height: 1.6; color: var(--muted-foreground);">
+              Some hosted-page features still use third-party assets: Google Fonts, KaTeX from jsDelivr, Tailwind Play CDN, Desmos calculator, and Ko-fi images.
+              Once the core files are cached, local question data remains available, but those online-only assets may not load offline or may be blocked by privacy tools.
+            </p>
           </div>
         </div>
       </main>
@@ -921,7 +1106,7 @@
             ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"><div class="success-dot"></div><span>Backup folder linked</span><button class="ghost-btn" data-action="unlink-backup">Unlink</button></div>
                <button class="ghost-btn" data-action="force-backup">Sync Now</button>`
             : `<button class="secondary-btn" data-action="link-backup">Link Backup Folder</button>`}
-          ${state.backupMessage ? `<p style="color:var(--${state.backupMessage.type === 'error' ? 'red' : 'blue'}); font-size:13px; margin-top:8px;">${state.backupMessage.text}</p>` : ''}
+          ${state.backupMessage ? `<p style="color:var(--${state.backupMessage.type === 'error' ? 'red' : 'bb-blue'}); font-size:13px; margin-top:8px;">${escapeHtml(state.backupMessage.text)}</p>` : ''}
         </div>
         <div style="padding-left: 24px;">
           <div class="panel-heading">
@@ -1609,17 +1794,23 @@
 
     if (action === "report-question") {
       const qid = event.currentTarget.dataset.qid;
-      if (typeof Sentry !== "undefined") {
-        const debugUrl = `${window.location.origin}${window.location.pathname}?debug=${qid}`;
-        Sentry.captureMessage(`Flagged: ${qid}\nDebug URL: ${debugUrl}`, {
-          level: "warning",
-          tags: { question_id: qid },
-          extra: { debug_url: debugUrl },
-          fingerprint: ['user-flagged', qid]
-        });
+      if (isTelemetryAccepted()) {
+        await sendQuestionReport(qid);
+        return;
       }
-      showNotice("Question flagged for review. Thank you!", "info");
-      renderHome();
+      const debugUrl = makeDebugUrl(qid);
+      showConfirmModal(
+        "Sending a report loads Sentry and sends this question ID plus a local debug URL. If you prefer to keep telemetry off, cancel and use the debug URL manually.",
+        "Accept & Send",
+        async () => {
+          setTelemetryConsent(TELEMETRY_ACCEPTED);
+          await sendQuestionReport(qid);
+        },
+        {
+          cancelText: "Keep Local",
+          onCancel: () => showManualReportFallback(debugUrl)
+        }
+      );
       return;
     }
 
@@ -1627,6 +1818,11 @@
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
     if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
     if (action === "privacy") { state.view = "privacy"; state.notice = null; renderHome(); }
+    if (action === "reset-telemetry") {
+      resetTelemetryConsent();
+      showNotice("Telemetry preference reset. Choose again in the banner below.", "info");
+      renderHome();
+    }
     if (action === "open-support") {
       showSupportModal();
     }
@@ -1722,7 +1918,7 @@
         renderHome();
         return;
       }
-      if (window.posthog) window.posthog.capture("Started Retry Practice", { count: questionsToPractice.length });
+      captureTelemetry("Started Retry Practice", { count: questionsToPractice.length });
       startCustomPractice({ subject: "both", limit: questionsToPractice.length, isRetry: true }, questionsToPractice);
     }
     if (action === "review-session") {
@@ -1789,6 +1985,36 @@
     if (action === "force-backup") { await syncBackup(true); }
     if (action === "download-backup") { await downloadManualBackup(); }
     if (action === "restore-backup") { await restoreBackup(); }
+  }
+
+  function makeDebugUrl(qid) {
+    return `${window.location.origin}${window.location.pathname}?debug=${encodeURIComponent(qid)}`;
+  }
+
+  async function sendQuestionReport(qid) {
+    const debugUrl = makeDebugUrl(qid);
+    await enableTelemetry();
+    if (typeof Sentry !== "undefined") {
+      Sentry.captureMessage(`Flagged question ${qid}`, {
+        level: "warning",
+        tags: { question_id: qid },
+        extra: { debug_url: debugUrl },
+        fingerprint: ["user-flagged", qid]
+      });
+      showNotice("Question flagged for review. Thank you!", "info");
+      renderHome();
+      return;
+    }
+    await showManualReportFallback(debugUrl);
+  }
+
+  async function showManualReportFallback(debugUrl) {
+    const copied = await copyText(debugUrl);
+    showNotice(copied
+      ? "Telemetry stayed off. Debug URL copied so you can include it in a manual report."
+      : `Telemetry stayed off. Manual debug URL: ${debugUrl}`,
+      "info");
+    renderHome();
   }
 
   /* ===========================================================
@@ -1956,7 +2182,7 @@
       ensureConfigDefaults();
       state.view = "dashboard";
       showNotice(`Imported ${result.questions.length} questions from ${file.name}.`, "success");
-      if (window.posthog) window.posthog.capture("Imported Question Bank", { count: result.questions.length, name: file.name });
+      captureTelemetry("Imported Question Bank", { count: result.questions.length });
       renderHome();
     } catch (err) {
       showNotice(err.message || String(err), "error");
@@ -2084,7 +2310,7 @@
   function startPractice(config) {
     state.config = config;
     if (!state.questions.length) { showNotice("Import a .sat-test file first.", "error"); renderHome(); return; }
-    if (window.posthog) window.posthog.capture("Started Practice", { mode: config.subject === "both" ? "full" : "custom", subject: config.subject });
+    captureTelemetry("Started Practice", { mode: config.subject === "both" ? "full" : "custom", subject: config.subject });
     if (config.subject === "both") { startFullTest(config); return; }
     startCustomPractice(config);
   }
@@ -2797,7 +3023,7 @@
     if (persistedResponses.length) await DB.putMany("responses", persistedResponses);
     clearActiveTestPersistence();
     
-    if (window.posthog) window.posthog.capture("Completed Practice", { mode: test.mode, score: session.score?.total || null });
+    captureTelemetry("Completed Practice", { mode: test.mode });
 
     state.activeTest = null;
     state.lastResult = { session, responses: persistedResponses };
@@ -3276,7 +3502,7 @@
      HTML SANITIZATION & MODAL
      =========================================================== */
 
-  function showConfirmModal(message, confirmText, onConfirm) {
+  function showConfirmModal(message, confirmText, onConfirm, options = {}) {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
     const modal = document.createElement("div");
@@ -3285,7 +3511,7 @@
     modal.innerHTML = `
       <p class="modal-message">${escapeHtml(message)}</p>
       <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-        <button class="ghost-btn cancel-btn">Cancel</button>
+        <button class="ghost-btn cancel-btn">${escapeHtml(options.cancelText || "Cancel")}</button>
         <button class="danger-btn confirm-btn">${escapeHtml(confirmText)}</button>
       </div>
     `;
@@ -3304,7 +3530,10 @@
       setTimeout(() => overlay.remove(), 250);
     };
 
-    modal.querySelector(".cancel-btn").onclick = close;
+    modal.querySelector(".cancel-btn").onclick = () => {
+      close();
+      if (typeof options.onCancel === "function") options.onCancel();
+    };
     modal.querySelector(".confirm-btn").onclick = () => {
       close();
       onConfirm();
@@ -3312,17 +3541,23 @@
   }
 
   function sanitizeHtml(value) {
-    const tpl = document.createElement("template");
-    tpl.innerHTML = String(value || "");
+    if (!window.DOMPurify?.sanitize) {
+      return escapeHtml(stripHtml(value));
+    }
 
-    for (const el of tpl.content.querySelectorAll("script,iframe,object,embed,link,meta")) el.remove();
+    const tpl = document.createElement("template");
+    tpl.innerHTML = window.DOMPurify.sanitize(String(value || ""), SAT_SANITIZE_CONFIG);
+
     for (const el of tpl.content.querySelectorAll("*")) {
       for (const attr of [...el.attributes]) {
         const name = attr.name.toLowerCase();
         const val = String(attr.value || "");
-        if (name.startsWith("on") || /javascript:/i.test(val)) { el.removeAttribute(attr.name); continue; }
-        if ((name === "src" || name === "href") && isRelativeUrl(val)) {
-          el.setAttribute(attr.name, new URL(val, "https://mypractice.collegeboard.org/").href);
+        if (name.startsWith("on") || name === "style" || /javascript:/i.test(val)) {
+          el.removeAttribute(attr.name);
+          continue;
+        }
+        if ((name === "src" || name === "href") && !sanitizeUrlAttribute(el, attr.name, val)) {
+          el.removeAttribute(attr.name);
         }
       }
     }
@@ -3330,6 +3565,26 @@
     removeAccessibilityDescriptions(tpl.content);
     normalizeMathMarkup(tpl.content);
     return tpl.innerHTML;
+  }
+
+  function sanitizeUrlAttribute(el, attrName, value) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return false;
+    if (attrName.toLowerCase() === "href" && trimmed.startsWith("#")) {
+      el.setAttribute(attrName, trimmed);
+      return true;
+    }
+    if (attrName.toLowerCase() === "src" && /^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(trimmed)) {
+      return true;
+    }
+    try {
+      const url = new URL(trimmed, COLLEGE_BOARD_BASE_URL);
+      if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+      el.setAttribute(attrName, url.href);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   function removeAccessibilityDescriptions(root) {
@@ -3617,8 +3872,18 @@
   function showNotice(text, type) { state.notice = { text, type }; }
 
   function showBackupMsg(text, type = "success") {
+    state.backupMessage = { text, type };
     showNotice(text, type);
     renderHome();
+  }
+  async function copyText(text) {
+    try {
+      if (!navigator.clipboard?.writeText) return false;
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
   function findDomainLabel(subject, code) { return (DOMAIN_FALLBACKS[subject] || []).find(d => d.code === code)?.label || ""; }
   function hasAnswer(value) { return String(value || "").trim().length > 0; }

@@ -1,10 +1,11 @@
-const CACHE_NAME = "sat-practice-cache-v1";
+const CACHE_NAME = "sat-practice-cache-v2";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./db.js",
+  "./vendor/dompurify.min.js",
   "./logo.svg"
 ];
 

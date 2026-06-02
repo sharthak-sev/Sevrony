@@ -201,6 +201,44 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
   padding: 4px;
 }
 
+/* ---- Telemetry Consent ---- */
+.telemetry-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  width: min(920px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  padding: 16px;
+  backdrop-filter: blur(14px);
+}
+
+.telemetry-banner strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.telemetry-banner p {
+  color: var(--ink-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.telemetry-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
 /* ---- Eyebrow Label ---- */
 .eyebrow {
   color: var(--bb-blue);
@@ -1622,6 +1660,23 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-width: 560px) {
+  .telemetry-banner {
+    align-items: stretch;
+    bottom: 12px;
+    flex-direction: column;
+    width: calc(100vw - 24px);
+  }
+
+  .telemetry-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .telemetry-actions .ghost-btn,
+  .telemetry-actions .primary-btn {
+    padding-inline: 10px;
+  }
+
   .hero-card { padding: 24px; }
   .hero-card h1 { font-size: 28px; }
   .metric-card strong { font-size: 28px; }
@@ -2178,4 +2233,3 @@ html[data-transition="drill"]::view-transition-new(root) {
 .mistake-domain-card:active { transform: scale(0.98); }
 .mistake-domain-card.selected { border-color: var(--bb-blue); background: rgba(37,99,235,0.05); }
 .mistake-domain-card input { opacity: 0; position: absolute; pointer-events: none; }
-
