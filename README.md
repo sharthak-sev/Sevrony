@@ -86,11 +86,7 @@ If you found this tool helpful for your SAT prep, consider supporting the author
 
 **UPI ID**: `sharthak-jaiswal@fam`
 
-<br>
-
-<a href="https://ko-fi.com/sevrony" target="_blank">
-  <img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy Me a Coffee at ko-fi.com" height="50" />
-</a>
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/sevrony)
 
 ## License
 
