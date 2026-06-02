@@ -175,6 +175,11 @@
   }
 
   async function init() {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+
     initPersistentDesmos();
     fileInput.addEventListener("change", handleFileImport);
     document.addEventListener("keydown", handleKeyboard);
