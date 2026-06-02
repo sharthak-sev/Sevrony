@@ -1,4 +1,6 @@
-# SAT Interactive Practice App (Sub-App)
+# Sevrony
+
+> An SAT Interactive Practice App
 
 > **Disclaimer**: This project is a personal educational tool and is **not affiliated with, endorsed by, or associated with College Board**. SAT® is a trademark registered by the College Board, which is not affiliated with, and does not endorse, this product. This tool does not distribute, contain, or host any College Board content. It is designed solely to provide an offline practice environment using the user's own authenticated data.
 
@@ -10,7 +12,7 @@ This is a standalone, offline, frontend-only practice environment designed to si
 
 ## Key Features
 
-- **PWA Ready**: Install the app directly to your device (Windows, macOS, iOS, Android) for a native, fullscreen experience. Once loaded, it works completely offline via Service Workers.
+- **PWA Ready**: Install the app directly to your device (Windows, macOS, iOS, Android) for a native, fullscreen experience. Once loaded and cached, it can work completely offline via Service Workers.
 - **Gamification & Streaks**: Stay motivated by tracking your daily practice streaks and visualizing your activity on the dashboard.
 - **In-App Issue Reporting**: Flag broken or poorly formatted questions directly from the test review screen to help improve the question bank. *(Note: Please disable ad-blockers like uBlock Origin or Brave Shields when using the app, as they often block the reporting telemetry).*
 - **Adaptive Testing**: Simulate the official digital SAT with adaptive routing based on your performance in Module 1.
@@ -19,7 +21,7 @@ This is a standalone, offline, frontend-only practice environment designed to si
 ## Workflow
 
 1. Use the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) extension to save questions from your College Board account and click **Export as Interactive Test** to save a `.sat-test` file.
-2. Open this app. [Sevrony](https://sharthak-sev.github.io/Sevrony/)
+2. Open this app: [Sevrony](https://sharthak-sev.github.io/Sevrony/)
 3. Click **Import .sat-test** and load the exported file.
 4. Use **Create New Test** to start either:
    - **Custom Practice**: Single-subject practice focusing on specific areas with a per-question count-up timer.
@@ -37,7 +39,7 @@ python3 -m http.server 4173
 
 Then visit `http://localhost:4173`.
 
-No build step, package install, accounts, or backend servers are required. **Everything is strictly offline.**
+No build step, package install, accounts, or backend servers are required. **Everything is totally offline if the repository is downloaded and run locally on your system.**
 
 ## Cross-Platform Advantage
 

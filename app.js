@@ -394,11 +394,57 @@
           ${state.view === "dashboard" ? renderDashboard() : ""}
           ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
           ${state.view === "backup" ? renderBackupView() : ""}
+          ${state.view === "privacy" ? renderPrivacy() : ""}
         </main>
       `;
       bindHomeEvents();
       renderMath(app);
     });
+  }
+
+  function renderPrivacy() {
+    return `
+      <main class="page-container" style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
+        <div style="margin-bottom: 32px;">
+          <h1 style="font-size: 2.5rem; margin-bottom: 8px;">Privacy Policy</h1>
+          <p class="eyebrow" style="margin: 0; color: var(--muted-foreground);">Last updated: June 2026</p>
+        </div>
+        
+        <div class="panel" style="padding: 32px; display: flex; flex-direction: column; gap: 24px;">
+          <div>
+            <h2 style="font-size: 1.5rem; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--green);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Local-First Philosophy
+            </h2>
+            <p style="line-height: 1.6; color: var(--muted-foreground);">
+              Sevrony is designed with privacy and performance as its core principles. 
+              <strong>All your question data, responses, and session history remain strictly local on your device.</strong>
+              We use IndexedDB (your browser's local storage database) to save your progress. This means your study data never leaves your computer or phone.
+            </p>
+          </div>
+
+          <div>
+            <h2 style="font-size: 1.5rem; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue);"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+              Anonymous Telemetry
+            </h2>
+            <p style="line-height: 1.6; color: var(--muted-foreground);">
+              To help us understand how the app is being used and to improve its features, we collect basic, anonymous telemetry using PostHog.
+              This includes general usage statistics like page views, feature interactions (e.g., clicking "Start Test"), and error reports.
+            </p>
+            <ul style="line-height: 1.6; color: var(--muted-foreground); margin-top: 8px; padding-left: 20px;">
+              <li>We do <strong>not</strong> track your specific answers to test questions.</li>
+              <li>We do <strong>not</strong> collect personally identifiable information (PII) such as your name, email, or exact location.</li>
+              <li>The data collected is aggregated and used solely for improving the Sevrony experience.</li>
+            </ul>
+          </div>
+          
+          <div style="margin-top: 16px; border-top: 1px solid var(--line); padding-top: 24px;">
+            <button class="primary-btn" type="button" data-action="dashboard">Return to Dashboard</button>
+          </div>
+        </div>
+      </main>
+    `;
   }
 
   function renderMarketing() {
@@ -558,6 +604,7 @@
           <button class="ghost-btn" type="button" data-action="config">Create New Test</button>
           <button class="ghost-btn" type="button" data-action="history">Past Tests</button>
           <button class="ghost-btn" type="button" data-action="backup">Data & Backups</button>
+          <button class="ghost-btn" type="button" data-action="privacy">Privacy</button>
         </nav>
       </header>
     `;
@@ -588,6 +635,9 @@
         <span>UPI ID:</span>
         <code title="Copy UPI ID">sharthak-jaiswal@fam</code>
       </div>
+      <div style="text-align: center; margin-top: 16px; font-size: 12px; color: var(--muted-foreground);">
+        <button type="button" class="ghost-btn" data-action="privacy" style="font-size: 12px; padding: 4px 8px; min-height: auto;">Privacy Policy</button>
+      </div>
     `;
     
     overlay.appendChild(modal);
@@ -608,6 +658,16 @@
     overlay.onclick = (e) => {
       if (e.target === overlay) close();
     };
+
+    const privacyBtn = modal.querySelector("[data-action='privacy']");
+    if (privacyBtn) {
+      privacyBtn.onclick = () => {
+        close();
+        state.view = "privacy";
+        state.notice = null;
+        renderHome();
+      };
+    }
   }
 
   function renderNotice(notice) {
@@ -1509,6 +1569,7 @@
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
     if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
+    if (action === "privacy") { state.view = "privacy"; state.notice = null; renderHome(); }
     if (action === "open-support") {
       showSupportModal();
     }
