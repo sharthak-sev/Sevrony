@@ -2,9 +2,9 @@
 
 Sevrony is a browser-based SAT practice environment for imported `.sat-test` question banks. It runs as a static frontend on GitHub Pages and stores your practice data in your browser.
 
-> **Disclaimer:** Sevrony is a personal educational project. It is not affiliated with, endorsed by, or associated with College Board. SAT is a trademark registered by College Board. This repository does not include or host College Board question content.
+> **Disclaimer:** Sevrony is a personal educational project. It is not affiliated with, endorsed by, or associated with College Board. SAT is a trademark registered by College Board. This repository does not distribute, contain, or host any College Board question content. It is designed solely to provide a practice environment using the user's own authenticated data.
 
-> **Required input:** Sevrony is not useful by itself. You need a `.sat-test` export created with [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) before you can practice.
+> **Required input:** Sevrony is a sub-application and is NOT functional on its own. It strictly requires a `.sat-test` question bank file, which must be exported using the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) Chrome extension directly from your own authenticated College Board Student Question Bank session.
 
 ## What It Does
 
@@ -19,7 +19,7 @@ Sevrony is a browser-based SAT practice environment for imported `.sat-test` que
 ## Use The App
 
 1. Install or load the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) extension.
-2. Export your question bank as an interactive `.sat-test` file.
+2. Export your question bank as an interactive `.sat-test` file directly from your College Board Student Question Bank session.
 3. Open [Sevrony on GitHub Pages](https://sharthak-sev.github.io/Sevrony/).
 4. Import the `.sat-test` file.
 5. Start a custom practice session or a full adaptive-style test.
@@ -84,7 +84,7 @@ If Sevrony helps you, you can support the project here:
 
 [Ko-fi: sevrony](https://ko-fi.com/sevrony)
 
-![Payment QR Code](qr.png)
+<img src="qr.png" alt="Payment QR Code" width="250"/>
 
 UPI ID: `sharthak-jaiswal@fam`
 
