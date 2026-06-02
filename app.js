@@ -349,6 +349,7 @@
 
     if (!document.startViewTransition || !isRouteChanging || _currentRoute === null) {
       _currentRoute = newRoute;
+      if (isRouteChanging && window.posthog) window.posthog.capture('$pageview', { view: newRoute });
       doRender();
       if (isRouteChanging) {
         window.scrollTo(0, 0);
@@ -364,6 +365,7 @@
       type = "drill";
     }
     _currentRoute = newRoute;
+    if (window.posthog) window.posthog.capture('$pageview', { view: newRoute });
     document.documentElement.dataset.transition = type;
     const t = document.startViewTransition(() => {
       doRender();
@@ -1720,6 +1722,7 @@
         renderHome();
         return;
       }
+      if (window.posthog) window.posthog.capture("Started Retry Practice", { count: questionsToPractice.length });
       startCustomPractice({ subject: "both", limit: questionsToPractice.length, isRetry: true }, questionsToPractice);
     }
     if (action === "review-session") {
@@ -1953,6 +1956,7 @@
       ensureConfigDefaults();
       state.view = "dashboard";
       showNotice(`Imported ${result.questions.length} questions from ${file.name}.`, "success");
+      if (window.posthog) window.posthog.capture("Imported Question Bank", { count: result.questions.length, name: file.name });
       renderHome();
     } catch (err) {
       showNotice(err.message || String(err), "error");
@@ -2080,6 +2084,7 @@
   function startPractice(config) {
     state.config = config;
     if (!state.questions.length) { showNotice("Import a .sat-test file first.", "error"); renderHome(); return; }
+    if (window.posthog) window.posthog.capture("Started Practice", { mode: config.subject === "both" ? "full" : "custom", subject: config.subject });
     if (config.subject === "both") { startFullTest(config); return; }
     startCustomPractice(config);
   }
@@ -2791,6 +2796,8 @@
     await DB.put("sessions", session);
     if (persistedResponses.length) await DB.putMany("responses", persistedResponses);
     clearActiveTestPersistence();
+    
+    if (window.posthog) window.posthog.capture("Completed Practice", { mode: test.mode, score: session.score?.total || null });
 
     state.activeTest = null;
     state.lastResult = { session, responses: persistedResponses };
