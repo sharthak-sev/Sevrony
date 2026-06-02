@@ -420,9 +420,14 @@
   function renderPrivacy() {
     return `
       <main class="page-container" style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
-        <div style="margin-bottom: 32px;">
-          <h1 style="font-size: 2.5rem; margin-bottom: 8px;">Privacy Policy</h1>
-          <p class="eyebrow" style="margin: 0; color: var(--muted-foreground);">Last updated: June 2026</p>
+        <div style="margin-bottom: 32px; display: flex; align-items: center; gap: 16px;">
+          <button type="button" data-action="dashboard" class="ghost-btn icon-btn" style="padding: 8px; border-radius: 50%;" aria-label="Go back">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div>
+            <h1 style="font-size: 2.5rem; margin-bottom: 8px; margin-top: 0;">Privacy Policy</h1>
+            <p class="eyebrow" style="margin: 0; color: var(--muted-foreground);">Last updated: June 2026</p>
+          </div>
         </div>
         
         <div class="panel" style="padding: 32px; display: flex; flex-direction: column; gap: 24px;">
@@ -453,9 +458,6 @@
               <li>The data collected is aggregated and used solely for improving the Sevrony experience.</li>
             </ul>
           </div>
-          
-          <div style="margin-top: 16px; border-top: 1px solid var(--line); padding-top: 24px;">
-            <button class="primary-btn" type="button" data-action="dashboard">Back</button>
           </div>
         </div>
       </main>
