@@ -629,7 +629,6 @@
         <nav class="top-actions">
           <button class="ghost-btn support-btn" type="button" data-action="open-support" style="display: inline-flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> Support the author</button>
           <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
-          <button class="ghost-btn" type="button" data-action="config">Create New Test</button>
           <button class="ghost-btn" type="button" data-action="history">Past Tests</button>
           <button class="ghost-btn" type="button" data-action="backup">Data & Backups</button>
           <button class="ghost-btn" type="button" data-action="privacy">Privacy</button>
@@ -1554,6 +1553,34 @@
      HOME EVENT BINDING
      =========================================================== */
 
+  function updateMistakesSummary() {
+    const { wrongQuestions, skippedQuestions } = getMistakesData();
+    let selectedCount = 0;
+    if (state.selectedMistakeTypes.has("wrong")) {
+      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain)).length;
+    }
+    if (state.selectedMistakeTypes.has("skipped")) {
+      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain)).length;
+    }
+    
+    const countEl = document.querySelector('.start-summary strong');
+    if (countEl) countEl.textContent = selectedCount;
+    
+    const btnEl = document.querySelector('button[data-action="start-retry-practice"]');
+    if (btnEl) {
+      if (selectedCount === 0) {
+        btnEl.setAttribute("disabled", "true");
+      } else {
+        btnEl.removeAttribute("disabled");
+      }
+    }
+    
+    const domainCheckboxes = document.querySelectorAll('input[data-action="toggle-mistake-domain"]');
+    for (const cb of domainCheckboxes) {
+      cb.checked = state.selectedMistakeDomains.has(cb.dataset.domain);
+    }
+  }
+
   function bindHomeEvents() {
     for (const btn of app.querySelectorAll("[data-action]")) {
       btn.addEventListener("click", handleHomeAction);
@@ -1639,7 +1666,7 @@
       } else {
         state.selectedMistakeDomains.delete(domainName);
       }
-      renderHome();
+      updateMistakesSummary();
     }
     if (action === "toggle-mistake-type") {
       const type = event.currentTarget.dataset.type;
@@ -1648,7 +1675,7 @@
       } else {
         state.selectedMistakeTypes.delete(type);
       }
-      renderHome();
+      updateMistakesSummary();
     }
     if (action === "toggle-mistake-subject") {
       const subjectKey = event.currentTarget.dataset.subject;
@@ -1669,7 +1696,7 @@
           state.selectedMistakeDomains.delete(dom);
         }
       }
-      renderHome();
+      updateMistakesSummary();
     }
     if (action === "start-retry-practice") {
       const { wrongQuestions, skippedQuestions } = getMistakesData();
