@@ -82,11 +82,15 @@ Use **Data & Backups** in the app to download a manual backup before clearing br
 
 If you found this tool helpful for your SAT prep, consider supporting the author! ❤️
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/sevrony)
-
 <img src="qr.png" alt="Payment QR Code" width="250" style="border-radius: 8px; border: 1px solid #ddd; margin: 10px 0;"/>
 
 **UPI ID**: `sharthak-jaiswal@fam`
+
+<br>
+
+<a href="https://ko-fi.com/sevrony" target="_blank">
+  <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi" height="45" />
+</a>
 
 ## License
 
