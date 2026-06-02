@@ -382,6 +382,13 @@
         return;
       }
 
+      if (state.view === "privacy") {
+        app.className = "";
+        app.innerHTML = renderPrivacy();
+        bindHomeEvents();
+        return;
+      }
+
       app.className = "app-shell";
       app.innerHTML = `
         ${renderTopbar()}
@@ -394,7 +401,6 @@
           ${state.view === "dashboard" ? renderDashboard() : ""}
           ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
           ${state.view === "backup" ? renderBackupView() : ""}
-          ${state.view === "privacy" ? renderPrivacy() : ""}
         </main>
       `;
       bindHomeEvents();
@@ -440,7 +446,7 @@
           </div>
           
           <div style="margin-top: 16px; border-top: 1px solid var(--line); padding-top: 24px;">
-            <button class="primary-btn" type="button" data-action="dashboard">Return to Dashboard</button>
+            <button class="primary-btn" type="button" data-action="dashboard">Back</button>
           </div>
         </div>
       </main>
