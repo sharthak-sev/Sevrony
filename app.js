@@ -506,6 +506,13 @@
           </div>
 
         </div>
+        
+        <!-- Footer -->
+        <div class="mt-16 text-center">
+          <button type="button" data-action="privacy" class="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-none p-0 underline decoration-muted/50 hover:decoration-foreground underline-offset-4">
+            Privacy Policy
+          </button>
+        </div>
       </div>
     `;
   }
