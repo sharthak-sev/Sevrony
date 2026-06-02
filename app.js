@@ -345,10 +345,14 @@
   let _currentRoute = null;
 
   function routeTransition(newRoute, doRender) {
-    if (!document.startViewTransition || _currentRoute === newRoute || _currentRoute === null) {
+    const isRouteChanging = _currentRoute !== newRoute;
+
+    if (!document.startViewTransition || !isRouteChanging || _currentRoute === null) {
       _currentRoute = newRoute;
       doRender();
-      window.scrollTo(0, 0);
+      if (isRouteChanging) {
+        window.scrollTo(0, 0);
+      }
       return;
     }
     let type = "context";
