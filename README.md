@@ -89,7 +89,7 @@ If you found this tool helpful for your SAT prep, consider supporting the author
 <br>
 
 <a href="https://ko-fi.com/sevrony" target="_blank">
-  <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi" height="45" />
+  <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi" height="60" />
 </a>
 
 ## License
