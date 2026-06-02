@@ -343,6 +343,7 @@
     if (!document.startViewTransition || _currentRoute === newRoute || _currentRoute === null) {
       _currentRoute = newRoute;
       doRender();
+      window.scrollTo(0, 0);
       return;
     }
     let type = "context";
@@ -355,7 +356,10 @@
     }
     _currentRoute = newRoute;
     document.documentElement.dataset.transition = type;
-    const t = document.startViewTransition(() => doRender());
+    const t = document.startViewTransition(() => {
+      doRender();
+      window.scrollTo(0, 0);
+    });
     t.ready.catch(() => {});
     t.finished.catch(() => {}).finally(() => delete document.documentElement.dataset.transition);
   }
