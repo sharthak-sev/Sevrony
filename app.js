@@ -3688,7 +3688,7 @@
           const text = el.textContent || "";
           // Map special chars that might appear in mi
           if (text.length === 1 && SPECIAL_CHARS[text]) return SPECIAL_CHARS[text];
-          return text;
+          return text.replace(/%/g, "\\%");
         }
 
         case "mo": {
@@ -3704,13 +3704,13 @@
               text === "." || text === "!" || text === ":" ||
               text === ";") return text;
           if (text === "\u2223" || text === "\u2225") return "\\mid ";
-          return text;
+          return text.replace(/%/g, "\\%");
         }
 
         case "mtext": {
           const text = el.textContent || "";
           if (!text.trim()) return "\\; ";
-          return "\\text{" + text + "}";
+          return "\\text{" + text.replace(/%/g, "\\%") + "}";
         }
 
         case "mspace":
