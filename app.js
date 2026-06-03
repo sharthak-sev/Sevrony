@@ -2011,9 +2011,11 @@
   async function showManualReportFallback(debugUrl) {
     const copied = await copyText(debugUrl);
     showNotice(copied
-      ? "Telemetry stayed off. Debug URL copied so you can include it in a manual report."
-      : `Telemetry stayed off. Manual debug URL: ${debugUrl}`,
+      ? "Telemetry blocked. Debug URL copied! Opening GitHub Issues to report..."
+      : `Telemetry blocked. Please report this URL on GitHub: ${debugUrl}`,
       "info");
+    const issueUrl = `https://github.com/sharthak-sev/Sevrony/issues/new?title=Question%20Report&body=Debug%20URL:%20${encodeURIComponent(debugUrl)}%0A%0A**Describe%20the%20issue:**%0A`;
+    window.open(issueUrl, "_blank");
     renderHome();
   }
 
