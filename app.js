@@ -3547,8 +3547,29 @@
       return escapeHtml(stripHtml(value));
     }
 
+    // Pre-sanitize: convert inline style formatting to semantic tags before
+    // DOMPurify strips the style attribute. College Board questions use
+    // style="text-decoration: underline" instead of <u> tags.
+    const pre = document.createElement("template");
+    pre.innerHTML = String(value || "");
+    for (const el of pre.content.querySelectorAll("[style]")) {
+      const style = el.getAttribute("style") || "";
+      if (/text-decoration\s*:\s*[^;]*underline/i.test(style)) {
+        wrapChildrenWith(el, "u");
+      }
+      if (/font-weight\s*:\s*(?:bold|[7-9]00)/i.test(style)) {
+        wrapChildrenWith(el, "strong");
+      }
+      if (/font-style\s*:\s*italic/i.test(style)) {
+        wrapChildrenWith(el, "em");
+      }
+      if (/text-decoration\s*:\s*[^;]*line-through/i.test(style)) {
+        wrapChildrenWith(el, "s");
+      }
+    }
+
     const tpl = document.createElement("template");
-    tpl.innerHTML = window.DOMPurify.sanitize(String(value || ""), SAT_SANITIZE_CONFIG);
+    tpl.innerHTML = window.DOMPurify.sanitize(pre.innerHTML, SAT_SANITIZE_CONFIG);
 
     for (const el of tpl.content.querySelectorAll("*")) {
       for (const attr of [...el.attributes]) {
@@ -3567,6 +3588,17 @@
     removeAccessibilityDescriptions(tpl.content);
     normalizeMathMarkup(tpl.content);
     return tpl.innerHTML;
+  }
+
+  /** Wrap all children of an element with a new tag (e.g. <u>, <strong>) */
+  function wrapChildrenWith(el, tagName) {
+    // Don't double-wrap if the element itself is already that tag
+    if ((el.localName || el.tagName || "").toLowerCase() === tagName) return;
+    // Don't wrap if a direct child wrapper already exists
+    if (el.children.length === 1 && (el.children[0].localName || "").toLowerCase() === tagName) return;
+    const wrapper = document.createElement(tagName);
+    while (el.firstChild) wrapper.appendChild(el.firstChild);
+    el.appendChild(wrapper);
   }
 
   function sanitizeUrlAttribute(el, attrName, value) {
