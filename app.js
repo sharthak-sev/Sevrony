@@ -843,7 +843,7 @@
           <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi" style="height: 36px; border-radius: 4px;">
         </a>
         <br>
-        <img src="qr.png" alt="Payment QR Code" style="width: 200px; height: 200px; border-radius: var(--radius-sm); border: 1px solid var(--line);">
+        <img src="qr.svg" alt="Payment QR Code" style="width: 200px; height: 200px; border-radius: var(--radius-sm); border: 1px solid var(--line);">
       </div>
       <div class="support-code-wrap" style="width: 100%; display:flex; justify-content: center; align-items:center; gap:8px;">
         <span>UPI ID:</span>
