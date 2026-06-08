@@ -25,7 +25,7 @@
       "alt", "aria-describedby", "aria-label", "aria-labelledby", "class", "close", "colspan", "cx", "cy", "d", "display",
       "fill", "height", "href", "id", "open", "points", "r", "role", "rowspan", "rx", "ry", "separators", "src", "stroke",
       "stroke-linecap", "stroke-linejoin", "stroke-width", "title", "transform", "type", "viewBox", "viewbox", "width", "x", "x1",
-      "x2", "xmlns", "y", "y1", "y2"
+      "x2", "xmlns", "y", "y1", "y2", "text-anchor", "font-size", "font-family", "font-weight", "font-style", "letter-spacing", "xml:space"
     ],
     ALLOW_DATA_ATTR: false,
     FORBID_ATTR: ["style", "srcset", "formaction", "xlink:href", "target", "download", "ping", "autofocus"],
@@ -489,7 +489,7 @@
   }
 
   async function refreshLocalData() {
-    const [banks, questions, sessions, responses] = await Promise.all([
+    const [banks, questions, sessions, oldResponses] = await Promise.all([
       DB.getAll("questionBanks"),
       DB.getAll("questions"),
       DB.getAll("sessions"),
@@ -502,10 +502,14 @@
       if (subject !== 0) return subject;
       return String(a.questionId || a.id).localeCompare(String(b.questionId || b.id));
     });
-    state.sessions = sessions
-      .filter(s => s.id !== "__active_test__")
-      .sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
-    state.responses = responses.sort((a, b) => String(b.answeredAt).localeCompare(String(a.answeredAt)));
+    
+    const validSessions = sessions.filter(s => s.id !== "__active_test__");
+    state.sessions = validSessions.sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
+    
+    // Combine old responses (from responses store) with new embedded responses
+    const embeddedResponses = validSessions.flatMap(s => s.responses || []);
+    const allResponses = [...oldResponses, ...embeddedResponses];
+    state.responses = allResponses.sort((a, b) => String(b.answeredAt).localeCompare(String(a.answeredAt)));
 
     const backupConf = await DB.get("appConfig", "backupHandle");
     state.backupHandle = backupConf ? backupConf.handle : null;
@@ -1643,9 +1647,8 @@
           `;
         }).join("")}
 
-        <section class="panel action-panel" style="grid-template-columns: auto 1fr auto auto;">
+        <section class="panel action-panel">
           <button class="ghost-btn large" type="button" data-action="dashboard">Back to Dashboard</button>
-          <div></div>
           <div class="start-summary" style="text-align: right; margin-right: 16px;">
             <strong>${selectedCount}</strong>
             <span>selected questions</span>
@@ -3021,8 +3024,9 @@
       ...r, id: `${session.id}:${i}:${r.questionId}`, sessionId: session.id, sequence: i, answeredAt: completedAt
     }));
 
+    // Consolidate responses directly into the session object for atomic transactions
+    session.responses = persistedResponses;
     await DB.put("sessions", session);
-    if (persistedResponses.length) await DB.putMany("responses", persistedResponses);
     clearActiveTestPersistence();
     
     captureTelemetry("Completed Practice", { mode: test.mode });
