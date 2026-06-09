@@ -12,26 +12,6 @@
   const SENTRY_LOADER_URL = "https://js.sentry-cdn.com/610da841a6875eae790cbc1fd6ea96b1.min.js";
   const COLLEGE_BOARD_BASE_URL = "https://mypractice.collegeboard.org/";
 
-  const SAT_SANITIZE_CONFIG = {
-    ALLOWED_TAGS: [
-      "a", "abbr", "b", "blockquote", "br", "caption", "circle", "code", "col", "colgroup", "dd", "del", "div", "dl", "dt", "ellipse", "em",
-      "figcaption", "figure", "g", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "li", "line", "math", "menclose",
-      "mfenced", "mfrac", "mi", "mn", "mo", "mover", "mpadded", "mphantom", "mprescripts", "mroot", "mrow", "mspace",
-      "msqrt", "mstyle", "msub", "msubsup", "msup", "mtable", "mtd", "mtext", "mtr", "munder", "munderover", "none",
-      "ol", "p", "path", "polygon", "polyline", "pre", "rect", "s", "small", "span", "strong", "sub", "sup", "svg",
-      "table", "tbody", "td", "text", "tfoot", "th", "thead", "tr", "tspan", "u", "ul"
-    ],
-    ALLOWED_ATTR: [
-      "alt", "aria-describedby", "aria-label", "aria-labelledby", "class", "close", "colspan", "cx", "cy", "d", "display",
-      "fill", "height", "href", "id", "open", "points", "r", "role", "rowspan", "rx", "ry", "separators", "src", "stroke",
-      "stroke-linecap", "stroke-linejoin", "stroke-width", "title", "transform", "type", "viewBox", "viewbox", "width", "x", "x1",
-      "x2", "xmlns", "y", "y1", "y2", "text-anchor", "font-size", "font-family", "font-weight", "font-style", "letter-spacing", "xml:space"
-    ],
-    ALLOW_DATA_ATTR: false,
-    FORBID_ATTR: ["style", "srcset", "formaction", "xlink:href", "target", "download", "ping", "autofocus"],
-    FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "meta", "style", "form", "input", "button", "textarea", "select", "option", "video", "audio", "source", "canvas"]
-  };
-
   const SUBJECTS = {
     math: "Math",
     rw: "Reading and Writing"
@@ -217,6 +197,7 @@
       }
     });
 
+    await migrateCorruptedDB();
     await refreshLocalData();
     await restoreActiveTest();
     ensureConfigDefaults();
@@ -240,7 +221,41 @@
     }
   }
 
-  function initPersistentDesmos() {
+  async function migrateCorruptedDB() {
+    const MIGRATION_KEY = "sevrony-migration-v4";
+    if (localStorage.getItem(MIGRATION_KEY)) return;
+    
+    if (window.SatPracticeDB) {
+      try {
+        const questions = await SatPracticeDB.getAll("questions");
+        let needsUpdate = false;
+        for (const q of questions) {
+          if (q.raw) {
+            const rawQ = q.raw;
+            const detail = rawQ.question || rawQ;
+            q.stimulus = sanitizeHtml(rawQ.stimulus || detail.stimulus || detail.passage || detail.scenario || "");
+            q.prompt = sanitizeHtml(rawQ.prompt || rawQ.stem || detail.stem || detail.body || detail.prompt || "");
+            q.rationale = sanitizeHtml(rawQ.rationale || detail.rationale || "");
+            if (Array.isArray(q.answerOptions)) {
+              for (let i=0; i<q.answerOptions.length; i++) {
+                const optRaw = rawQ.answerOptions?.[i] || rawQ.choices?.[i] || {};
+                q.answerOptions[i].content = sanitizeHtml(optRaw.content || optRaw.text || "");
+              }
+            }
+            needsUpdate = true;
+          }
+        }
+        if (needsUpdate) {
+          await SatPracticeDB.putMany("questions", questions);
+        }
+        localStorage.setItem(MIGRATION_KEY, "true");
+      } catch (e) {
+        console.error("Migration failed", e);
+      }
+    }
+  }
+
+  async function initPersistentDesmos() {
     let container = document.getElementById("persistent-desmos");
     if (container) return;
 
@@ -3547,39 +3562,25 @@
   }
 
   function sanitizeHtml(value) {
-    if (!window.DOMPurify?.sanitize) {
-      return escapeHtml(stripHtml(value));
-    }
-
-    // Pre-sanitize: convert inline style formatting to semantic tags before
-    // DOMPurify strips the style attribute. College Board questions use
-    // style="text-decoration: underline" instead of <u> tags.
-    const pre = document.createElement("template");
-    pre.innerHTML = String(value || "");
-    for (const el of pre.content.querySelectorAll("[style]")) {
-      const style = el.getAttribute("style") || "";
-      if (/text-decoration\s*:\s*[^;]*underline/i.test(style)) {
-        wrapChildrenWith(el, "u");
-      }
-      if (/font-weight\s*:\s*(?:bold|[7-9]00)/i.test(style)) {
-        wrapChildrenWith(el, "strong");
-      }
-      if (/font-style\s*:\s*italic/i.test(style)) {
-        wrapChildrenWith(el, "em");
-      }
-      if (/text-decoration\s*:\s*[^;]*line-through/i.test(style)) {
-        wrapChildrenWith(el, "s");
-      }
-    }
-
     const tpl = document.createElement("template");
-    tpl.innerHTML = window.DOMPurify.sanitize(pre.innerHTML, SAT_SANITIZE_CONFIG);
+    tpl.innerHTML = String(value || "");
 
+    // Convert inline style formatting to semantic tags
+    for (const el of tpl.content.querySelectorAll("[style]")) {
+      if (el.closest("svg")) continue;
+      const style = el.getAttribute("style") || "";
+      if (/text-decoration\s*:\s*[^;]*underline/i.test(style)) wrapChildrenWith(el, "u");
+      if (/font-weight\s*:\s*(?:bold|[7-9]00)/i.test(style)) wrapChildrenWith(el, "strong");
+      if (/font-style\s*:\s*italic/i.test(style)) wrapChildrenWith(el, "em");
+      if (/text-decoration\s*:\s*[^;]*line-through/i.test(style)) wrapChildrenWith(el, "s");
+    }
+
+    // Basic XSS prevention: strip event handlers and javascript: URLs
     for (const el of tpl.content.querySelectorAll("*")) {
       for (const attr of [...el.attributes]) {
         const name = attr.name.toLowerCase();
         const val = String(attr.value || "");
-        if (name.startsWith("on") || name === "style" || /javascript:/i.test(val)) {
+        if (name.startsWith("on") || /javascript:/i.test(val)) {
           el.removeAttribute(attr.name);
           continue;
         }
@@ -3591,7 +3592,95 @@
 
     removeAccessibilityDescriptions(tpl.content);
     normalizeMathMarkup(tpl.content);
+    fixGraphColors(tpl.content);
+    namespaceSVGs(tpl.content);
     return tpl.innerHTML;
+  }
+
+  function fixGraphColors(root) {
+    for (const el of root.querySelectorAll("svg *")) {
+      const stroke = el.getAttribute("stroke");
+      if (stroke && (stroke.toLowerCase() === "black" || stroke === "#000000" || stroke === "#000")) {
+        el.setAttribute("stroke", "currentColor");
+      }
+      const fill = el.getAttribute("fill");
+      if (fill && (fill.toLowerCase() === "black" || fill === "#000000" || fill === "#000")) {
+        el.setAttribute("fill", "currentColor");
+      }
+      if (fill && (fill.toLowerCase() === "white" || fill.toLowerCase() === "#ffffff" || fill.toLowerCase() === "#fff")) {
+        el.setAttribute("fill", "var(--panel)");
+      }
+      const style = el.getAttribute("style");
+      if (style) {
+        let newStyle = style.replace(/fill:\s*(white|#ffffff|#fff)\b/ig, "fill: var(--panel)")
+                            .replace(/fill:\s*(black|#000000|#000)\b/ig, "fill: currentColor")
+                            .replace(/stroke:\s*(black|#000000|#000)\b/ig, "stroke: currentColor");
+        if (newStyle !== style) {
+          el.setAttribute("style", newStyle);
+        }
+      }
+    }
+  }
+
+  function namespaceSVGs(root) {
+    for (const svg of root.querySelectorAll("svg")) {
+      const prefix = "svg-" + Math.random().toString(36).substr(2, 6) + "-";
+      
+      const elementsWithId = svg.querySelectorAll("[id]");
+      const idMap = new Map();
+      
+      for (const el of elementsWithId) {
+        const oldId = el.getAttribute("id");
+        if (oldId) {
+          const newId = prefix + oldId;
+          idMap.set(oldId, newId);
+          el.setAttribute("id", newId);
+        }
+      }
+      
+      for (const el of svg.querySelectorAll("*")) {
+        for (const attr of [...el.attributes]) {
+          const val = attr.value;
+          if (val.includes("url(#")) {
+            let newVal = val;
+            for (const [oldId, newId] of idMap.entries()) {
+              newVal = newVal.replace(`url(#${oldId})`, `url(#${newId})`)
+                             .replace(`url("#${oldId}")`, `url("#${newId}")`)
+                             .replace(`url('#${oldId}')`, `url('#${newId}')`);
+            }
+            if (newVal !== val) el.setAttribute(attr.name, newVal);
+          }
+          if ((attr.name === "href" || attr.name === "xlink:href") && val.startsWith("#")) {
+            const oldId = val.substring(1);
+            if (idMap.has(oldId)) el.setAttribute(attr.name, "#" + idMap.get(oldId));
+          }
+        }
+      }
+      
+      for (const style of svg.querySelectorAll("style")) {
+        let cssText = style.textContent;
+        for (const [oldId, newId] of idMap.entries()) {
+          cssText = cssText.split(`url(#${oldId})`).join(`url(#${newId})`)
+                           .split(`url("#${oldId}")`).join(`url("#${newId}")`)
+                           .split(`url('#${oldId}')`).join(`url('#${newId}')`);
+        }
+        const classes = new Set();
+        const classRegex = /\.([a-zA-Z_-][a-zA-Z0-9_-]*)/g;
+        let match;
+        while ((match = classRegex.exec(cssText)) !== null) {
+          classes.add(match[1]);
+        }
+        for (const c of classes) {
+          const re = new RegExp(`\\.${c}(?=[^a-zA-Z0-9_-]|$)`, "g");
+          cssText = cssText.replace(re, `.${prefix}${c}`);
+          for (const el of svg.querySelectorAll(`.${c}`)) {
+            el.classList.remove(c);
+            el.classList.add(`${prefix}${c}`);
+          }
+        }
+        style.textContent = cssText;
+      }
+    }
   }
 
   /** Wrap all children of an element with a new tag (e.g. <u>, <strong>) */
@@ -3629,7 +3718,7 @@
     const selectors = [
       "[class*='sr-only' i]", "[class*='screen-reader' i]", "[class*='visually-hidden' i]",
       "[class*='offscreen' i]", "[class*='accessib' i]", "[class*='a11y' i]",
-      "[data-testid*='accessib' i]", "[aria-hidden='true']",
+      "[data-testid*='accessib' i]",
       "[style*='position: absolute'][style*='clip']",
       "[style*='position:absolute'][style*='clip']",
     ];
@@ -3638,18 +3727,6 @@
         continue;
       }
       el.remove();
-    }
-
-    if (!root.querySelector("svg,img,canvas,[role='img'],[aria-label*='graph' i],object")) return;
-    for (const list of root.querySelectorAll("ul,ol")) {
-      if (isLikelyGraphicDescription(list.textContent.replace(/\s+/g, " ").trim())) list.remove();
-    }
-    // Also remove divs/spans that look like descriptions
-    for (const el of root.querySelectorAll("div,span,p")) {
-      const text = el.textContent.replace(/\s+/g, " ").trim();
-      if (text.length > 30 && isLikelyGraphicDescription(text) && !el.querySelector("math,img,svg,table")) {
-        el.remove();
-      }
     }
   }
 
@@ -3667,7 +3744,7 @@
       
       const open = openAttr !== null ? openAttr : "(";
       const close = closeAttr !== null ? closeAttr : ")";
-      const seps = sepsAttr !== null ? sepsAttr : ",";
+      const seps = sepsAttr !== null ? sepsAttr : "";
       
       const children = [...fenced.children];
       if (open) row.append(makeMathOp(open));
@@ -3893,8 +3970,9 @@
     if (window.katex) {
       for (const mathEl of [...container.querySelectorAll("math")]) {
         try {
-          const latex = mathmlToLatex(mathEl);
+          let latex = mathmlToLatex(mathEl);
           if (!latex) continue;
+          latex = latex.replace(/([(\[{|])\s*,\s*/g, "$1").replace(/\s*,\s*([)\]}|])/g, "$1");
           const span = document.createElement("span");
           katex.render(latex, span, { throwOnError: false, displayMode: mathEl.getAttribute("display") === "block" });
           mathEl.replaceWith(span);
