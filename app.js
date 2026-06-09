@@ -169,6 +169,28 @@
     }
     window.scrollTo(0, 0);
 
+    window.addEventListener("popstate", (e) => {
+      if (e.state) {
+        state.view = e.state.view || "dashboard";
+        state.reviewSessionId = e.state.reviewSessionId || null;
+        state.historyTab = e.state.historyTab || "full";
+        state.viewSubject = e.state.viewSubject || null;
+        lastPushedStateStr = JSON.stringify(e.state);
+        if (!state.activeTest) renderHome(true);
+      }
+    });
+
+    window.addEventListener("scroll", () => {
+      const btn = document.querySelector(".scroll-top-btn");
+      if (btn) {
+        if (window.scrollY > 300) {
+          btn.classList.add("visible");
+        } else {
+          btn.classList.remove("visible");
+        }
+      }
+    });
+
     initPersistentDesmos();
     initTelemetryConsent();
     fileInput.addEventListener("change", handleFileImport);
@@ -216,7 +238,23 @@
     if (state.activeTest) {
       renderActiveTest();
     } else {
-      renderHome();
+      state.reviewSessionId = sessionStorage.getItem('reviewSessionId') || null;
+      state.historyTab = sessionStorage.getItem('historyTab') || "full";
+      state.viewSubject = sessionStorage.getItem('viewSubject') || null;
+
+      const fullTests = state.sessions.filter(s => s.mode === "full");
+      const subjectTests = state.sessions.filter(s => s.mode !== "full");
+      if (fullTests.length === 0 && subjectTests.length > 0) {
+        state.historyTab = "subject";
+      }
+
+      if (window.location.hash) {
+        const hashView = window.location.hash.slice(1);
+        if (["dashboard", "history", "config", "mistakes", "results", "review", "marketing", "privacy"].includes(hashView)) {
+           state.view = hashView;
+        }
+      }
+      renderHome(false, true);
     }
   }
 
@@ -532,12 +570,38 @@
     t.finished.catch(() => {}).finally(() => delete document.documentElement.dataset.transition);
   }
 
-  function renderHome() {
+  let lastPushedStateStr = "";
+  function pushHistoryState(replace = false) {
+    const currentState = {
+      view: state.view,
+      reviewSessionId: state.reviewSessionId,
+      historyTab: state.historyTab,
+      viewSubject: state.viewSubject
+    };
+    
+    sessionStorage.setItem('reviewSessionId', state.reviewSessionId || '');
+    sessionStorage.setItem('historyTab', state.historyTab || 'full');
+    sessionStorage.setItem('viewSubject', state.viewSubject || '');
+
+    const stateStr = JSON.stringify(currentState);
+    if (stateStr !== lastPushedStateStr) {
+      if (replace) {
+        window.history.replaceState(currentState, "", "#" + state.view);
+      } else {
+        window.history.pushState(currentState, "", "#" + state.view);
+      }
+      lastPushedStateStr = stateStr;
+    }
+  }
+
+  function renderHome(skipPush = false, replace = false) {
     stopTicker();
 
     if (state.questions.length === 0 && ["dashboard", "history", "config", "mistakes", "results", "review"].includes(state.view)) {
       state.view = "marketing";
     }
+
+    if (!skipPush) pushHistoryState(replace);
 
     routeTransition(state.view, () => {
       if (state.view === "marketing") {
@@ -1370,7 +1434,6 @@
             <h1>${escapeHtml(formatSessionDate(session.completedAt))}</h1>
             <p>${session.totalCorrect || 0} correct · ${session.totalIncorrect || 0} incorrect · ${session.totalAnswered || 0} answered</p>
           </div>
-          <button class="ghost-btn" type="button" data-action="history">Back</button>
         </div>
         <div style="display:flex; gap:20px;">
           <label class="wrong-toggle">
@@ -1391,6 +1454,10 @@
         `}
         <article class="panel empty-message css-empty-message" style="display: none;">No questions match those filters.</article>
       </section>
+      
+      <button class="primary-btn scroll-top-btn" type="button" data-action="scroll-top" aria-label="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+      </button>
     `;
   }
 
@@ -1794,6 +1861,11 @@
           onCancel: () => showManualReportFallback(debugUrl)
         }
       );
+      return;
+    }
+
+    if (action === "scroll-top") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 

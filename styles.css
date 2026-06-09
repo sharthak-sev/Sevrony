@@ -148,6 +148,15 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
   font-size: 15px;
 }
 
+.icon-btn {
+  padding: 8px;
+  min-height: unset;
+  flex-shrink: 0;
+}
+.icon-btn svg {
+  flex-shrink: 0;
+}
+
 .danger-btn, .bb-end-btn {
   background: var(--red-bg);
   border: 1px solid var(--red-border);
@@ -743,6 +752,32 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
   display: flex;
   gap: 10px;
   justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.scroll-top-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 100;
+  box-shadow: var(--shadow-lg);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.scroll-top-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.scroll-top-btn:active {
+  transform: scale(0.95);
 }
 
 .review-card-header strong { display: block; }
