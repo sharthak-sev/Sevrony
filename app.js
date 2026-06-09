@@ -197,7 +197,6 @@
       }
     });
 
-    await migrateCorruptedDB();
     await refreshLocalData();
     await restoreActiveTest();
     ensureConfigDefaults();
@@ -218,40 +217,6 @@
       renderActiveTest();
     } else {
       renderHome();
-    }
-  }
-
-  async function migrateCorruptedDB() {
-    const MIGRATION_KEY = "sevrony-migration-v4";
-    if (localStorage.getItem(MIGRATION_KEY)) return;
-    
-    if (window.SatPracticeDB) {
-      try {
-        const questions = await SatPracticeDB.getAll("questions");
-        let needsUpdate = false;
-        for (const q of questions) {
-          if (q.raw) {
-            const rawQ = q.raw;
-            const detail = rawQ.question || rawQ;
-            q.stimulus = sanitizeHtml(rawQ.stimulus || detail.stimulus || detail.passage || detail.scenario || "");
-            q.prompt = sanitizeHtml(rawQ.prompt || rawQ.stem || detail.stem || detail.body || detail.prompt || "");
-            q.rationale = sanitizeHtml(rawQ.rationale || detail.rationale || "");
-            if (Array.isArray(q.answerOptions)) {
-              for (let i=0; i<q.answerOptions.length; i++) {
-                const optRaw = rawQ.answerOptions?.[i] || rawQ.choices?.[i] || {};
-                q.answerOptions[i].content = sanitizeHtml(optRaw.content || optRaw.text || "");
-              }
-            }
-            needsUpdate = true;
-          }
-        }
-        if (needsUpdate) {
-          await SatPracticeDB.putMany("questions", questions);
-        }
-        localStorage.setItem(MIGRATION_KEY, "true");
-      } catch (e) {
-        console.error("Migration failed", e);
-      }
     }
   }
 
