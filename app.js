@@ -254,6 +254,19 @@
            state.view = hashView;
         }
       }
+      
+      const lastResultSessionId = sessionStorage.getItem('lastResultSessionId');
+      if (lastResultSessionId) {
+        const session = state.sessions.find(s => s.id === lastResultSessionId);
+        if (session) {
+          const sessionResponses = state.responses.filter(r => r.sessionId === lastResultSessionId);
+          state.lastResult = { session, responses: sessionResponses };
+        }
+      }
+      
+      if (state.view === "results" && !state.lastResult) {
+        state.view = "dashboard";
+      }
       renderHome(false, true);
     }
   }
@@ -1299,7 +1312,24 @@
         ${renderMetric("Answered", result.session.totalAnswered, "questions")}
         ${renderMetric("Correct", result.session.totalCorrect, "right answers")}
         ${renderMetric("Incorrect", result.session.totalIncorrect, "wrong answers")}
-        ${renderMetric("Avg Time", result.session.averageSeconds ? `${Math.round(result.session.averageSeconds)}s` : "—", "this session")}
+        ${(() => {
+          let avgTimeStr = "—";
+          let caption = "this session";
+          let extraStyle = "";
+          if (result.session.averageSeconds) {
+            const avg = Math.round(result.session.averageSeconds);
+            const optimal = result.session.subject === "rw" ? 71 : result.session.subject === "math" ? 95 : 82;
+            avgTimeStr = `${avg}s`;
+            if (avg <= optimal) {
+              extraStyle = "color: var(--green);";
+              caption = `Optimal pacing (≤${optimal}s)`;
+            } else {
+              extraStyle = "color: var(--red);";
+              caption = `Too slow (>${optimal}s)`;
+            }
+          }
+          return renderMetric("Avg Time", avgTimeStr, caption, extraStyle);
+        })()}
       </section>
 
       <section class="panel two-column">
@@ -1365,8 +1395,8 @@
   }
 
   function renderTestHistory() {
-    const fullTests = state.sessions.filter(s => s.mode === "full");
-    const subjectTests = state.sessions.filter(s => s.mode !== "full");
+    const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
+    const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
     const sessions = state.historyTab === "full" ? fullTests : subjectTests;
 
     return `
@@ -1384,11 +1414,19 @@
         </div>
         ${sessions.length ? `
           <div class="history-list">
+            ${state.historyTab === "full" ? `
+              <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+                 <button class="primary-btn" type="button" data-action="import-bluebook">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                   Import Bluebook Test
+                 </button>
+              </div>
+            ` : ""}
             ${sessions.map(session => `
-              <article class="history-card">
+              <article class="history-card" data-action="view-session-overview" data-session-id="${escapeAttr(session.id)}" style="cursor:pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.transform='none'; this.style.boxShadow='var(--shadow-sm)'">
                 <div>
-                  <p class="eyebrow">${session.mode === "full" ? "Full test" : (session.config?.isRetry || session.subject === "both") ? "Retry Mistakes" : escapeHtml(SUBJECTS[session.subject] || "Subject test")}</p>
-                  <h2>${escapeHtml(formatSessionDate(session.completedAt))}</h2>
+                  <p class="eyebrow">${session.mode === "bluebook" ? "Bluebook Practice Test" : session.mode === "full" ? "Full test" : (session.config?.isRetry || session.subject === "both") ? "Retry Mistakes" : escapeHtml(SUBJECTS[session.subject] || "Subject test")}</p>
+                  <h2>${session.mode === "bluebook" ? escapeHtml(session.title || "Bluebook Test") : escapeHtml(formatSessionDate(session.completedAt))}</h2>
                   <small>${session.totalAnswered || 0} answered${session.totalQuestionsServed ? ` of ${session.totalQuestionsServed}` : ""}</small>
                 </div>
                 <div class="history-score">
@@ -1396,14 +1434,25 @@
                   <span>${session.totalCorrect || 0} correct · ${session.totalIncorrect || 0} incorrect</span>
                   <small>${session.averageSeconds ? `${Math.round(session.averageSeconds)}s avg/question` : ""}</small>
                 </div>
-                <div style="display:flex;gap:8px;align-items:center">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                   <button class="primary-btn" type="button" data-action="review-session" data-session-id="${escapeAttr(session.id)}">Review</button>
+                  <button class="ghost-btn" type="button" data-action="retry-session-mistakes" data-session-id="${escapeAttr(session.id)}">Retry Mistakes</button>
                   <button class="ghost-btn" type="button" data-action="delete-session" data-session-id="${escapeAttr(session.id)}" title="Delete this test" style="color:var(--red);border-color:var(--red-border)">✕</button>
                 </div>
               </article>
             `).join("")}
           </div>
-        ` : `<p class="empty-message">No ${state.historyTab === "full" ? "full" : "subject"} tests completed yet.</p>`}
+        ` : `
+          <div class="empty-message" style="display:flex; flex-direction:column; align-items:center; gap:16px; padding:48px 0;">
+             <p>No ${state.historyTab === "full" ? "full" : "subject"} tests completed yet.</p>
+             ${state.historyTab === "full" ? `
+                 <button class="primary-btn large" type="button" data-action="import-bluebook">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                   Import Bluebook Test
+                 </button>
+             ` : ""}
+          </div>
+        `}
       </section>
     `;
   }
@@ -1430,8 +1479,8 @@
       <section class="review-heading panel">
         <div class="review-heading-top">
           <div>
-            <p class="eyebrow">${session.mode === "full" ? "Full test review" : (session.config?.isRetry || session.subject === "both") ? "Retry Mistakes review" : "Subject test review"}</p>
-            <h1>${escapeHtml(formatSessionDate(session.completedAt))}</h1>
+            <p class="eyebrow">${session.mode === "bluebook" ? "Bluebook test review" : session.mode === "full" ? "Full test review" : (session.config?.isRetry || session.subject === "both") ? "Retry Mistakes review" : "Subject test review"}</p>
+            <h1>${session.mode === "bluebook" ? escapeHtml(session.title || "Bluebook Test") : escapeHtml(formatSessionDate(session.completedAt))}</h1>
             <p>${session.totalCorrect || 0} correct · ${session.totalIncorrect || 0} incorrect · ${session.totalAnswered || 0} answered</p>
           </div>
         </div>
@@ -1708,11 +1757,11 @@
 
   /* ---- Dashboard Sub-Components ---- */
 
-  function renderMetric(label, value, caption) {
+  function renderMetric(label, value, caption, valueStyle = "") {
     return `
       <article class="metric-card">
         <span>${escapeHtml(label)}</span>
-        <strong>${escapeHtml(String(value))}</strong>
+        <strong${valueStyle ? ` style="${valueStyle}"` : ""}>${escapeHtml(String(value))}</strong>
         <small>${escapeHtml(caption)}</small>
       </article>
     `;
@@ -1840,7 +1889,22 @@
   }
 
   async function handleHomeAction(event) {
+    event.stopPropagation();
     const action = event.currentTarget.dataset.action;
+    
+    if (action === "view-session-overview") {
+      const sessionId = event.currentTarget.dataset.sessionId;
+      const session = state.sessions.find(s => s.id === sessionId);
+      if (session) {
+        const sessionResponses = state.responses.filter(r => r.sessionId === sessionId);
+        state.lastResult = { session, responses: sessionResponses };
+        sessionStorage.setItem('lastResultSessionId', session.id);
+        state.view = "results";
+        state.notice = null;
+        renderHome();
+      }
+      return;
+    }
 
     if (action === "report-question") {
       const qid = event.currentTarget.dataset.qid;
@@ -1870,6 +1934,7 @@
     }
 
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
+    if (action === "import-bluebook") { fileInput.click(); return; }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
     if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
     if (action === "privacy") { state.view = "privacy"; state.notice = null; renderHome(); }
@@ -1897,6 +1962,41 @@
     if (action === "history-tab") {
       state.historyTab = event.currentTarget.dataset.tab || "full";
       renderHome();
+    }
+    if (action === "retry-session-mistakes") {
+      const sessionId = event.currentTarget.dataset.sessionId;
+      const sessionResponses = state.responses.filter(r => r.sessionId === sessionId);
+      const wrongIds = new Set();
+      const skippedIds = new Set();
+      for (const r of sessionResponses) {
+        const isSkipped = !isAnsweredResponse(r);
+        const isWrong = !isSkipped && !r.isCorrect;
+        if (isWrong) wrongIds.add(r.questionId);
+        else if (isSkipped) skippedIds.add(r.questionId);
+      }
+      for (const id of wrongIds) skippedIds.delete(id);
+
+      const allIds = new Set([...wrongIds, ...skippedIds]);
+      if (allIds.size === 0) {
+        showNotice("No mistakes or skipped questions in this test!", "info");
+        return;
+      }
+
+      const questionMap = new Map(state.questions.map(q => [q.id, q]));
+      const forcedQuestions = [];
+      for (const id of allIds) {
+        const q = questionMap.get(id);
+        if (q) forcedQuestions.push(q);
+      }
+
+      const config = {
+        subject: "both",
+        limit: forcedQuestions.length,
+        isRetry: true,
+        retrySessionId: sessionId
+      };
+      
+      startCustomPractice(config, forcedQuestions);
     }
     if (action === "retry-mistakes") {
       const { wrongQuestions, skippedQuestions } = getMistakesData();
@@ -2000,6 +2100,7 @@
       showConfirmModal("Clear all imported question banks, sessions, and history?", "Clear All", async () => {
         await DB.clearAll();
         state.lastResult = null;
+        sessionStorage.removeItem('lastResultSessionId');
         state.view = "dashboard";
         await refreshLocalData();
         showNotice("Local data cleared.", "info");
@@ -2227,24 +2328,59 @@
      =========================================================== */
 
   async function handleFileImport(event) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = "";
-    if (!file) return;
-    try {
-      const payload = JSON.parse(await file.text());
-      const result = normalizeImportPayload(payload, file.name);
-      await DB.put("questionBanks", result.bank);
-      await DB.putMany("questions", result.questions);
+    if (!files.length) return;
+    
+    let successCount = 0;
+    let errorMessages = [];
+    let hasBluebook = false;
+    let hasBank = false;
+    
+    for (const file of files) {
+      try {
+        const payload = JSON.parse(await file.text());
+        if (payload.testId && payload.sections && payload.scores) {
+          const result = normalizeBluebookImportPayload(payload, file.name);
+          await DB.put("questionBanks", result.bank);
+          await DB.putMany("questions", result.questions);
+          await DB.put("sessions", result.session);
+          hasBluebook = true;
+          successCount++;
+        } else {
+          const result = normalizeImportPayload(payload, file.name);
+          await DB.put("questionBanks", result.bank);
+          await DB.putMany("questions", result.questions);
+          hasBank = true;
+          successCount++;
+        }
+      } catch (err) {
+        errorMessages.push(`${file.name}: ${err.message || String(err)}`);
+      }
+    }
+    
+    if (successCount > 0) {
       await refreshLocalData();
       ensureConfigDefaults();
-      state.view = "dashboard";
-      showNotice(`Imported ${result.questions.length} questions from ${file.name}.`, "success");
-      captureTelemetry("Imported Question Bank", { count: result.questions.length });
-      renderHome();
-    } catch (err) {
-      showNotice(err.message || String(err), "error");
-      renderHome();
+      
+      if (hasBluebook && !hasBank) {
+        state.view = "history";
+        state.historyTab = "full";
+      } else if (hasBank) {
+        state.view = "dashboard";
+      }
+      
+      let noticeMsg = `Successfully imported ${successCount} file(s).`;
+      if (errorMessages.length > 0) {
+        noticeMsg += ` Some failed: ${errorMessages.join(", ")}`;
+      }
+      showNotice(noticeMsg, errorMessages.length > 0 ? "error" : "success");
+      captureTelemetry("Imported Files", { count: successCount });
+    } else if (errorMessages.length > 0) {
+      showNotice(`Failed to import files: ${errorMessages.join(", ")}`, "error");
     }
+    
+    renderHome();
     syncBackup(false);
   }
 
@@ -2261,6 +2397,120 @@
       bank: { id: bankId, filename, importedAt, exportedAt: payload.exportedAt || null, source: payload.source || null, formatVersion: payload.formatVersion || null, questionCount: questions.length },
       questions
     };
+  }
+
+  function normalizeBluebookImportPayload(payload, filename) {
+    const importedAt = new Date().toISOString();
+    const bankId = payload.testId || uid("bank");
+    const sessionDate = payload.asmtSubmissionStartTime || importedAt;
+    
+    const bank = { 
+      id: bankId, 
+      filename, 
+      importedAt, 
+      isBluebook: true,
+      displayTitle: payload.displayTitle || "Bluebook Practice Test",
+      exportedAt: sessionDate, 
+      questionCount: 0 
+    };
+
+    const questions = [];
+    const responses = [];
+    
+    const sortedSections = [...(payload.sections || [])].sort((a, b) => {
+      const aSub = normalizeSubject(a.sectionName);
+      const bSub = normalizeSubject(b.sectionName);
+      if (aSub === "rw" && bSub !== "rw") return -1;
+      if (bSub === "rw" && aSub !== "rw") return 1;
+      return 0;
+    });
+
+    let sequenceCounter = 0;
+    let totalCorrect = 0;
+    let totalIncorrect = 0;
+    let totalAnswered = 0;
+
+    for (const section of sortedSections) {
+      for (const q of (section.questions || [])) {
+        sequenceCounter++;
+        
+        const subject = normalizeSubject(section.sectionName);
+        const externalId = q.questionId || q.vaultId || `${bankId}:${sequenceCounter}`;
+        const id = String(externalId);
+        
+        const answerOptions = normalizeAnswerOptions(Object.entries(q.choices || {}).map(([letter, content]) => ({ letter, content })));
+        const type = answerOptions.length ? "mcq" : "spr";
+        const correctAnswers = normalizeCorrectAnswers(q.correctAnswer, answerOptions, type);
+        
+        const domainLabel = q.domains?.primaryLabel || q.domains?.primary || "Unknown domain";
+        const domainCode = q.domains?.primary || "";
+        
+        const question = {
+          id, externalId,
+          questionId: id,
+          bankId, importedAt, subject,
+          test: SUBJECTS[subject] || "",
+          domainCode, domain: domainLabel,
+          skillCode: "", skill: "",
+          difficultyCode: "", difficulty: "Unspecified",
+          scoreBand: null, type,
+          stimulus: sanitizeHtml(q.passage || ""),
+          prompt: sanitizeHtml(q.prompt || ""),
+          answerOptions, correctAnswers,
+          rationale: sanitizeHtml(q.explanation || ""),
+          raw: q
+        };
+        questions.push(question);
+        
+        const userAnswer = q.userAnswer || "";
+        let isAnswered = true;
+        let finalAnswer = userAnswer;
+        
+        if (!finalAnswer || finalAnswer.toLowerCase() === "omitted" || finalAnswer === "") {
+          isAnswered = false;
+          finalAnswer = "";
+        }
+        
+        const isCorrect = q.isCorrect === true;
+        
+        if (isAnswered) {
+          totalAnswered++;
+          if (isCorrect) totalCorrect++;
+          else totalIncorrect++;
+        }
+
+        responses.push({
+          id: uid("resp"),
+          sessionId: bankId,
+          questionId: id,
+          subject,
+          domainCode,
+          domain: domainLabel,
+          answer: finalAnswer,
+          isCorrect,
+          isAnswered,
+          sequence: sequenceCounter - 1,
+          answeredAt: sessionDate
+        });
+      }
+    }
+    
+    bank.questionCount = questions.length;
+
+    const session = {
+      id: bankId,
+      mode: "bluebook",
+      title: payload.displayTitle || "Bluebook Practice Test",
+      completedAt: sessionDate,
+      totalAnswered,
+      totalCorrect,
+      totalIncorrect,
+      totalQuestionsServed: questions.length,
+      averageSeconds: 0,
+      responses: responses
+    };
+
+    return { bank, questions, session };
   }
 
   function normalizeQuestion(question, bankId, index) {
@@ -3085,6 +3335,7 @@
 
     state.activeTest = null;
     state.lastResult = { session, responses: persistedResponses };
+    sessionStorage.setItem('lastResultSessionId', session.id);
     state.view = "results";
     state.notice = null;
     state.transitionLocked = false;
