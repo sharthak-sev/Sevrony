@@ -1054,7 +1054,7 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
   padding-inline: 0.03em;
 }
 
-.html-content img, .html-content svg { height: auto; max-width: 100%; }
+.html-content img, .html-content svg:not(.katex svg) { height: auto; max-width: 100%; }
 .html-content table { border-collapse: collapse; max-width: 100%; }
 .html-content > :first-child, .choice-content > :first-child { margin-top: 0; }
 .html-content > :last-child, .choice-content > :last-child { margin-bottom: 0; }

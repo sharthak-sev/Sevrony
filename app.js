@@ -242,8 +242,8 @@
       state.historyTab = sessionStorage.getItem('historyTab') || "full";
       state.viewSubject = sessionStorage.getItem('viewSubject') || null;
 
-      const fullTests = state.sessions.filter(s => s.mode === "full");
-      const subjectTests = state.sessions.filter(s => s.mode !== "full");
+      const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
+      const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
       if (fullTests.length === 0 && subjectTests.length > 0) {
         state.historyTab = "subject";
       }
@@ -1948,8 +1948,8 @@
     }
     if (action === "config") { state.view = "config"; state.notice = null; ensureConfigDefaults(); renderHome(); }
     if (action === "history") {
-      const fullTests = state.sessions.filter(s => s.mode === "full");
-      const subjectTests = state.sessions.filter(s => s.mode !== "full");
+      const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
+      const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
       if (fullTests.length === 0 && subjectTests.length > 0) {
         state.historyTab = "subject";
       } else {
@@ -3771,7 +3771,7 @@
     const bank = { bySubject: questions.reduce((a, q) => { a[q.subject] = (a[q.subject] || 0) + 1; return a; }, {}) };
     const subjects = {};
     const domainMap = new Map();
-    let totalTime = 0, correct = 0;
+    let totalTime = 0, correct = 0, timedAnswered = 0;
 
     for (const q of questions) {
       const key = `${q.subject}:${q.domainCode}`;
@@ -3779,25 +3779,32 @@
     }
 
     for (const r of answeredResponses) {
-      const sub = subjects[r.subject] || { answered: 0, correct: 0, incorrect: 0, totalTime: 0, avgTime: 0 };
+      const sub = subjects[r.subject] || { answered: 0, correct: 0, incorrect: 0, totalTime: 0, timedAnswered: 0, avgTime: 0 };
       sub.answered++; sub.correct += r.isCorrect ? 1 : 0; sub.incorrect += r.isCorrect ? 0 : 1;
-      sub.totalTime += r.timeSpentSeconds || 0; sub.avgTime = sub.answered ? sub.totalTime / sub.answered : 0;
+      
+      const t = r.timeSpentSeconds || 0;
+      if (t > 0) {
+        sub.totalTime += t;
+        sub.timedAnswered = (sub.timedAnswered || 0) + 1;
+        totalTime += t;
+        timedAnswered++;
+      }
+      sub.avgTime = sub.timedAnswered ? sub.totalTime / sub.timedAnswered : 0;
       subjects[r.subject] = sub;
 
       const key = `${r.subject}:${r.domainCode}`;
       const domain = domainMap.get(key) || { subject: r.subject, code: r.domainCode, label: r.domain || findDomainLabel(r.subject, r.domainCode) || "Unknown", answered: 0, correct: 0, incorrect: 0, totalTime: 0, accuracy: 0, skillLevel: 1 };
       domain.answered++; domain.correct += r.isCorrect ? 1 : 0; domain.incorrect += r.isCorrect ? 0 : 1;
-      domain.totalTime += r.timeSpentSeconds || 0; domain.accuracy = domain.answered ? domain.correct / domain.answered : 0;
+      domain.totalTime += t; domain.accuracy = domain.answered ? domain.correct / domain.answered : 0;
       domain.skillLevel = estimateSkillLevel(domain);
       domainMap.set(key, domain);
 
       correct += r.isCorrect ? 1 : 0;
-      totalTime += r.timeSpentSeconds || 0;
     }
 
     const answered = answeredResponses.length;
     return {
-      bank, overall: { answered, correct, incorrect: answered - correct, accuracy: answered ? correct / answered : 0, avgTime: answered ? totalTime / answered : 0 },
+      bank, overall: { answered, correct, incorrect: answered - correct, accuracy: answered ? correct / answered : 0, avgTime: timedAnswered ? totalTime / timedAnswered : 0 },
       subjects, domains: [...domainMap.values()].sort((a, b) => String(a.subject).localeCompare(String(b.subject)) || String(a.label).localeCompare(String(b.label)))
     };
   }
