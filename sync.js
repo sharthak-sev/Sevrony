@@ -284,7 +284,7 @@
    * Core sync: read local + remote → merge → write cloud → update local.
    * Returns true if local DB was modified.
    */
-  async function bidirectionalSync() {
+  async function bidirectionalSync(options = {}) {
     // Read local (IndexedDB — instant)
     const [localBanks, localQuestions, localSessions, localResponses] = await Promise.all([
       DB.getAll("questionBanks"),
@@ -293,10 +293,22 @@
       DB.getAll("responses"),
     ]);
 
+    const filteredSessions = localSessions.filter(s => s.id !== "__active_test__");
+
+    // If forcePush is enabled (e.g. from a backup restore), write local directly to cloud and skip merge
+    if (options.forcePush) {
+      await writeSyncFile({
+        syncedAt: new Date().toISOString(),
+        questionBanks: localBanks,
+        questions: localQuestions,
+        sessions: filteredSessions,
+        responses: localResponses,
+      });
+      return false; // Local DB was not changed by this sync
+    }
+
     // Read remote (1 API call)
     const remote = await readSyncFile();
-
-    const filteredSessions = localSessions.filter(s => s.id !== "__active_test__");
 
     // Merge each store (pure CPU, no I/O, no JSON.stringify)
     const banks = mergeRecordSets(localBanks, remote?.questionBanks);
@@ -471,7 +483,7 @@
     notifyStateChange();
 
     try {
-      const localChanged = await bidirectionalSync();
+      const localChanged = await bidirectionalSync(options);
 
       const meta = JSON.parse(localStorage.getItem(SYNC_META_KEY) || "{}");
       meta.lastSynced = new Date().toISOString();

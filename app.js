@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.0.4";
+  const APP_VERSION = "v2.0.6";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -2886,17 +2886,20 @@
           try {
             setBusy("Restoring backup", "Rebuilding your local question bank, sessions, and dashboard metrics.", "restore");
             await nextPaint();
-            const sessionsData = (payload.sessions || []).filter(record => !isDeletedRecord(record));
+            const now = Date.now();
+            const stamp = record => ({ ...record, updatedAt: now });
+
+            const sessionsData = (payload.sessions || []).filter(record => !isDeletedRecord(record)).map(stamp);
             const embeddedResponses = sessionsData.flatMap(session => (session.responses || []).map(response => ({
               ...response,
               sessionId: response.sessionId || session.id,
-              updatedAt: response.updatedAt || session.updatedAt
+              updatedAt: now
             })));
-            const responseData = dedupeResponses([...(payload.responses || []), ...embeddedResponses]);
+            const responseData = dedupeResponses([...(payload.responses || []).map(stamp), ...embeddedResponses]);
 
             await DB.clearAll();
-            if (banksData.length) await putManyChunked("questionBanks", banksData.filter(record => !isDeletedRecord(record)));
-            if (payload.questions.length) await putManyChunked("questions", payload.questions.filter(record => !isDeletedRecord(record)));
+            if (banksData.length) await putManyChunked("questionBanks", banksData.filter(record => !isDeletedRecord(record)).map(stamp));
+            if (payload.questions.length) await putManyChunked("questions", payload.questions.filter(record => !isDeletedRecord(record)).map(stamp));
             if (sessionsData.length) await putManyChunked("sessions", sessionsData);
             if (responseData.length) await putManyChunked("responses", responseData);
 
@@ -2905,7 +2908,7 @@
             showBackupMsg("Backup restored successfully.", "success");
             renderHome();
             maybeStartTutorial();
-            if (window.SevSync?.isLinked()) SevSync.sync();
+            if (window.SevSync?.isLinked()) SevSync.sync(true, { forcePush: true });
           } catch (err) {
             clearBusy(false);
             console.error(err);
