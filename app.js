@@ -1,6 +1,7 @@
 (function () {
   "use strict";
 
+  const APP_VERSION = "v2.0.4";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -11,6 +12,34 @@
   const POSTHOG_API_HOST = "https://us.i.posthog.com";
   const SENTRY_LOADER_URL = "https://js.sentry-cdn.com/610da841a6875eae790cbc1fd6ea96b1.min.js";
   const COLLEGE_BOARD_BASE_URL = "https://mypractice.collegeboard.org/";
+  const TUTORIAL_DONE_KEY = "sevrony.tutorial.v1.done";
+  const TUTORIAL_STEPS = [
+    {
+      selector: "[data-tour-target='dashboard-hero']",
+      title: "Your dashboard",
+      body: "This is the command center for imported questions, accuracy, timing, and weak areas."
+    },
+    {
+      selector: "[data-tour-target='create-test']",
+      title: "Start practice",
+      body: "Create adaptive drills or full sections from your imported SAT question bank."
+    },
+    {
+      selector: "[data-tour-target='metrics']",
+      title: "Track what changed",
+      body: "These cards update from completed sessions and deduped responses, so deleted tests no longer linger."
+    },
+    {
+      selector: "[data-tour-target='history-nav']",
+      title: "Review past work",
+      body: "Past Tests keeps full tests, Bluebook imports, reviews, retries, and deletion controls in one place."
+    },
+    {
+      selector: "[data-tour-target='sync'], [data-tour-target='backup-nav']",
+      title: "Sync and backups",
+      body: "Use Data & Backups to link Google Drive sync, restore data, or reconnect when the indicator turns orange."
+    }
+  ];
 
   const SUBJECTS = {
     math: "Math",
@@ -125,6 +154,12 @@
     showRefSheet: false,
     showShortcuts: false,
     showSupport: false,
+    busy: null,
+    tutorial: {
+      active: false,
+      step: 0,
+      previousFocus: null
+    },
   };
 
   if (document.readyState === "loading") {
@@ -222,6 +257,33 @@
     await refreshLocalData();
     await restoreActiveTest();
     ensureConfigDefaults();
+
+    // Cloud sync: register for background sync updates from other devices
+    if (window.SevSync) {
+      SevSync.onUpdate(() => {
+        refreshLocalData().then(() => renderHome());
+      });
+      let previouslyValid = true;
+      SevSync.onStateChange(() => {
+        const status = SevSync.getStatus();
+        const widget = document.querySelector('.sync-status-container');
+        if (widget) {
+          widget.outerHTML = renderSyncWidget();
+          const newWidget = document.querySelector('.sync-status-container');
+          if (newWidget) newWidget.addEventListener("click", handleHomeAction);
+        }
+        if (previouslyValid && !status.tokenValid) {
+          showNotice("Cloud sync paused: Session expired. Click the indicator to reconnect.", "error");
+        }
+        previouslyValid = status.tokenValid;
+      });
+    }
+    // Auto cloud-sync on open (best-effort, non-blocking)
+    if (window.SevSync?.isLinked()) {
+      SevSync.sync(false, { silent: true }).then(result => {
+        if (result.ok && result.localChanged) refreshLocalData().then(() => renderHome());
+      });
+    }
 
     const urlParams = new URLSearchParams(window.location.search);
     const debugQid = urlParams.get('debug');
@@ -519,6 +581,121 @@
     });
   }
 
+  function isDeletedRecord(record) {
+    return Boolean(record?.deletedAt);
+  }
+
+  function getRecordTimestamp(record) {
+    if (!record) return 0;
+    if (record.updatedAt) return Number(record.updatedAt) || 0;
+    if (record.deletedAt) return Number(record.deletedAt) || 0;
+    if (record.completedAt) return new Date(record.completedAt).getTime() || 0;
+    if (record.importedAt) return new Date(record.importedAt).getTime() || 0;
+    if (record.answeredAt) return new Date(record.answeredAt).getTime() || 0;
+    return 0;
+  }
+
+  function responseIdentity(response) {
+    const sessionId = response?.sessionId || "";
+    const questionId = response?.questionId || "";
+    if (sessionId && questionId) {
+      const sequence = response.sequence === 0 || response.sequence ? String(response.sequence) : "";
+      return `${sessionId}::${questionId}::${sequence}`;
+    }
+    return response?.id || uid("response-key");
+  }
+
+  function dedupeResponses(responses) {
+    const byKey = new Map();
+    for (const response of responses || []) {
+      if (!response || isDeletedRecord(response)) continue;
+      const key = responseIdentity(response);
+      const existing = byKey.get(key);
+      if (!existing || getRecordTimestamp(response) >= getRecordTimestamp(existing)) {
+        byKey.set(key, response);
+      }
+    }
+    return [...byKey.values()];
+  }
+
+  function hydrateCanonicalResponses(sessions, storedResponses) {
+    const embeddedResponses = [];
+    for (const session of sessions || []) {
+      for (const response of session.responses || []) {
+        embeddedResponses.push({
+          ...response,
+          sessionId: response.sessionId || session.id,
+          updatedAt: response.updatedAt || session.updatedAt
+        });
+      }
+    }
+    return dedupeResponses([...(storedResponses || []), ...embeddedResponses])
+      .sort((a, b) => String(b.answeredAt).localeCompare(String(a.answeredAt)));
+  }
+
+  function buildPortablePayload() {
+    return {
+      exportedAt: new Date().toISOString(),
+      questionBanks: state.banks.filter(record => !isDeletedRecord(record)),
+      questions: state.questions.filter(record => !isDeletedRecord(record)),
+      sessions: state.sessions.filter(record => !isDeletedRecord(record)),
+      responses: dedupeResponses(state.responses)
+    };
+  }
+
+  async function putManyChunked(storeName, values, chunkSize = 300) {
+    const records = values || [];
+    for (let i = 0; i < records.length; i += chunkSize) {
+      await DB.putMany(storeName, records.slice(i, i + chunkSize));
+      await nextPaint();
+    }
+    return records.length;
+  }
+
+  function nextPaint() {
+    return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  }
+
+  async function tombstoneSessionPackage(sessionId) {
+    const now = Date.now();
+    const session = await DB.get("sessions", sessionId);
+    if (!session) return;
+
+    await DB.put("sessions", { ...session, deletedAt: now, updatedAt: now });
+
+    const storedResponses = await DB.getAll("responses");
+    const responseMap = new Map();
+    for (const response of [...storedResponses, ...state.responses, ...(session.responses || [])]) {
+      if (response?.sessionId !== sessionId) continue;
+      const id = response.id || `${sessionId}:deleted:${response.questionId || response.sequence || responseMap.size}`;
+      responseMap.set(id, { ...response, id, sessionId, deletedAt: now, updatedAt: now });
+    }
+    if (responseMap.size) await DB.putMany("responses", [...responseMap.values()]);
+
+    if (session.mode !== "bluebook") return;
+
+    const [banks, questions] = await Promise.all([
+      DB.getAll("questionBanks"),
+      DB.getAll("questions")
+    ]);
+    const ownedBankIds = new Set(
+      banks
+        .filter(bank => bank.id === sessionId || bank.id === session.bankId || bank.displayTitle === session.title)
+        .map(bank => bank.id)
+    );
+    ownedBankIds.add(sessionId);
+
+    const banksToTombstone = banks
+      .filter(bank => ownedBankIds.has(bank.id))
+      .map(bank => ({ ...bank, deletedAt: now, updatedAt: now }));
+    const questionsToTombstone = questions
+      .filter(question => ownedBankIds.has(question.bankId))
+      .map(question => ({ ...question, deletedAt: now, updatedAt: now }));
+
+    if (banksToTombstone.length) await DB.putMany("questionBanks", banksToTombstone);
+    if (questionsToTombstone.length) await putManyChunked("questions", questionsToTombstone);
+  }
+
   async function refreshLocalData() {
     const [banks, questions, sessions, oldResponses] = await Promise.all([
       DB.getAll("questionBanks"),
@@ -527,20 +704,17 @@
       DB.getAll("responses")
     ]);
 
-    state.banks = banks.sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)));
-    state.questions = questions.sort((a, b) => {
+    state.banks = banks.filter(record => !isDeletedRecord(record)).sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)));
+    state.questions = questions.filter(record => !isDeletedRecord(record)).sort((a, b) => {
       const subject = String(a.subject).localeCompare(String(b.subject));
       if (subject !== 0) return subject;
       return String(a.questionId || a.id).localeCompare(String(b.questionId || b.id));
     });
     
-    const validSessions = sessions.filter(s => s.id !== "__active_test__");
+    const validSessions = sessions.filter(s => s.id !== "__active_test__" && !s.deletedAt);
     state.sessions = validSessions.sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
     
-    // Combine old responses (from responses store) with new embedded responses
-    const embeddedResponses = validSessions.flatMap(s => s.responses || []);
-    const allResponses = [...oldResponses, ...embeddedResponses];
-    state.responses = allResponses.sort((a, b) => String(b.answeredAt).localeCompare(String(a.answeredAt)));
+    state.responses = hydrateCanonicalResponses(validSessions, oldResponses);
 
     const backupConf = await DB.get("appConfig", "backupHandle");
     state.backupHandle = backupConf ? backupConf.handle : null;
@@ -551,6 +725,57 @@
      =========================================================== */
 
   let _currentRoute = null;
+
+  function setBusy(title, detail, variant = "sync") {
+    state.busy = { title, detail, variant };
+    renderHome(true, true);
+  }
+
+  function clearBusy(shouldRender = true) {
+    state.busy = null;
+    if (shouldRender) renderHome(true, true);
+  }
+
+  function renderBusyView(busy) {
+    const title = escapeHtml(busy?.title || "Working");
+    const detail = escapeHtml(busy?.detail || "Please wait while Sevrony updates your local data.");
+    const label = busy?.variant === "restore"
+      ? "Restoring local data"
+      : busy?.variant === "import"
+        ? "Importing files"
+        : "Syncing account";
+
+    return `
+      <main class="busy-shell" aria-busy="true" aria-live="polite">
+        <section class="busy-card" role="status" aria-label="${escapeAttr(label)}">
+          <div class="busy-card-header">
+            <div class="busy-icon-wrap">
+              <svg class="sync-spinner" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            </div>
+            <div>
+              <p class="eyebrow">Sevrony is updating</p>
+              <h1>${title}</h1>
+              <p>${detail}</p>
+            </div>
+          </div>
+          <div class="skeleton-layout" aria-hidden="true">
+            <div class="skeleton-line skeleton-title"></div>
+            <div class="skeleton-grid">
+              <div class="skeleton-box"></div>
+              <div class="skeleton-box"></div>
+              <div class="skeleton-box"></div>
+              <div class="skeleton-box"></div>
+            </div>
+            <div class="skeleton-panel">
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line short"></div>
+              <div class="skeleton-chart"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+  }
 
   function routeTransition(newRoute, doRender) {
     const isRouteChanging = _currentRoute !== newRoute;
@@ -610,6 +835,12 @@
   function renderHome(skipPush = false, replace = false) {
     stopTicker();
 
+    if (state.busy) {
+      app.className = "";
+      app.innerHTML = renderBusyView(state.busy);
+      return;
+    }
+
     if (state.questions.length === 0 && ["dashboard", "history", "config", "mistakes", "results", "review"].includes(state.view)) {
       state.view = "marketing";
     }
@@ -626,7 +857,10 @@
 
       if (state.view === "onboarding") {
         app.className = "";
-        app.innerHTML = renderOnboarding();
+        app.innerHTML = `
+          ${state.notice ? renderNotice(state.notice) : ""}
+          ${renderOnboarding()}
+        `;
         bindHomeEvents();
         return;
       }
@@ -684,6 +918,18 @@
             <p style="line-height: 1.6; color: var(--muted-foreground);">
               Sevrony stores imported question banks, answers, timings, backups, and test history in your browser using IndexedDB.
               The app has no backend database for your study data. Manual and automatic backups are files you create or folders you choose.
+            </p>
+          </div>
+
+          <div>
+            <h2 style="font-size: 1.5rem; margin-top: 0; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue);"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+              Cloud Sync (Optional)
+            </h2>
+            <p style="line-height: 1.6; color: var(--muted-foreground);">
+              If you enable cloud sync, Sevrony authenticates with Google to read and write a sync file in your own Google Drive's application data folder.
+              This folder is private to Sevrony and not visible in your regular Drive. Your study data goes directly from your browser to your Google Drive — it does not pass through any Sevrony server.
+              You can unlink your account at any time in Data & Backups, or revoke access from <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" style="color: var(--blue);">Google's app permissions page</a>.
             </p>
           </div>
 
@@ -787,18 +1033,31 @@
   }
 
   function renderOnboarding() {
+    const isLinked = Boolean(window.SevSync?.isLinked());
     return `
       <div class="font-marketing min-h-[80vh] flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="w-full max-w-3xl border border-border bg-card text-card-foreground rounded-xl shadow-sm opacity-0 animate-fade-in-up">
           
-          <!-- Header -->
-          <div class="flex flex-col space-y-1.5 p-6 border-b border-border text-center sm:text-left">
-            <h2 class="text-2xl font-bold tracking-tight text-foreground" style="margin: 0;">Welcome to your Dashboard</h2>
-            <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 0 0;">Before you begin, you need to import your practice questions.</p>
+          <!-- Header (Returning User) -->
+          <div class="flex flex-col items-center justify-center space-y-4 p-8 border-b border-border text-center bg-muted/20" style="background: rgba(0,0,0,0.02);">
+            <h2 class="text-xl font-bold text-foreground" style="margin: 0;">Returning User?</h2>
+            <p class="text-sm text-muted-foreground" style="margin: 0; max-width: 400px;">Login to Google Drive to restore your existing practice data, sessions, and dashboard metrics.</p>
+            <div class="flex items-center gap-3 mt-4" style="margin-top: 16px;">
+              <button class="primary-btn" type="button" data-action="returning-sign-in">${isLinked ? "Login" : "Sign in and restore"}</button>
+              ${isLinked ? `<button class="ghost-btn subtle" type="button" data-action="unlink-cloud-sync">Use another account</button>` : ""}
+            </div>
           </div>
           
-          <!-- Content -->
-          <div class="p-6 space-y-8">
+          <div class="relative flex justify-center" style="margin-top: -14px;">
+            <span class="bg-card px-4 text-xs font-semibold text-muted-foreground uppercase tracking-widest border border-border shadow-sm" style="border-radius: 20px; background: var(--paper); padding: 4px 16px;">OR</span>
+          </div>
+
+          <!-- Content (New User) -->
+          <div class="p-8 pt-6 space-y-8">
+            <div class="text-center mb-8">
+              <h2 class="text-2xl font-bold tracking-tight text-foreground" style="margin: 0;">New User Setup</h2>
+              <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 0 0;">Import your practice questions to begin.</p>
+            </div>
             
             <!-- Step 1 -->
             <div class="flex gap-4">
@@ -864,21 +1123,53 @@
     `;
   }
 
+  function renderSyncWidget() {
+    if (!window.SevSync?.isLinked()) return "";
+    const status = SevSync.getStatus();
+    
+    let iconHTML = "";
+    let text = "";
+    let action = "backup";
+    let statusClass = "is-synced";
+    
+    if (status.syncing) {
+      iconHTML = '<svg class="sync-spinner" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+      text = "Syncing...";
+      statusClass = "is-syncing";
+    } else if (!status.tokenValid) {
+      iconHTML = '<div class="warning-dot"></div>';
+      text = "Session Expired";
+      action = "force-cloud-sync";
+      statusClass = "is-expired";
+    } else {
+      iconHTML = '<div class="success-dot"></div>';
+      text = "Synced";
+    }
+
+    return `
+      <button class="sync-status-container ${statusClass}" type="button" data-action="${action}" data-tour-target="sync" title="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Cloud Sync Status"}" aria-label="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Open cloud sync status"}">
+        ${iconHTML}
+        <span>${text}</span>
+      </button>
+    `;
+  }
+
   function renderTopbar() {
     return `
       <header class="topbar">
         <button class="brand-mark" type="button" data-action="dashboard" aria-label="Open dashboard">
           <img class="brand-icon" src="logo.svg" alt="Sevrony Logo">
           <span>
-            <strong>Sevrony</strong>
+            <strong>Sevrony <span style="color: var(--ink-muted); font-size: 0.85em; font-weight: normal; margin-left: 4px;">${APP_VERSION}</span></strong>
             <small>Local question bank · Timed tests</small>
           </span>
         </button>
         <nav class="top-actions">
+          ${renderSyncWidget()}
           <button class="ghost-btn support-btn" type="button" data-action="open-support" style="display: inline-flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> Support the author</button>
           <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
-          <button class="ghost-btn" type="button" data-action="history">Past Tests</button>
-          <button class="ghost-btn" type="button" data-action="backup">Data & Backups</button>
+          <button class="ghost-btn" type="button" data-action="history" data-tour-target="history-nav">Past Tests</button>
+          <button class="ghost-btn" type="button" data-action="backup" data-tour-target="backup-nav">Data & Backups</button>
           <button class="ghost-btn" type="button" data-action="privacy">Privacy</button>
         </nav>
       </header>
@@ -949,7 +1240,13 @@
     return `
       <section class="notice ${notice.type || "info"}">
         <p>${escapeHtml(notice.text)}</p>
-        <button type="button" data-action="dismiss-notice" aria-label="Dismiss">✕</button>
+        <button type="button" data-action="dismiss-notice" aria-label="Dismiss" style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0;">
+          <svg viewBox="0 0 24 24" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" opacity="0.2" />
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="62.83" stroke-dashoffset="0" style="animation: notice-countdown 5s linear forwards;" />
+          </svg>
+          <span style="position: relative; z-index: 1; font-size: 12px;">✕</span>
+        </button>
       </section>
     `;
   }
@@ -1063,21 +1360,35 @@
     }
 
     return `
-      <section class="hero-card">
+      <section class="hero-card" data-tour-target="dashboard-hero">
         <div>
           <p class="eyebrow">Global overview</p>
           <h1>Your SAT Practice Dashboard</h1>
           <p>${state.banks.length} imported bank${state.banks.length === 1 ? "" : "s"} · ${state.questions.length} total questions</p>
         </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <button class="primary-btn large" type="button" data-action="config">Create New Test</button>
+          <button class="primary-btn large" type="button" data-action="config" data-tour-target="create-test">Create New Test</button>
           <button class="ghost-btn large" type="button" data-action="retry-mistakes" style="background:var(--paper);border-color:var(--line)">Retry Mistakes</button>
         </div>
       </section>
 
       ${renderStreakWidget()}
 
-      <section class="metric-grid">
+      ${!window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
+      <section class="panel" style="margin-top: 0; display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-color: var(--blue); border-left: 4px solid var(--blue); background: color-mix(in srgb, var(--blue) 5%, var(--card));">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+        <div style="flex: 1;">
+          <strong style="display: block; margin-bottom: 2px;">Your data isn't backed up to the cloud</strong>
+          <span class="muted" style="font-size: 13px;">Enable cloud sync to access your data across devices.</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-shrink: 0;">
+          <button class="secondary-btn" data-action="setup-cloud-sync" style="padding: 6px 16px; font-size: 13px;">Set Up</button>
+          <button class="ghost-btn" data-action="dismiss-sync-banner" style="padding: 6px 12px; font-size: 13px;">Dismiss</button>
+        </div>
+      </section>
+      ` : ''}
+
+      <section class="metric-grid" data-tour-target="metrics">
         ${renderMetric("Math Bank", mathCount, "questions imported")}
         ${renderMetric("RW Bank", rwCount, "questions imported")}
         ${renderMetric("Accuracy", formatPercent(metrics.overall.accuracy), `${metrics.overall.answered} answered`)}
@@ -1154,6 +1465,43 @@
           <h1>Manage your local data.</h1>
           <p>Secure your test history or transfer it between devices.</p>
         </div>
+      </section>
+
+      <section class="panel" style="margin-top: 32px;">
+        <div class="panel-heading">
+          <p class="eyebrow">Cloud Sync</p>
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue);"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+            Google Drive Sync
+          </h2>
+        </div>
+        <p class="muted" style="margin-bottom:16px;">Sync your data across devices using your Google account. Data is stored privately in your own Google Drive.</p>
+         ${window.SevSync?.isLinked()
+          ? (() => {
+              const status = SevSync.getStatus();
+              const ago = status.lastSynced ? (() => { const d = Math.round((Date.now() - new Date(status.lastSynced).getTime()) / 1000); if (d < 60) return 'just now'; if (d < 3600) return Math.floor(d/60) + ' min ago'; if (d < 86400) return Math.floor(d/3600) + 'h ago'; return Math.floor(d/86400) + 'd ago'; })() : 'never';
+              const autoSyncActive = status.tokenValid;
+              return `
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                  <div class="${autoSyncActive ? 'success-dot' : 'warning-dot'}" style="${!autoSyncActive ? 'background:var(--yellow,#eab308);' : ''}"></div>
+                  <span>Linked: <strong>${escapeHtml(status.email || '')}</strong></span>
+                </div>
+                <p class="muted" style="margin-bottom:8px; font-size:13px;">Last synced: ${escapeHtml(ago)}</p>
+                ${autoSyncActive
+                  ? '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--green,#22c55e);">✓ Auto-sync active — changes sync across devices automatically</p>'
+                  : '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--yellow,#eab308);">Session expired — tap Sync Now to reconnect</p>'
+                }
+                <div style="display: flex; gap: 8px;">
+                  <button class="secondary-btn" data-action="force-cloud-sync">Sync Now</button>
+                  <button class="ghost-btn" data-action="unlink-cloud-sync">Unlink Account</button>
+                </div>
+              `;
+            })()
+          : `<button class="secondary-btn" data-action="link-cloud-sync">
+               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -3px; margin-right: 6px;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+               Link Google Account
+             </button>`
+        }
       </section>
 
       <section class="panel two-column" style="margin-top: 32px;">
@@ -1888,6 +2236,208 @@
     }
   }
 
+  let isSyncingLinkedAccount = false;
+  async function syncLinkedAccount({ returningUser = false } = {}) {
+    if (isSyncingLinkedAccount) return;
+    if (!window.SevSync) {
+      showNotice("Cloud sync is unavailable. Check your connection and try again.", "error");
+      renderHome();
+      return;
+    }
+
+    isSyncingLinkedAccount = true;
+    let email = SevSync.getStatus()?.email || "";
+    try {
+      if (!SevSync.isLinked() || !SevSync.getStatus().tokenValid) {
+        setBusy("Connecting Google Drive", "Choose the Google account that already has your Sevrony sync data.", "sync");
+        await nextPaint();
+        email = await SevSync.link();
+      }
+
+      setBusy("Syncing cloud data", "Restoring questions, sessions, Bluebook imports, and dashboard metrics from Google Drive.", "sync");
+      const result = await SevSync.sync(true);
+      if (!result.ok) throw new Error(result.reason || "sync_failed");
+
+      await refreshLocalData();
+      ensureConfigDefaults();
+      clearBusy(false);
+
+      if (returningUser && state.questions.length === 0 && state.sessions.length === 0) {
+        state.view = "onboarding";
+        showNotice("No synced practice data was found for this account. Import a .sat-test file or choose another account.", "error");
+        renderHome();
+        isSyncingLinkedAccount = false;
+        return;
+      }
+
+      if (returningUser) {
+        state.view = "dashboard";
+        localStorage.setItem(TUTORIAL_DONE_KEY, "true"); // Skip tutorial
+      }
+      showNotice(email ? `Synced with ${email}.` : "Synced successfully.", "success");
+      renderHome();
+      if (!returningUser) maybeStartTutorial();
+    } catch (err) {
+      clearBusy(false);
+      console.error(err);
+      state.view = returningUser ? "onboarding" : state.view;
+      showNotice("Cloud sync failed. Please try again.", "error");
+      renderHome();
+    } finally {
+      isSyncingLinkedAccount = false;
+    }
+  }
+
+  function shouldAutoStartTutorial() {
+    return state.view === "dashboard"
+      && state.questions.length > 0
+      && !state.activeTest
+      && !state.busy
+      && !state.tutorial.active
+      && localStorage.getItem(TUTORIAL_DONE_KEY) !== "true";
+  }
+
+  function maybeStartTutorial() {
+    if (!shouldAutoStartTutorial()) return;
+    window.setTimeout(() => {
+      if (shouldAutoStartTutorial()) startTutorial();
+    }, 350);
+  }
+
+  function startTutorial({ force = false } = {}) {
+    if (state.tutorial.active) return;
+    if (!force && !shouldAutoStartTutorial()) return;
+    if (force && state.questions.length === 0) {
+      showNotice("Import or sync practice data first, then the tutorial can walk you through the dashboard.", "info");
+      renderHome();
+      return;
+    }
+
+    state.tutorial.active = true;
+    state.tutorial.step = 0;
+    state.tutorial.previousFocus = document.activeElement;
+    renderTutorialStep();
+  }
+
+  function findTourTarget(step) {
+    return document.querySelector(step.selector) || document.querySelector("[data-tour-target='dashboard-hero']") || app;
+  }
+
+  function updateTutorialPosition() {
+    if (!state.tutorial.active) return;
+    const overlay = document.querySelector(".tour-overlay");
+    const spotlight = overlay?.querySelector(".tour-spotlight");
+    const card = overlay?.querySelector(".tour-card");
+    if (!overlay || !spotlight || !card) return;
+
+    const step = TUTORIAL_STEPS[state.tutorial.step];
+    const target = findTourTarget(step);
+    const rect = target.getBoundingClientRect();
+    const pad = 8;
+    const top = Math.max(8, rect.top - pad);
+    const left = Math.max(8, rect.left - pad);
+    const width = Math.min(window.innerWidth - left - 8, rect.width + pad * 2);
+    const height = Math.min(window.innerHeight - top - 8, rect.height + pad * 2);
+
+    spotlight.style.top = `${top}px`;
+    spotlight.style.left = `${left}px`;
+    spotlight.style.width = `${width}px`;
+    spotlight.style.height = `${height}px`;
+
+    const cardWidth = Math.min(380, window.innerWidth - 32);
+    const estimatedCardHeight = 240;
+    const cardLeft = clamp(rect.left, 16, window.innerWidth - cardWidth - 16);
+    let cardTop = rect.bottom + 18;
+    if (cardTop + estimatedCardHeight > window.innerHeight) {
+      cardTop = Math.max(16, rect.top - estimatedCardHeight - 18);
+    }
+    card.style.width = `${cardWidth}px`;
+    card.style.left = `${cardLeft}px`;
+    card.style.top = `${cardTop}px`;
+  }
+
+  function renderTutorialStep() {
+    const step = TUTORIAL_STEPS[state.tutorial.step];
+    const target = findTourTarget(step);
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    target.scrollIntoView({ block: "center", inline: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+
+    let overlay = document.querySelector(".tour-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "tour-overlay";
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", "Sevrony tutorial");
+      overlay.innerHTML = `<div class="tour-spotlight" aria-hidden="true"></div><div class="tour-card" tabindex="-1"></div>`;
+      overlay.addEventListener("click", event => {
+        const action = event.target.closest("[data-tour-action]")?.dataset.tourAction;
+        if (!action) return;
+        if (action === "skip") endTutorial(true);
+        if (action === "back") moveTutorial(-1);
+        if (action === "next") moveTutorial(1);
+        if (action === "done") endTutorial(true);
+      });
+      overlay.addEventListener("keydown", event => handleTutorialKey(event));
+      document.body.appendChild(overlay);
+      window.addEventListener("resize", updateTutorialPosition);
+      window.addEventListener("scroll", updateTutorialPosition, true);
+    }
+
+    const isFirst = state.tutorial.step === 0;
+    const isLast = state.tutorial.step === TUTORIAL_STEPS.length - 1;
+    overlay.querySelector(".tour-card").innerHTML = `
+      <p class="tour-progress">Step ${state.tutorial.step + 1} of ${TUTORIAL_STEPS.length}</p>
+      <h2>${escapeHtml(step.title)}</h2>
+      <p>${escapeHtml(step.body)}</p>
+      <div class="tour-actions">
+        <button class="ghost-btn" type="button" data-tour-action="skip">Skip</button>
+        <div>
+          <button class="ghost-btn" type="button" data-tour-action="back" ${isFirst ? "disabled" : ""}>Back</button>
+          <button class="primary-btn" type="button" data-tour-action="${isLast ? "done" : "next"}">${isLast ? "Done" : "Next"}</button>
+        </div>
+      </div>
+    `;
+    requestAnimationFrame(() => {
+      updateTutorialPosition();
+      overlay.querySelector(isLast ? "[data-tour-action='done']" : "[data-tour-action='next']")?.focus();
+    });
+  }
+
+  function moveTutorial(direction) {
+    state.tutorial.step = clamp(state.tutorial.step + direction, 0, TUTORIAL_STEPS.length - 1);
+    renderTutorialStep();
+  }
+
+  function handleTutorialKey(event) {
+    if (!state.tutorial.active) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      endTutorial(true);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      if (state.tutorial.step === TUTORIAL_STEPS.length - 1) endTutorial(true);
+      else moveTutorial(1);
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      moveTutorial(-1);
+    }
+  }
+
+  function endTutorial(markDone) {
+    const overlay = document.querySelector(".tour-overlay");
+    if (overlay) overlay.remove();
+    window.removeEventListener("resize", updateTutorialPosition);
+    window.removeEventListener("scroll", updateTutorialPosition, true);
+    state.tutorial.active = false;
+    state.tutorial.step = 0;
+    if (markDone) localStorage.setItem(TUTORIAL_DONE_KEY, "true");
+    if (state.tutorial.previousFocus?.focus) state.tutorial.previousFocus.focus();
+    state.tutorial.previousFocus = null;
+  }
+
   async function handleHomeAction(event) {
     event.stopPropagation();
     const action = event.currentTarget.dataset.action;
@@ -1934,6 +2484,7 @@
     }
 
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
+    if (action === "returning-sign-in") { await syncLinkedAccount({ returningUser: true }); return; }
     if (action === "import-bluebook") { fileInput.click(); return; }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
     if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
@@ -2095,7 +2646,7 @@
       }
     }
     if (action === "import") { fileInput.click(); }
-    if (action === "dismiss-notice") { state.notice = null; renderHome(); }
+    if (action === "dismiss-notice") { state.notice = null; dismissNoticeUI(); }
     if (action === "reset") {
       showConfirmModal("Clear all imported question banks, sessions, and history?", "Clear All", async () => {
         await DB.clearAll();
@@ -2114,24 +2665,28 @@
       showConfirmModal("Delete this test and all its responses?", "Delete Test", () => {
         const card = btn.closest('.history-card');
         if (card) {
-          card.style.transition = "all 0.3s ease";
+          card.style.transition = "all 0.15s ease";
           card.style.opacity = "0";
           card.style.transform = "scale(0.95)";
           setTimeout(async () => {
             await finishDelete();
-          }, 300);
+          }, 150);
         } else {
           finishDelete();
         }
 
         async function finishDelete() {
-          const responseIds = state.responses.filter(r => r.sessionId === sessionId).map(r => r.id);
-          await DB.remove("sessions", sessionId);
-          if (responseIds.length) await DB.removeMany("responses", responseIds);
+          await tombstoneSessionPackage(sessionId);
           await refreshLocalData();
+          if (state.reviewSessionId === sessionId) state.reviewSessionId = null;
+          if (state.lastResult?.session?.id === sessionId) {
+            state.lastResult = null;
+            sessionStorage.removeItem('lastResultSessionId');
+          }
           showNotice("Test deleted.", "info");
           renderHome();
           syncBackup(false);
+          if (window.SevSync?.isLinked()) SevSync.sync();
         }
       });
     }
@@ -2141,6 +2696,30 @@
     if (action === "force-backup") { await syncBackup(true); }
     if (action === "download-backup") { await downloadManualBackup(); }
     if (action === "restore-backup") { await restoreBackup(); }
+
+    // ── Cloud Sync Actions ──
+    if (action === "link-cloud-sync") {
+      state.backupMessage = null;
+      await syncLinkedAccount();
+    }
+    if (action === "unlink-cloud-sync") {
+      state.backupMessage = null;
+      await SevSync.unlink();
+      showNotice("Account unlinked. Local data preserved.", "success");
+      renderHome();
+    }
+    if (action === "force-cloud-sync") {
+      state.backupMessage = null;
+      await syncLinkedAccount();
+    }
+    if (action === "setup-cloud-sync") {
+      state.view = "backup";
+      renderHome();
+    }
+    if (action === "dismiss-sync-banner") {
+      localStorage.setItem('sevrony.syncBannerDismissed', 'true');
+      renderHome();
+    }
   }
 
   function makeDebugUrl(qid) {
@@ -2209,8 +2788,18 @@
     showBackupMsg("Backup folder unlinked.", "success");
   }
 
+  let backupDebounce = null;
   async function syncBackup(requireGesture = false) {
     if (!state.backupHandle) return;
+    if (!requireGesture) {
+      if (backupDebounce) clearTimeout(backupDebounce);
+      backupDebounce = setTimeout(() => doSyncBackup(false), 3000);
+      return;
+    }
+    return doSyncBackup(true);
+  }
+
+  async function doSyncBackup(requireGesture) {
     try {
       if ((await state.backupHandle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
         if (!requireGesture) return;
@@ -2220,33 +2809,23 @@
       const fileHandle = await state.backupHandle.getFileHandle("sat-app-backup.json", { create: true });
       const writable = await fileHandle.createWritable();
       
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        questionBanks: state.banks,
-        questions: state.questions,
-        sessions: state.sessions,
-        responses: state.responses
-      };
+      const payload = buildPortablePayload();
       
       await writable.write(JSON.stringify(payload));
       await writable.close();
       if (requireGesture) showBackupMsg("Backup saved successfully.", "success");
     } catch (err) {
-      console.error("Backup failed:", err);
-      if (requireGesture) showBackupMsg("Failed to save backup.", "error");
+      if (err.name !== 'AbortError') {
+        console.error(err);
+        if (requireGesture) showBackupMsg("Failed to save backup.", "error");
+      }
     }
   }
 
   async function downloadManualBackup() {
     state.backupMessage = null;
     try {
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        questionBanks: state.banks,
-        questions: state.questions,
-        sessions: state.sessions,
-        responses: state.responses
-      };
+      const payload = buildPortablePayload();
       
       const text = JSON.stringify(payload);
       
@@ -2304,16 +2883,36 @@
         if (!banksData || !payload.questions) throw new Error("Invalid backup format");
         
         showConfirmModal("Restore backup? This will overwrite your current progress.", "Restore", async () => {
-          await DB.clearAll();
-          if (banksData.length) await DB.putMany("questionBanks", banksData);
-          if (payload.questions.length) await DB.putMany("questions", payload.questions);
-          if (payload.sessions && payload.sessions.length) await DB.putMany("sessions", payload.sessions);
-          if (payload.responses && payload.responses.length) await DB.putMany("responses", payload.responses);
+          try {
+            setBusy("Restoring backup", "Rebuilding your local question bank, sessions, and dashboard metrics.", "restore");
+            await nextPaint();
+            const sessionsData = (payload.sessions || []).filter(record => !isDeletedRecord(record));
+            const embeddedResponses = sessionsData.flatMap(session => (session.responses || []).map(response => ({
+              ...response,
+              sessionId: response.sessionId || session.id,
+              updatedAt: response.updatedAt || session.updatedAt
+            })));
+            const responseData = dedupeResponses([...(payload.responses || []), ...embeddedResponses]);
 
-          await refreshLocalData();
-          showBackupMsg("Backup restored successfully.", "success");
-          renderHome();
-        });
+            await DB.clearAll();
+            if (banksData.length) await putManyChunked("questionBanks", banksData.filter(record => !isDeletedRecord(record)));
+            if (payload.questions.length) await putManyChunked("questions", payload.questions.filter(record => !isDeletedRecord(record)));
+            if (sessionsData.length) await putManyChunked("sessions", sessionsData);
+            if (responseData.length) await putManyChunked("responses", responseData);
+
+            await refreshLocalData();
+            clearBusy(false);
+            showBackupMsg("Backup restored successfully.", "success");
+            renderHome();
+            maybeStartTutorial();
+            if (window.SevSync?.isLinked()) SevSync.sync();
+          } catch (err) {
+            clearBusy(false);
+            console.error(err);
+            showBackupMsg("Failed to restore backup.", "error");
+            renderHome();
+          }
+        }, { loadingText: "Restoring..." });
       } catch (err) {
         console.error(err);
         showBackupMsg("Failed to restore backup.", "error");
@@ -2331,35 +2930,44 @@
     const files = Array.from(event.target.files || []);
     event.target.value = "";
     if (!files.length) return;
+    setBusy("Importing practice data", `Preparing ${files.length} file${files.length === 1 ? "" : "s"} for your dashboard.`, "import");
+    await nextPaint();
     
     let successCount = 0;
     let errorMessages = [];
     let hasBluebook = false;
     let hasBank = false;
     
-    for (const file of files) {
+    for (const [index, file] of files.entries()) {
       try {
+        setBusy("Importing practice data", `Reading file (${index + 1} of ${files.length}).`, "import");
+        await nextPaint();
         const payload = JSON.parse(await file.text());
         if (payload.testId && payload.sections && payload.scores) {
-          const result = normalizeBluebookImportPayload(payload, file.name);
+          setBusy("Importing Bluebook test", `Normalizing Bluebook practice test.`, "import");
+          await nextPaint();
+          const result = normalizeBluebookImportPayload(payload, "Bluebook Import");
           await DB.put("questionBanks", result.bank);
-          await DB.putMany("questions", result.questions);
+          await putManyChunked("questions", result.questions);
           await DB.put("sessions", result.session);
           hasBluebook = true;
           successCount++;
         } else {
-          const result = normalizeImportPayload(payload, file.name);
+          setBusy("Importing question bank", `Normalizing practice questions.`, "import");
+          await nextPaint();
+          const result = normalizeImportPayload(payload, "Custom Import");
           await DB.put("questionBanks", result.bank);
-          await DB.putMany("questions", result.questions);
+          await putManyChunked("questions", result.questions);
           hasBank = true;
           successCount++;
         }
       } catch (err) {
-        errorMessages.push(`${file.name}: ${err.message || String(err)}`);
+        errorMessages.push(`File ${index + 1}: ${err.message || String(err)}`);
       }
     }
     
     if (successCount > 0) {
+      setBusy("Updating dashboard", "Refreshing metrics and local history.", "import");
       await refreshLocalData();
       ensureConfigDefaults();
       
@@ -2380,8 +2988,11 @@
       showNotice(`Failed to import files: ${errorMessages.join(", ")}`, "error");
     }
     
+    clearBusy(false);
     renderHome();
+    maybeStartTutorial();
     syncBackup(false);
+    if (window.SevSync?.isLinked()) SevSync.sync();
   }
 
   function normalizeImportPayload(payload, filename) {
@@ -2394,7 +3005,7 @@
     const questions = rawQuestions.map((q, i) => normalizeQuestion(q, bankId, i)).filter(Boolean);
     if (!questions.length) throw new Error("No valid questions found.");
     return {
-      bank: { id: bankId, filename, importedAt, exportedAt: payload.exportedAt || null, source: payload.source || null, formatVersion: payload.formatVersion || null, questionCount: questions.length },
+      bank: { id: bankId, filename, importedAt, updatedAt: Date.now(), exportedAt: payload.exportedAt || null, source: payload.source || null, formatVersion: payload.formatVersion || null, questionCount: questions.length },
       questions
     };
   }
@@ -2408,6 +3019,7 @@
       id: bankId, 
       filename, 
       importedAt, 
+      updatedAt: Date.now(),
       isBluebook: true,
       displayTitle: payload.displayTitle || "Bluebook Practice Test",
       exportedAt: sessionDate, 
@@ -2448,7 +3060,7 @@
         const question = {
           id, externalId,
           questionId: id,
-          bankId, importedAt, subject,
+          bankId, importedAt, updatedAt: Date.now(), subject,
           test: SUBJECTS[subject] || "",
           domainCode, domain: domainLabel,
           skillCode: "", skill: "",
@@ -2490,7 +3102,8 @@
           isCorrect,
           isAnswered,
           sequence: sequenceCounter - 1,
-          answeredAt: sessionDate
+          answeredAt: sessionDate,
+          updatedAt: Date.now()
         });
       }
     }
@@ -2502,6 +3115,7 @@
       mode: "bluebook",
       title: payload.displayTitle || "Bluebook Practice Test",
       completedAt: sessionDate,
+      updatedAt: Date.now(),
       totalAnswered,
       totalCorrect,
       totalIncorrect,
@@ -2531,7 +3145,7 @@
     return {
       id, externalId: String(externalId || id),
       questionId: question.questionId || metadata.questionId || "",
-      bankId, importedAt: new Date().toISOString(), subject,
+      bankId, importedAt: new Date().toISOString(), updatedAt: Date.now(), subject,
       test: question.test || SUBJECTS[subject] || "",
       domainCode, domain,
       skillCode: question.skillCode || metadata.skill_cd || "",
@@ -3323,7 +3937,7 @@
     const completedAt = new Date().toISOString();
     const session = buildSession(test, responses, completedAt);
     const persistedResponses = responses.map((r, i) => ({
-      ...r, id: `${session.id}:${i}:${r.questionId}`, sessionId: session.id, sequence: i, answeredAt: completedAt
+      ...r, id: `${session.id}:${i}:${r.questionId}`, sessionId: session.id, sequence: i, answeredAt: completedAt, updatedAt: Date.now()
     }));
 
     // Consolidate responses directly into the session object for atomic transactions
@@ -3344,6 +3958,7 @@
     await refreshLocalData();
     renderHome();
     syncBackup(false);
+    if (window.SevSync?.isLinked()) SevSync.sync();
   }
 
   function buildSession(test, responses, completedAt) {
@@ -3353,7 +3968,7 @@
     const totalSeconds = answered.reduce((s, r) => s + r.timeSpentSeconds, 0);
     return {
       id: test.id, mode: test.mode, subject: test.config.subject,
-      startedAt: test.startedAt, completedAt,
+      startedAt: test.startedAt, completedAt, updatedAt: Date.now(),
       totalAnswered, totalCorrect, totalIncorrect: totalAnswered - totalCorrect,
       totalQuestionsServed: responses.length,
       averageSeconds: totalAnswered ? totalSeconds / totalAnswered : 0, totalSeconds,
@@ -3846,11 +4461,16 @@
       setTimeout(() => overlay.remove(), 250);
     };
 
-    modal.querySelector(".cancel-btn").onclick = () => {
+    modal.querySelector(".cancel-btn").onclick = function() {
+      if (this.disabled) return;
+      this.disabled = true;
       close();
       if (typeof options.onCancel === "function") options.onCancel();
     };
-    modal.querySelector(".confirm-btn").onclick = () => {
+    modal.querySelector(".confirm-btn").onclick = function() {
+      if (this.disabled) return;
+      this.disabled = true;
+      this.textContent = "Deleting...";
       close();
       onConfirm();
     };
@@ -4280,7 +4900,29 @@
      UTILITIES
      =========================================================== */
 
-  function showNotice(text, type) { state.notice = { text, type }; }
+  let noticeTimer = null;
+  function showNotice(text, type) { 
+    state.notice = { text, type }; 
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => {
+      if (state.notice && state.notice.text === text) {
+        state.notice = null;
+        dismissNoticeUI();
+      }
+    }, 5000);
+  }
+
+  function dismissNoticeUI() {
+    const noticeEl = document.querySelector('.notice');
+    if (noticeEl) {
+      noticeEl.style.transition = 'all 0.3s ease';
+      noticeEl.style.opacity = '0';
+      noticeEl.style.transform = 'translateY(-10px)';
+      setTimeout(() => {
+         if (noticeEl.parentNode) noticeEl.parentNode.removeChild(noticeEl);
+      }, 300);
+    }
+  }
 
   function showBackupMsg(text, type = "success") {
     state.backupMessage = { text, type };

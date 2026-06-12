@@ -78,6 +78,17 @@ Opening `index.html` directly with `file://` may work for basic use, but service
 
 Use **Data & Backups** in the app to download a manual backup before clearing browser data, changing devices, or experimenting with browser storage settings.
 
+## Cloud Sync
+
+Sevrony offers optional cloud sync to keep your data in sync across devices:
+
+- Cloud sync is off by default. You enable it by linking your Google account in Data & Backups.
+- When enabled, Sevrony stores a sync file in your Google Drive's app-specific folder. Only Sevrony can access this folder — it is not visible in your regular Drive files.
+- Your data never passes through Sevrony's servers. It goes directly from your browser to your own Google Drive.
+- **Offline-First & Bidirectional Merge:** All changes (importing tests, answering questions) are saved to your local device *instantly*. If you close the tab before it syncs to the cloud, the data remains safe locally. When you reopen the app, it downloads the cloud state and performs a timestamp-based bidirectional merge, flawlessly combining unsynced local data with any new data pushed from other devices.
+- **Responsive Background Sync:** The app quietly polls for changes every 15 seconds in the background and instantly when you switch back to the tab. If you update a test on your laptop, it will automatically pop up on your phone moments later.
+- Unlinking your account stops sync and removes the stored credentials. Your local data is not deleted.
+- You can delete the sync data from your Google Drive at any time via Google's [app permissions page](https://myaccount.google.com/permissions).
 ## Support
 
 If you found this tool helpful for your SAT prep, consider supporting the author! ❤️
