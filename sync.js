@@ -127,9 +127,8 @@
         };
       }
       // login_hint skips account picker → faster popup
-      const reqOpts = {};
+      const reqOpts = { prompt: "" };
       if (email) reqOpts.login_hint = email;
-      else reqOpts.prompt = "";
       tokenClient.requestAccessToken(reqOpts);
     });
   }

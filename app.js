@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.0.6";
+  const APP_VERSION = "v2.0.7";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -2248,10 +2248,13 @@
     isSyncingLinkedAccount = true;
     let email = SevSync.getStatus()?.email || "";
     try {
-      if (!SevSync.isLinked() || !SevSync.getStatus().tokenValid) {
+      if (!SevSync.isLinked()) {
         setBusy("Connecting Google Drive", "Choose the Google account that already has your Sevrony sync data.", "sync");
         await nextPaint();
         email = await SevSync.link();
+      } else if (!SevSync.getStatus().tokenValid) {
+        setBusy("Reconnecting Google Drive", "Renewing session...", "sync");
+        await nextPaint();
       }
 
       setBusy("Syncing cloud data", "Restoring questions, sessions, Bluebook imports, and dashboard metrics from Google Drive.", "sync");
