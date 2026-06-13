@@ -28,17 +28,19 @@ On iOS, the file picker may not show custom `.sat-test` files unless the app acc
 
 ## Privacy And Telemetry
 
-Sevrony is local-first, not server-backed. Imported questions, answer history, timings, sessions, and backups are stored in your browser or in files/folders you choose.
+Sevrony is primarily local-first. Your imported questions, answer history, timings, sessions, and backups are stored locally in your browser.
 
-The hosted GitHub Pages app also includes optional telemetry:
+The hosted GitHub Pages app includes optional telemetry:
 
 - Telemetry is off until you accept the privacy/telemetry banner.
-- If accepted, Sevrony loads PostHog for minimal usage events and Sentry for error/question reports.
+- If accepted, Sevrony loads **PostHog** for product analytics and **Sentry** for crash/error reports.
+- **Email tracking (Cross-device analytics):** If you consent to telemetry *and* link your Google Drive for Cloud Sync, your Google email address is securely sent to PostHog. This helps us understand how the app is used across different devices, track recurring usage, and improve the product.
+- **Sentry is anonymous:** Error reports sent to Sentry do NOT include your email address. They only contain error stack traces, device/browser info, and basic usage breadcrumbs.
 - Autocapture and session recording are disabled.
-- Telemetry events avoid file names, answers, question text, rationales, and exact scores.
-- If you decline telemetry, the practice app still works. Question reports become manual/local instead of being sent through Sentry.
+- Telemetry events explicitly avoid collecting file names, your specific answers, question text, rationales, and exact test scores.
+- If you decline telemetry, the practice app still works. Question reports become manual/local instead of being sent automatically through Sentry.
 
-Your telemetry choice is stored in `localStorage` as `sevrony.telemetryConsent`.
+For more details, please view the Privacy Policy directly inside the app. Your telemetry choice is stored in `localStorage` as `sevrony.telemetryConsent`.
 
 ## Network And Offline Behavior
 

@@ -475,7 +475,7 @@
     banner.innerHTML = `
       <div>
         <strong>Privacy choice</strong>
-        <p>Sevrony stores study data locally. With your consent, the hosted app loads PostHog and Sentry for anonymous usage stats and issue reports.</p>
+        <p>Sevrony stores study data locally. With your consent, the hosted app loads PostHog and Sentry for usage stats and issue reports.</p>
       </div>
       <div class="telemetry-actions">
         <button type="button" class="ghost-btn" data-telemetry-action="details">Details</button>
@@ -534,7 +534,13 @@
         advanced_disable_feature_flags: true,
         property_denylist: ["name", "filename", "answer", "correctAnswers", "question", "prompt", "stimulus", "rationale"],
         secure_cookie: location.protocol === "https:",
-        loaded: () => resolve(true)
+        loaded: (ph) => {
+          if (window.SevSync?.isLinked()) {
+            const email = window.SevSync.getStatus()?.email;
+            if (email) ph.identify(email);
+          }
+          resolve(true);
+        }
       });
       setTimeout(() => resolve(Boolean(window.posthog)), 5000);
     });
@@ -968,10 +974,11 @@
               Optional Telemetry
             </h2>
             <p style="line-height: 1.6; color: var(--muted-foreground);">
-              Telemetry is off until you accept it. If accepted, the hosted app loads PostHog for basic anonymous usage events and Sentry for error/question reports.
-              Autocapture and session recording are disabled, and events avoid file names, answers, question text, and exact scores.
+              Telemetry is off until you accept it. If accepted, the hosted app loads <strong>PostHog</strong> for product analytics and <strong>Sentry</strong> for crash/error reports. Autocapture and session recording are disabled, and events avoid file names, answers, question text, and exact scores.
             </p>
             <ul style="line-height: 1.6; color: var(--muted-foreground); margin-top: 8px; padding-left: 20px;">
+              <li><strong>Email Tracking (Cross-device analytics):</strong> If you consent to telemetry <em>and</em> link your Google Drive for Cloud Sync, your Google email address is securely sent to PostHog. This helps us understand how the app is used across different devices.</li>
+              <li><strong>Sentry is anonymous:</strong> Error reports sent to Sentry do NOT include your email address.</li>
               <li>Question reports send the question ID and a debug URL only after consent.</li>
               <li>Declining telemetry keeps the practice app usable.</li>
               <li>Your current telemetry choice is <strong>${escapeHtml(consentLabel)}</strong>.</li>
@@ -2281,6 +2288,7 @@
         setBusy("Connecting Google Drive", "Choose the Google account that already has your Sevrony sync data.", "sync");
         await nextPaint();
         email = await SevSync.link();
+        if (email && window.posthog?.identify) window.posthog.identify(email);
       } else if (!SevSync.getStatus().tokenValid) {
         setBusy("Reconnecting Google Drive", "Renewing session...", "sync");
         await nextPaint();
@@ -2743,6 +2751,7 @@
     if (action === "unlink-cloud-sync") {
       state.backupMessage = null;
       await SevSync.unlink();
+      if (window.posthog?.reset) window.posthog.reset();
       showNotice("Account unlinked. Local data preserved.", "success");
       renderHome();
     }
