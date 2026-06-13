@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.0.7";
+  const APP_VERSION = "v2.0.8";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -832,6 +832,30 @@
     }
   }
 
+  function isIosSafariWarningNeeded() {
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const isLinked = window.SevSync?.isLinked();
+    const dismissed = localStorage.getItem('sevrony.iosWarningDismissed') === 'true';
+    return isIos && !isStandalone && !isLinked && !dismissed;
+  }
+
+  function renderIosWarningBanner() {
+    if (!isIosSafariWarningNeeded()) return "";
+    return `
+      <div class="banner warning-banner" style="display:flex; justify-content:space-between; align-items:flex-start; padding:12px 16px; background:var(--yellow-dim, rgba(234, 179, 8, 0.1)); border: 1px solid var(--yellow, #eab308); border-radius:8px; margin: 0 16px 16px 16px;">
+        <div style="font-size: 14px; line-height: 1.5; color: var(--ink);">
+          <strong style="color: var(--yellow);">iOS Data Wipe Risk:</strong> Apple's iOS deletes app data after 7 days of inactivity. 
+          <a href="#" data-action="setup-cloud-sync" style="color:var(--blue); font-weight:bold; text-decoration:underline;">Enable Cloud Sync</a> or 
+          <strong>Add to Home Screen</strong> to keep your progress permanently.
+        </div>
+        <button class="ghost-btn" data-action="dismiss-ios-warning" style="margin-left: 12px; padding: 4px; border-radius: 4px;" aria-label="Dismiss">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ink-muted);"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+    `;
+  }
+
   function renderHome(skipPush = false, replace = false) {
     stopTicker();
 
@@ -846,6 +870,10 @@
     }
 
     if (!skipPush) pushHistoryState(replace);
+
+    if (state.view === "onboarding" || state.view === "backup") {
+      window.SevSync?.preload();
+    }
 
     routeTransition(state.view, () => {
       if (state.view === "marketing") {
@@ -876,6 +904,7 @@
       app.innerHTML = `
         ${renderTopbar()}
         ${state.notice ? renderNotice(state.notice) : ""}
+        ${renderIosWarningBanner()}
         <main class="main-grid">
           ${state.view === "results" && state.lastResult ? renderSessionDashboard(state.lastResult) : ""}
           ${state.view === "config" ? renderTestConfig() : ""}
@@ -2456,6 +2485,12 @@
         state.notice = null;
         renderHome();
       }
+      return;
+    }
+
+    if (action === "dismiss-ios-warning") {
+      localStorage.setItem('sevrony.iosWarningDismissed', 'true');
+      renderHome();
       return;
     }
 

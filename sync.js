@@ -543,6 +543,7 @@
     sync,
     isLinked,
     getStatus,
+    preload: loadGIS,
     /** Register a callback that fires when background sync pulls changes from another device */
     onUpdate(callback) { onSyncUpdate = callback; },
     /** Register a callback that fires when sync state changes (start/stop) */

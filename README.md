@@ -70,7 +70,7 @@ Opening `index.html` directly with `file://` may work for basic use, but service
 - **Chrome / Edge:** Best support, including the File System Access API for automatic backup folders.
 - **Brave:** The File System Access API may be disabled by default. Enable it in `brave://flags/#file-system-access-api` if you want automatic folder backups.
 - **Firefox:** Manual JSON backup and restore should work, but the File System Access API is not available.
-- **iOS / iPadOS:** Import works best through the broad file picker compatibility path. PWA and storage behavior may vary by Safari/iOS version.
+- **iOS / iPadOS:** Import works best through the broad file picker compatibility path. **CRITICAL WARNING:** Apple's iOS has a strict 7-day inactivity data wipe policy for all browsers. To prevent your local study data from being deleted, you **must** either enable Cloud Sync (via Google Drive) or install the app as a PWA using the "Add to Home Screen" option in your browser (Safari recommended for PWA support).
 
 ## Data Safety
 
