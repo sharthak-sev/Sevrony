@@ -867,13 +867,24 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
   border-radius: var(--radius-md);
   padding: 18px;
 }
-.explanation-card > strong {
+.explanation-card > summary {
+  cursor: pointer;
+  list-style: none;
+  outline: none;
+}
+.explanation-card > summary::-webkit-details-marker {
+  display: none;
+}
+.explanation-card > summary > strong {
   color: var(--bb-blue);
-  display: block;
+  display: inline-block;
   font-size: 13px;
   letter-spacing: 0.04em;
-  margin-bottom: 8px;
   text-transform: uppercase;
+  user-select: none;
+}
+.explanation-card[open] > summary {
+  margin-bottom: 12px;
 }
 .rationale { font-size: 15px; line-height: 1.6; }
 
@@ -1629,6 +1640,78 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
 .ref-formula .katex { font-size: 1.1em; }
 
 /* ============================================================
+   SESSION EXPIRED BUBBLE
+   ============================================================ */
+.session-expired-bubble {
+  position: absolute;
+  top: calc(100% + 14px);
+  right: -10px;
+  background: var(--card-bg, #fff);
+  color: var(--text, #0f172a);
+  padding: 14px 16px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  border: 1px solid var(--border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: default;
+  width: max-content;
+  max-width: 320px;
+  text-align: left;
+}
+
+.session-expired-bubble-arrow {
+  position: absolute;
+  top: -6px;
+  right: 28px;
+  width: 12px;
+  height: 12px;
+  background: var(--card-bg, #fff);
+  border-left: 1px solid var(--border, #e2e8f0);
+  border-top: 1px solid var(--border, #e2e8f0);
+  transform: rotate(45deg);
+  z-index: 1;
+}
+
+.session-expired-bubble-content {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.session-expired-bubble-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--foreground, #0f172a);
+}
+
+.session-expired-bubble-desc {
+  font-size: 13px;
+  margin-top: 2px;
+  color: var(--muted-foreground, #64748b);
+}
+
+.session-expired-bubble-close {
+  position: relative;
+  z-index: 2;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--muted-foreground, #64748b);
+  line-height: 1;
+  margin-left: 8px;
+  transition: color 0.2s;
+}
+
+.session-expired-bubble-close:hover {
+  color: var(--foreground, #0f172a);
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 920px) {
@@ -1641,6 +1724,15 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
 
   .topbar, .hero-card { display: flex; }
   .top-actions { justify-content: flex-start; }
+
+  .session-expired-bubble {
+    right: auto;
+    left: -10px;
+  }
+  .session-expired-bubble-arrow {
+    right: auto;
+    left: 28px;
+  }
 
   .metric-grid, .two-column, .check-grid, .module-summary-grid,
   .action-panel, .history-card, .review-question.split {
@@ -2199,12 +2291,6 @@ html[data-transition="drill"]::view-transition-new(root) {
 .review-list.filter-skipped:not(.filter-incorrect) .review-card:not([data-status="skipped"]),
 .review-list.filter-incorrect.filter-skipped .review-card:not([data-status="incorrect"]):not([data-status="skipped"]) {
   display: none !important;
-}
-
-.review-list.filter-incorrect:not(.filter-skipped):not(:has(.review-card[data-status="incorrect"])) .css-empty-message,
-.review-list.filter-skipped:not(.filter-incorrect):not(:has(.review-card[data-status="skipped"])) .css-empty-message,
-.review-list.filter-incorrect.filter-skipped:not(:has(.review-card[data-status="incorrect"], .review-card[data-status="skipped"])) .css-empty-message {
-  display: block !important;
 }
 
 .modal-overlay.visible {

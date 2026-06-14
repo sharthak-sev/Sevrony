@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.0.10";
+  const APP_VERSION = "v2.1.0";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -932,7 +932,6 @@
         </main>
       `;
       bindHomeEvents();
-      renderMath(app);
     });
   }
 
@@ -1195,42 +1194,13 @@
     let bubbleHTML = "";
     if (!status.tokenValid && !sessionBubbleDismissed) {
       bubbleHTML = `
-        <div class="session-expired-bubble" style="
-          position: absolute;
-          top: calc(100% + 14px);
-          right: -10px;
-          background: var(--card-bg, #fff);
-          color: var(--text, #0f172a);
-          padding: 14px 16px;
-          border-radius: 12px;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-          z-index: 1000;
-          border: 1px solid var(--border, #e2e8f0);
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          cursor: default;
-          width: max-content;
-          max-width: 320px;
-          text-align: left;
-        ">
-          <div style="
-            position: absolute;
-            top: -6px;
-            right: 28px;
-            width: 12px;
-            height: 12px;
-            background: var(--card-bg, #fff);
-            border-left: 1px solid var(--border, #e2e8f0);
-            border-top: 1px solid var(--border, #e2e8f0);
-            transform: rotate(45deg);
-            z-index: 1;
-          "></div>
-          <div style="position: relative; z-index: 2; pointer-events: none;">
-            <div style="font-weight:600; font-size:14px; color: var(--foreground, #0f172a);">Session Expired</div>
-            <div style="font-size:13px; margin-top:2px; color: var(--muted-foreground, #64748b);">Data is not syncing. Click to renew.</div>
+        <div class="session-expired-bubble">
+          <div class="session-expired-bubble-arrow"></div>
+          <div class="session-expired-bubble-content">
+            <div class="session-expired-bubble-title">Session Expired</div>
+            <div class="session-expired-bubble-desc">Data is not syncing. Click to renew.</div>
           </div>
-          <button type="button" data-action="dismiss-session-bubble" style="position: relative; z-index: 2; background:none;border:none;font-size:1.25rem;cursor:pointer;padding:4px;color:var(--muted-foreground, #64748b);line-height:1;margin-left:8px;transition:color 0.2s;" title="Dismiss" onmouseover="this.style.color='var(--foreground, #0f172a)'" onmouseout="this.style.color='var(--muted-foreground, #64748b)'" onclick="event.stopPropagation()">×</button>
+          <button type="button" class="session-expired-bubble-close" data-action="dismiss-session-bubble" title="Dismiss" onclick="event.stopPropagation()">×</button>
         </div>
       `;
     }
@@ -1999,10 +1969,10 @@
             ${renderReviewedAnswer(question, response)}
           </div>
         </div>
-        <div class="explanation-card">
-          <strong>Explanation</strong>
+        <details class="explanation-card">
+          <summary><strong>Show Explanation</strong></summary>
           <div class="html-content rationale">${sanitizeHtml(question.rationale || "No explanation included in this export.")}</div>
-        </div>
+        </details>
       </article>
     `;
   }
@@ -2756,6 +2726,18 @@
       if (list) {
         list.classList.toggle("filter-incorrect", state.reviewFilterIncorrect);
         list.classList.toggle("filter-skipped", state.reviewFilterSkipped);
+        
+        const emptyMsg = list.querySelector(".css-empty-message");
+        if (emptyMsg) {
+          const inc = state.reviewFilterIncorrect;
+          const skp = state.reviewFilterSkipped;
+          let hasVisible = false;
+          if (inc && skp) hasVisible = !!list.querySelector('.review-card[data-status="incorrect"], .review-card[data-status="skipped"]');
+          else if (inc) hasVisible = !!list.querySelector('.review-card[data-status="incorrect"]');
+          else if (skp) hasVisible = !!list.querySelector('.review-card[data-status="skipped"]');
+          else hasVisible = !!list.querySelector('.review-card');
+          emptyMsg.style.display = hasVisible ? "none" : "block";
+        }
       }
     }
     if (action === "import") { fileInput.click(); }
@@ -3482,7 +3464,6 @@
       startTicker();
       updateLiveTimers();
       fitQuestionContent();
-      renderMath(app);
     });
   }
 
@@ -4438,16 +4419,32 @@
      PERSISTENCE — Save/restore active test to IndexedDB
      =========================================================== */
 
+  let _persistTimeout = null;
+
   async function persistActiveTest() {
-    if (!state.activeTest) return;
-    try {
-      const activeTest = state.activeTest;
-      const snapshot = { ...activeTest, _persistedAt: Date.now() };
-      if (snapshot.mode === "custom") {
-        snapshot._elapsedBeforePersist = Date.now() - (snapshot.currentQuestionStartedAt || Date.now());
+    if (!state.activeTest) {
+      if (_persistTimeout) {
+        clearTimeout(_persistTimeout);
+        _persistTimeout = null;
       }
-      await DB.put("sessions", { id: "__active_test__", snapshot, type: "active" });
-    } catch (_) { /* ignore */ }
+      try {
+        await DB.put("sessions", { id: "__active_test__", type: "cleared" });
+      } catch (_) {}
+      return;
+    }
+    
+    if (_persistTimeout) clearTimeout(_persistTimeout);
+    _persistTimeout = setTimeout(async () => {
+      try {
+        const activeTest = state.activeTest;
+        if (!activeTest) return;
+        const snapshot = { ...activeTest, _persistedAt: Date.now() };
+        if (snapshot.mode === "custom") {
+          snapshot._elapsedBeforePersist = Date.now() - (snapshot.currentQuestionStartedAt || Date.now());
+        }
+        await DB.put("sessions", { id: "__active_test__", snapshot, type: "active" });
+      } catch (_) { /* ignore */ }
+    }, 400);
   }
 
   async function restoreActiveTest() {
@@ -4653,10 +4650,15 @@
       onConfirm();
     };
   }
+  const _sanitizeCache = new Map();
 
   function sanitizeHtml(value) {
+    if (!value) return "";
+    const strVal = String(value);
+    if (_sanitizeCache.has(strVal)) return _sanitizeCache.get(strVal);
+
     const tpl = document.createElement("template");
-    tpl.innerHTML = String(value || "");
+    tpl.innerHTML = strVal;
 
     // Convert inline style formatting to semantic tags
     for (const el of tpl.content.querySelectorAll("[style]")) {
@@ -4668,8 +4670,14 @@
       if (/text-decoration\s*:\s*[^;]*line-through/i.test(style)) wrapChildrenWith(el, "s");
     }
 
-    // Basic XSS prevention: strip event handlers and javascript: URLs
+    // Basic XSS prevention: strip dangerous tags, event handlers, and javascript: URLs
+    const DANGEROUS_TAGS = ['script', 'iframe', 'object', 'embed', 'meta', 'base', 'form', 'applet', 'link'];
     for (const el of tpl.content.querySelectorAll("*")) {
+      const tagName = (el.tagName || "").toLowerCase();
+      if (DANGEROUS_TAGS.includes(tagName)) {
+        el.remove();
+        continue;
+      }
       for (const attr of [...el.attributes]) {
         const name = attr.name.toLowerCase();
         const val = String(attr.value || "");
@@ -4681,13 +4689,26 @@
           el.removeAttribute(attr.name);
         }
       }
+      
+      if (tagName === "a") {
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noopener noreferrer");
+      }
     }
 
     removeAccessibilityDescriptions(tpl.content);
     normalizeMathMarkup(tpl.content);
     fixGraphColors(tpl.content);
     namespaceSVGs(tpl.content);
-    return tpl.innerHTML;
+    
+    const wrapper = document.createElement("div");
+    wrapper.appendChild(tpl.content);
+    renderMath(wrapper);
+    
+    const result = wrapper.innerHTML;
+    if (_sanitizeCache.size > 2000) _sanitizeCache.clear();
+    _sanitizeCache.set(strVal, result);
+    return result;
   }
 
   function fixGraphColors(root) {
