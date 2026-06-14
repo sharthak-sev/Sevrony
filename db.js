@@ -131,8 +131,16 @@
     });
   }
 
+  async function getAllByIndex(storeName, indexName, key) {
+    return withStore(storeName, "readonly", store => {
+      const index = store.index(indexName);
+      return requestToPromise(index.getAll(key));
+    });
+  }
+
   window.SatPracticeDB = {
     getAll,
+    getAllByIndex,
     get,
     put,
     putMany,

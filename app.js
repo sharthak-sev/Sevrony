@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.0.8";
+  const APP_VERSION = "v2.0.10";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -121,6 +121,7 @@
      STATE & INITIALIZATION
      =========================================================== */
 
+  let sessionBubbleDismissed = false;
   const state = {
     banks: [],
     questions: [],
@@ -263,19 +264,29 @@
       SevSync.onUpdate(() => {
         refreshLocalData().then(() => renderHome());
       });
-      let previouslyValid = true;
       SevSync.onStateChange(() => {
-        const status = SevSync.getStatus();
-        const widget = document.querySelector('.sync-status-container');
-        if (widget) {
-          widget.outerHTML = renderSyncWidget();
-          const newWidget = document.querySelector('.sync-status-container');
-          if (newWidget) newWidget.addEventListener("click", handleHomeAction);
+        const wrapper = document.querySelector('.sync-status-wrapper');
+        if (wrapper) {
+          wrapper.outerHTML = renderSyncWidget();
+          const newWrapper = document.querySelector('.sync-status-wrapper');
+          if (newWrapper) {
+            for (const btn of newWrapper.querySelectorAll("[data-action]")) {
+              btn.addEventListener("click", handleHomeAction);
+            }
+          }
+        } else {
+          // Fallback if the wrapper is not found but container is
+          const widget = document.querySelector('.sync-status-container');
+          if (widget) {
+            widget.outerHTML = renderSyncWidget();
+            const newWrapper = document.querySelector('.sync-status-wrapper');
+            if (newWrapper) {
+              for (const btn of newWrapper.querySelectorAll("[data-action]")) {
+                btn.addEventListener("click", handleHomeAction);
+              }
+            }
+          }
         }
-        if (previouslyValid && !status.tokenValid) {
-          showNotice("Cloud sync paused: Session expired. Click the indicator to reconnect.", "error");
-        }
-        previouslyValid = status.tokenValid;
       });
     }
     // Auto cloud-sync on open (best-effort, non-blocking)
@@ -669,7 +680,7 @@
 
     await DB.put("sessions", { ...session, deletedAt: now, updatedAt: now });
 
-    const storedResponses = await DB.getAll("responses");
+    const storedResponses = await DB.getAllByIndex("responses", "sessionId", sessionId);
     const responseMap = new Map();
     for (const response of [...storedResponses, ...state.responses, ...(session.responses || [])]) {
       if (response?.sessionId !== sessionId) continue;
@@ -680,10 +691,9 @@
 
     if (session.mode !== "bluebook") return;
 
-    const [banks, questions] = await Promise.all([
-      DB.getAll("questionBanks"),
-      DB.getAll("questions")
-    ]);
+    const banks = state.banks || [];
+    const questions = state.questions || [];
+    
     const ownedBankIds = new Set(
       banks
         .filter(bank => bank.id === sessionId || bank.id === session.bankId || bank.displayTitle === session.title)
@@ -1069,7 +1079,6 @@
   }
 
   function renderOnboarding() {
-    const isLinked = Boolean(window.SevSync?.isLinked());
     return `
       <div class="font-marketing min-h-[80vh] flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="w-full max-w-3xl border border-border bg-card text-card-foreground rounded-xl shadow-sm opacity-0 animate-fade-in-up">
@@ -1079,8 +1088,7 @@
             <h2 class="text-xl font-bold text-foreground" style="margin: 0;">Returning User?</h2>
             <p class="text-sm text-muted-foreground" style="margin: 0; max-width: 400px;">Login to Google Drive to restore your existing practice data, sessions, and dashboard metrics.</p>
             <div class="flex items-center gap-3 mt-4" style="margin-top: 16px;">
-              <button class="primary-btn" type="button" data-action="returning-sign-in">${isLinked ? "Login" : "Sign in and restore"}</button>
-              ${isLinked ? `<button class="ghost-btn subtle" type="button" data-action="unlink-cloud-sync">Use another account</button>` : ""}
+              <button class="primary-btn" type="button" data-action="returning-sign-in">Sign in and restore</button>
             </div>
           </div>
           
@@ -1163,6 +1171,8 @@
     if (!window.SevSync?.isLinked()) return "";
     const status = SevSync.getStatus();
     
+    if (status.tokenValid) sessionBubbleDismissed = false;
+
     let iconHTML = "";
     let text = "";
     let action = "backup";
@@ -1182,17 +1192,63 @@
       text = "Synced";
     }
 
+    let bubbleHTML = "";
+    if (!status.tokenValid && !sessionBubbleDismissed) {
+      bubbleHTML = `
+        <div class="session-expired-bubble" style="
+          position: absolute;
+          top: calc(100% + 14px);
+          right: -10px;
+          background: var(--card-bg, #fff);
+          color: var(--text, #0f172a);
+          padding: 14px 16px;
+          border-radius: 12px;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+          z-index: 1000;
+          border: 1px solid var(--border, #e2e8f0);
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          cursor: default;
+          width: max-content;
+          max-width: 320px;
+          text-align: left;
+        ">
+          <div style="
+            position: absolute;
+            top: -6px;
+            right: 28px;
+            width: 12px;
+            height: 12px;
+            background: var(--card-bg, #fff);
+            border-left: 1px solid var(--border, #e2e8f0);
+            border-top: 1px solid var(--border, #e2e8f0);
+            transform: rotate(45deg);
+            z-index: 1;
+          "></div>
+          <div style="position: relative; z-index: 2; pointer-events: none;">
+            <div style="font-weight:600; font-size:14px; color: var(--foreground, #0f172a);">Session Expired</div>
+            <div style="font-size:13px; margin-top:2px; color: var(--muted-foreground, #64748b);">Data is not syncing. Click to renew.</div>
+          </div>
+          <button type="button" data-action="dismiss-session-bubble" style="position: relative; z-index: 2; background:none;border:none;font-size:1.25rem;cursor:pointer;padding:4px;color:var(--muted-foreground, #64748b);line-height:1;margin-left:8px;transition:color 0.2s;" title="Dismiss" onmouseover="this.style.color='var(--foreground, #0f172a)'" onmouseout="this.style.color='var(--muted-foreground, #64748b)'" onclick="event.stopPropagation()">×</button>
+        </div>
+      `;
+    }
+
     return `
-      <button class="sync-status-container ${statusClass}" type="button" data-action="${action}" data-tour-target="sync" title="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Cloud Sync Status"}" aria-label="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Open cloud sync status"}">
-        ${iconHTML}
-        <span>${text}</span>
-      </button>
+      <div class="sync-status-wrapper" style="position: relative; display: inline-flex;">
+        <button class="sync-status-container ${statusClass}" type="button" data-action="${action}" data-tour-target="sync" title="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Cloud Sync Status"}" aria-label="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Open cloud sync status"}">
+          ${iconHTML}
+          <span>${text}</span>
+        </button>
+        ${bubbleHTML}
+      </div>
     `;
   }
 
   function renderTopbar() {
     return `
-      <header class="topbar">
+      <header class="topbar" style="position: relative; z-index: 9999;">
         <button class="brand-mark" type="button" data-action="dashboard" aria-label="Open dashboard">
           <img class="brand-icon" src="logo.svg" alt="Sevrony Logo">
           <span>
@@ -1468,9 +1524,9 @@
       <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
         <div class="panel-heading">
           <p class="eyebrow" style="color: var(--red);">Danger Zone</p>
-          <h2 style="color: var(--red);">Reset Application Data</h2>
+          <h2 style="color: var(--red);">Reset Progress</h2>
         </div>
-        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">This will clear all imported question banks, sessions, and history. This action cannot be undone.</p>
+        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">This will wipe your test progress and history. This action cannot be undone.</p>
         <button class="danger-btn" type="button" data-action="reset">Reset Data</button>
       </section>
 
@@ -1539,6 +1595,17 @@
              </button>`
         }
       </section>
+
+      ${window.SevSync?.isLinked() ? `
+      <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
+        <div class="panel-heading">
+          <p class="eyebrow" style="color: var(--red);">Account</p>
+          <h2 style="color: var(--red);">Log Out</h2>
+        </div>
+        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Your data will remain safe in the cloud.</p>
+        <button class="danger-btn" type="button" data-action="logout">Log Out</button>
+      </section>
+      ` : ''}
 
       <section class="panel two-column" style="margin-top: 32px;">
         <div style="border-right: 1px solid var(--border); padding-right: 24px;">
@@ -2273,7 +2340,7 @@
   }
 
   let isSyncingLinkedAccount = false;
-  async function syncLinkedAccount({ returningUser = false } = {}) {
+  async function syncLinkedAccount({ returningUser = false, hideBusy = false } = {}) {
     if (isSyncingLinkedAccount) return;
     if (!window.SevSync) {
       showNotice("Cloud sync is unavailable. Check your connection and try again.", "error");
@@ -2285,22 +2352,22 @@
     let email = SevSync.getStatus()?.email || "";
     try {
       if (!SevSync.isLinked()) {
-        setBusy("Connecting Google Drive", "Choose the Google account that already has your Sevrony sync data.", "sync");
+        if (!hideBusy) setBusy("Connecting Google Drive", "Choose the Google account that already has your Sevrony sync data.", "sync");
         await nextPaint();
         email = await SevSync.link();
         if (email && window.posthog?.identify) window.posthog.identify(email);
       } else if (!SevSync.getStatus().tokenValid) {
-        setBusy("Reconnecting Google Drive", "Renewing session...", "sync");
+        if (!hideBusy) setBusy("Reconnecting Google Drive", "Renewing session...", "sync");
         await nextPaint();
       }
 
-      setBusy("Syncing cloud data", "Restoring questions, sessions, Bluebook imports, and dashboard metrics from Google Drive.", "sync");
+      if (!hideBusy) setBusy("Syncing cloud data", "Restoring questions, sessions, Bluebook imports, and dashboard metrics from Google Drive.", "sync");
       const result = await SevSync.sync(true);
       if (!result.ok) throw new Error(result.reason || "sync_failed");
 
       await refreshLocalData();
       ensureConfigDefaults();
-      clearBusy(false);
+      if (!hideBusy) clearBusy(false);
 
       if (returningUser && state.questions.length === 0 && state.sessions.length === 0) {
         state.view = "onboarding";
@@ -2694,13 +2761,49 @@
     if (action === "import") { fileInput.click(); }
     if (action === "dismiss-notice") { state.notice = null; dismissNoticeUI(); }
     if (action === "reset") {
-      showConfirmModal("Clear all imported question banks, sessions, and history?", "Clear All", async () => {
+      showConfirmModal("Are you sure you want to wipe all your test progress and history?", "Reset Progress", async () => {
+        await DB.clear("sessions");
+        await DB.clear("responses");
+
+        const banks = await DB.getAll("questionBanks");
+        const bluebookBankIds = banks.filter(b => b.isBluebook).map(b => b.id);
+        
+        if (bluebookBankIds.length > 0) {
+           for (const id of bluebookBankIds) {
+               await DB.remove("questionBanks", id);
+           }
+           const allQuestions = await DB.getAll("questions");
+           const questionsToDelete = allQuestions.filter(q => bluebookBankIds.includes(q.bankId));
+           for (const q of questionsToDelete) {
+               await DB.remove("questions", q.id);
+           }
+        }
+
+        state.lastResult = null;
+        sessionStorage.removeItem('lastResultSessionId');
+        
+        if (window.SevSync?.isLinked()) {
+            // Run sync in the background without blocking the UI
+            window.SevSync.sync(true, { forcePush: true, silent: true }).catch(console.error);
+        }
+
+        state.view = "dashboard";
+        await refreshLocalData();
+        showNotice("Progress reset successfully.", "info");
+        renderHome();
+      });
+    }
+
+    if (action === "logout") {
+      showConfirmModal("Are you sure you want to log out?", "Log Out", async () => {
+        await SevSync.unlink();
+        if (window.posthog?.reset) window.posthog.reset();
         await DB.clearAll();
         state.lastResult = null;
         sessionStorage.removeItem('lastResultSessionId');
         state.view = "dashboard";
         await refreshLocalData();
-        showNotice("Local data cleared.", "info");
+        showNotice("Logged out successfully.", "info");
         renderHome();
       });
     }
@@ -2757,7 +2860,21 @@
     }
     if (action === "force-cloud-sync") {
       state.backupMessage = null;
-      await syncLinkedAccount();
+      await syncLinkedAccount({ hideBusy: true });
+    }
+    if (action === "dismiss-session-bubble") {
+      sessionBubbleDismissed = true;
+      const wrapper = document.querySelector('.sync-status-wrapper');
+      if (wrapper) {
+        wrapper.outerHTML = renderSyncWidget();
+        const newWrapper = document.querySelector('.sync-status-wrapper');
+        if (newWrapper) {
+          for (const btn of newWrapper.querySelectorAll("[data-action]")) {
+            btn.addEventListener("click", handleHomeAction);
+          }
+        }
+      }
+      return;
     }
     if (action === "setup-cloud-sync") {
       state.view = "backup";
@@ -3703,6 +3820,7 @@
   }
 
   function handleTestAction(event) {
+    if (!state.activeTest) return;
     const action = event.currentTarget.dataset.testAction;
     if (action === "noop") return;
 
@@ -3731,7 +3849,9 @@
     }
 
     if (action === "next-custom") submitCustomAnswer();
-    if (action === "end-custom") endCustomTest();
+    if (action === "end-custom") {
+      showConfirmModal("Are you sure you want to end this test early? Unanswered questions will be marked as skipped.", "End Test", () => endCustomTest());
+    }
     if (action === "previous") navigateQuestion(-1);
     if (action === "next") navigateQuestion(1);
     if (action === "check-module") openModuleCheckScreen();
@@ -3783,6 +3903,7 @@
 
   function submitCustomAnswer() {
     const test = state.activeTest;
+    if (!test) return;
     const question = test.questions[test.currentIndex];
     const answer = test.currentAnswer;
 
@@ -4288,6 +4409,7 @@
 
   function getCurrentContext() {
     const test = state.activeTest;
+    if (!test) return null;
     if (test.mode === "custom") {
       return { list: test.questions, question: test.questions[test.currentIndex], index: test.currentIndex, module: null };
     }
@@ -4296,7 +4418,10 @@
 
   function getCurrentAnswer() {
     const test = state.activeTest;
-    const question = getCurrentContext().question;
+    if (!test) return "";
+    const context = getCurrentContext();
+    if (!context || !context.question) return "";
+    const question = context.question;
     return test.mode === "custom" ? test.currentAnswer : test.answers[question.id] || "";
   }
 
@@ -4316,8 +4441,11 @@
   async function persistActiveTest() {
     if (!state.activeTest) return;
     try {
-      const snapshot = JSON.parse(JSON.stringify(state.activeTest));
-      snapshot._persistedAt = Date.now();
+      const activeTest = state.activeTest;
+      const snapshot = { ...activeTest, _persistedAt: Date.now() };
+      if (snapshot.mode === "custom") {
+        snapshot._elapsedBeforePersist = Date.now() - (snapshot.currentQuestionStartedAt || Date.now());
+      }
       await DB.put("sessions", { id: "__active_test__", snapshot, type: "active" });
     } catch (_) { /* ignore */ }
   }
@@ -4333,7 +4461,7 @@
         state.activeTest = snap;
         // Recalculate timing references
         if (snap.mode === "custom") {
-          state.activeTest.currentQuestionStartedAt = Date.now();
+          state.activeTest.currentQuestionStartedAt = Date.now() - (snap._elapsedBeforePersist || 0);
         }
       }
     } catch (_) { /* ignore */ }

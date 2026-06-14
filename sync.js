@@ -422,9 +422,6 @@
 
   async function unlink() {
     stopBackgroundSync();
-    if (accessToken) {
-      try { google.accounts.oauth2.revoke(accessToken); } catch (_) {}
-    }
     accessToken = null;
     fileId = null;
     tokenClient = null;
@@ -436,6 +433,12 @@
   async function sync(isManual = false, options = {}) {
     if (!isLinked()) return { ok: false, reason: "not_linked" };
     if (!navigator.onLine) return { ok: false, reason: "offline" };
+    
+    if (!isManual && !getCachedToken()) {
+      notifyStateChange();
+      return Promise.resolve({ ok: false, reason: "auth_expired" });
+    }
+
     const foreground = options.silent ? false : true;
 
     if (isManual) {
@@ -444,7 +447,7 @@
         syncTimeout = null;
         syncing = false;
       }
-      return doSync(true, { foreground });
+      return doSync(true, { foreground, ...options });
     }
 
     if (foreground && !syncing) {

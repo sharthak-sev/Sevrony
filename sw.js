@@ -1,4 +1,4 @@
-const CACHE_NAME = "sat-practice-cache-v2.0.8";
+const CACHE_NAME = "sat-practice-cache-v2.0.10";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
