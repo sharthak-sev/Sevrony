@@ -882,8 +882,8 @@
       return;
     }
 
-    if (state.questions.length === 0 && ["dashboard", "history", "config", "mistakes", "results", "review"].includes(state.view)) {
-      state.view = "marketing";
+    if (state.questions.length === 0 && ["dashboard", "history", "config", "mistakes", "results", "review", "marketing"].includes(state.view)) {
+      state.view = "onboarding";
     }
 
     if (!skipPush) pushHistoryState(replace);
