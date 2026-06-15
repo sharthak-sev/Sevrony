@@ -48,7 +48,6 @@ The core app is a static site and caches its own files with a service worker aft
 
 - Google Fonts for typography.
 - KaTeX from jsDelivr for math rendering.
-- Tailwind Play CDN for marketing/onboarding utility classes.
 - Desmos for the graphing calculator.
 - Ko-fi image assets in the support section.
 - PostHog and Sentry only after telemetry consent.
@@ -93,7 +92,7 @@ Sevrony offers optional cloud sync to keep your data in sync across devices:
 - You can delete the sync data from your Google Drive at any time via Google's [app permissions page](https://myaccount.google.com/permissions).
 ## Support
 
-If you found this tool helpful for your SAT prep, consider supporting the author! ❤️
+If you found this tool helpful for your SAT prep, consider supporting the project! ❤️
 
 <img src="qr.svg" alt="Payment QR Code" width="220" style="border-radius: 8px; border: 1px solid #ddd; margin: 10px 0;"/>
 

@@ -873,6 +873,7 @@
   }
 
   function renderHome(skipPush = false, replace = false) {
+    if (state.activeTest) return;
     stopTicker();
 
     if (state.busy) {
@@ -1228,7 +1229,7 @@
         </button>
         <nav class="top-actions">
           ${renderSyncWidget()}
-          <button class="ghost-btn support-btn" type="button" data-action="open-support" style="display: inline-flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> Support the author</button>
+          <button class="ghost-btn support-btn" type="button" data-action="open-support" style="display: inline-flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> Support the project</button>
           <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
           <button class="ghost-btn" type="button" data-action="history" data-tour-target="history-nav">Past Tests</button>
           <button class="ghost-btn" type="button" data-action="backup" data-tour-target="backup-nav">Data & Backups</button>
@@ -1248,7 +1249,7 @@
       <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:16px;">
         <div>
           <p class="eyebrow" style="margin:0; font-size:12px;">Support this project</p>
-          <h2 style="margin:4px 0 0; font-size:1.25rem; display: flex; align-items: center; gap: 8px;">Support the author <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></h2>
+          <h2 style="margin:4px 0 0; font-size:1.25rem; display: flex; align-items: center; gap: 8px;">Support the project <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></h2>
         </div>
         <button class="ghost-btn cancel-btn" type="button" style="padding: 4px 8px; border:none; height:32px; min-height:32px;">✕</button>
       </div>
@@ -1503,7 +1504,7 @@
       <section class="panel support-panel" style="margin-top: 32px;">
         <div class="panel-heading">
           <p class="eyebrow">Support this project</p>
-          <h2 style="display: flex; align-items: center; gap: 8px;">Support the author <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></h2>
+          <h2 style="display: flex; align-items: center; gap: 8px;">Support the project <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></h2>
         </div>
         <p class="muted">If this tool helped your SAT prep, you can support its development!</p>
         <div style="margin-top: 16px;">
