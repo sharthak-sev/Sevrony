@@ -20,7 +20,7 @@ Sevrony is a browser-based SAT practice environment for imported `.sat-test` que
 
 1. Install or load the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) extension.
 2. Export your question bank as an interactive `.sat-test` file directly from your College Board Student Question Bank session.
-3. Open [Sevrony on GitHub Pages](https://sharthak-sev.github.io/Sevrony/).
+3. Open [Sevrony on GitHub Pages](https://sharthak-sev.github.io/).
 4. Import the `.sat-test` file.
 5. Start a custom practice session or a full adaptive-style test.
 
