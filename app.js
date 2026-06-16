@@ -661,10 +661,13 @@
     };
   }
 
-  async function putManyChunked(storeName, values, chunkSize = 300) {
+  async function putManyChunked(storeName, values, chunkSize = 300, onProgress = null) {
     const records = values || [];
     for (let i = 0; i < records.length; i += chunkSize) {
       await DB.putMany(storeName, records.slice(i, i + chunkSize));
+      if (onProgress) {
+        onProgress(Math.min(100, Math.round(((i + chunkSize) / records.length) * 100)));
+      }
       await nextPaint();
     }
     return records.length;
@@ -743,8 +746,8 @@
 
   let _currentRoute = null;
 
-  function setBusy(title, detail, variant = "sync") {
-    state.busy = { title, detail, variant };
+  function setBusy(title, detail, variant = "sync", progress = null) {
+    state.busy = { title, detail, variant, progress };
     renderHome(true, true);
   }
 
@@ -756,39 +759,62 @@
   function renderBusyView(busy) {
     const title = escapeHtml(busy?.title || "Working");
     const detail = escapeHtml(busy?.detail || "Please wait while Sevrony updates your local data.");
-    const label = busy?.variant === "restore"
+    const variant = busy?.variant || "restore";
+    const label = variant === "restore"
       ? "Restoring local data"
-      : busy?.variant === "import"
+      : variant === "import"
         ? "Importing files"
         : "Syncing account";
+
+    let visualElement = "";
+    if (variant === "import") {
+      const isIndet = busy?.progress == null;
+      const progressWidth = isIndet ? "" : `style="width: ${busy.progress}%"`;
+      const fillClass = isIndet ? "shadcn-progress-fill indeterminate" : "shadcn-progress-fill";
+      
+      visualElement = `
+        <div class="shadcn-progress-container">
+          <div class="shadcn-progress-label"><span>${title}</span><span class="muted">${isIndet ? "Processing..." : busy.progress + "%"}</span></div>
+          <div class="shadcn-progress-bg"><div class="${fillClass}" ${progressWidth}></div></div>
+        </div>
+      `;
+    } else if (variant === "sync") {
+      visualElement = `
+        <div class="shadcn-spinner-container">
+          <svg class="shadcn-loader" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          <p class="muted">Establishing secure connection...</p>
+        </div>
+      `;
+    } else {
+      visualElement = `
+        <div class="skeleton-layout" aria-hidden="true">
+          <div class="skeleton-line skeleton-title"></div>
+          <div class="skeleton-grid">
+            <div class="skeleton-box"></div>
+            <div class="skeleton-box"></div>
+            <div class="skeleton-box"></div>
+            <div class="skeleton-box"></div>
+          </div>
+          <div class="skeleton-panel">
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line short"></div>
+            <div class="skeleton-chart"></div>
+          </div>
+        </div>
+      `;
+    }
 
     return `
       <main class="busy-shell" aria-busy="true" aria-live="polite">
         <section class="busy-card" role="status" aria-label="${escapeAttr(label)}">
           <div class="busy-card-header">
-            <div class="busy-icon-wrap">
-              <svg class="sync-spinner" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            </div>
             <div>
               <p class="eyebrow">Sevrony is updating</p>
               <h1>${title}</h1>
               <p>${detail}</p>
             </div>
           </div>
-          <div class="skeleton-layout" aria-hidden="true">
-            <div class="skeleton-line skeleton-title"></div>
-            <div class="skeleton-grid">
-              <div class="skeleton-box"></div>
-              <div class="skeleton-box"></div>
-              <div class="skeleton-box"></div>
-              <div class="skeleton-box"></div>
-            </div>
-            <div class="skeleton-panel">
-              <div class="skeleton-line"></div>
-              <div class="skeleton-line short"></div>
-              <div class="skeleton-chart"></div>
-            </div>
-          </div>
+          ${visualElement}
         </section>
       </main>
     `;
@@ -3206,20 +3232,24 @@
         await nextPaint();
         const payload = JSON.parse(await file.text());
         if (payload.testId && payload.sections && payload.scores) {
-          setBusy("Importing Bluebook test", `Normalizing Bluebook practice test.`, "import");
+          setBusy("Importing Bluebook test", `Normalizing Bluebook practice test.`, "import", 0);
           await nextPaint();
           const result = normalizeBluebookImportPayload(payload, "Bluebook Import");
           await DB.put("questionBanks", result.bank);
-          await putManyChunked("questions", result.questions);
+          await putManyChunked("questions", result.questions, 300, (p) => {
+            setBusy("Importing Bluebook test", `Saving questions to local database...`, "import", p);
+          });
           await DB.put("sessions", result.session);
           hasBluebook = true;
           successCount++;
         } else {
-          setBusy("Importing question bank", `Normalizing practice questions.`, "import");
+          setBusy("Importing question bank", `Normalizing practice questions.`, "import", 0);
           await nextPaint();
           const result = normalizeImportPayload(payload, "Custom Import");
           await DB.put("questionBanks", result.bank);
-          await putManyChunked("questions", result.questions);
+          await putManyChunked("questions", result.questions, 300, (p) => {
+            setBusy("Importing question bank", `Saving questions to local database...`, "import", p);
+          });
           hasBank = true;
           successCount++;
         }
