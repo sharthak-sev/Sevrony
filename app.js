@@ -132,6 +132,7 @@
     view: "dashboard",
     historyTab: "full",
     reviewSessionId: null,
+    mistakesSessionId: null,
     reviewFilterIncorrect: false,
     reviewFilterSkipped: false,
     selectedMistakeDomains: null,
@@ -1495,10 +1496,13 @@
       <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
         <div class="panel-heading">
           <p class="eyebrow" style="color: var(--red);">Danger Zone</p>
-          <h2 style="color: var(--red);">Reset Progress</h2>
+          <h2 style="color: var(--red);">Data Controls</h2>
         </div>
-        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">This will wipe your test progress and history. This action cannot be undone.</p>
-        <button class="danger-btn" type="button" data-action="reset">Reset Data</button>
+        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Resetting progress wipes your test history but keeps your question banks. Wiping all data deletes everything, including question banks.</p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="danger-btn" type="button" data-action="reset">Reset Progress</button>
+          <button class="danger-btn" type="button" data-action="wipe-all">Wipe All Data</button>
+        </div>
       </section>
 
       <section class="panel support-panel" style="margin-top: 32px;">
@@ -1713,7 +1717,7 @@
 
   function renderSessionDashboard(result) {
     const metrics = buildMetrics(state.questions, result.responses);
-    const title = result.session.mode === "full" ? "Full Test Complete" : "Practice Complete";
+    const title = (result.session.mode === "full" || result.session.mode === "bluebook") ? "Full Test Complete" : "Practice Complete";
 
     return `
       <section class="hero-card result-hero">
@@ -1728,12 +1732,48 @@
         </div>
       </section>
 
-      ${renderScoreboard(result.session)}
+      ${renderScoreboard(result.session, result.responses)}
+
+      ${(() => {
+        if (result.session.mode === "full" || result.session.mode === "bluebook") {
+          let mathC = 0, mathW = 0, mathO = 0;
+          let rwC = 0, rwW = 0, rwO = 0;
+          for (const r of result.responses) {
+            if (r.subject === "math") {
+              if (r.isCorrect) mathC++; else if (isAnsweredResponse(r)) mathW++; else mathO++;
+            } else if (r.subject === "rw") {
+              if (r.isCorrect) rwC++; else if (isAnsweredResponse(r)) rwW++; else rwO++;
+            }
+          }
+          return `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+              <div class="panel" style="padding: 20px; background: var(--bg);">
+                <p class="eyebrow" style="margin-bottom: 8px;">Reading & Writing</p>
+                <div style="font-size: 1.1rem; font-weight: 500;">${rwC} correct · ${rwW} wrong · ${rwO} omitted</div>
+              </div>
+              <div class="panel" style="padding: 20px; background: var(--bg);">
+                <p class="eyebrow" style="margin-bottom: 8px;">Math</p>
+                <div style="font-size: 1.1rem; font-weight: 500;">${mathC} correct · ${mathW} wrong · ${mathO} omitted</div>
+              </div>
+            </div>
+          `;
+        }
+        return "";
+      })()}
 
       <section class="metric-grid">
-        ${renderMetric("Answered", result.session.totalAnswered, "questions")}
+        ${renderMetric("Answered", result.responses.filter(r => isAnsweredResponse(r)).length, "questions")}
         ${renderMetric("Correct", result.session.totalCorrect, "right answers")}
-        ${renderMetric("Incorrect", result.session.totalIncorrect, "wrong answers")}
+        ${(() => {
+          let wrong = 0, omitted = 0;
+          for (const r of result.responses) {
+            if (!r.isCorrect) {
+              if (isAnsweredResponse(r)) wrong++;
+              else omitted++;
+            }
+          }
+          return renderMetric("Incorrect", result.responses.length - result.session.totalCorrect, `${wrong} wrong, ${omitted} omitted`);
+        })()}
         ${(() => {
           let avgTimeStr = "—";
           let caption = "this session";
@@ -1782,11 +1822,18 @@
     `;
   }
 
-  function renderScoreboard(session) {
-    if (session.mode !== "full" || !session.moduleSummaries) return "";
+  function renderScoreboard(session, responses = []) {
+    let mods = session.moduleSummaries;
+    if (session.mode === "bluebook" && (!mods || !mods.length)) {
+      mods = [
+        { subject: "rw", theta: estimateTheta(responses.filter(r => r.subject === "rw")) },
+        { subject: "math", theta: estimateTheta(responses.filter(r => r.subject === "math")) }
+      ];
+    }
+    if ((session.mode !== "full" && session.mode !== "bluebook") || !mods) return "";
 
     let rwThetaSum = 0, mathThetaSum = 0, rwMods = 0, mathMods = 0;
-    for (const s of session.moduleSummaries) {
+    for (const s of mods) {
       if (s.subject === "rw") { rwThetaSum += s.theta; rwMods++; }
       if (s.subject === "math") { mathThetaSum += s.theta; mathMods++; }
     }
@@ -1844,16 +1891,25 @@
                  </button>
               </div>
             ` : ""}
-            ${sessions.map(session => `
+            ${sessions.map(session => {
+              const resps = state.responses.filter(r => r.sessionId === session.id);
+              let sCorrect = 0, sWrong = 0, sOmitted = 0;
+              for (const r of resps) {
+                if (r.isCorrect) sCorrect++;
+                else if (isAnsweredResponse(r)) sWrong++;
+                else sOmitted++;
+              }
+              const accuracy = resps.length ? sCorrect / resps.length : 0;
+              return `
               <article class="history-card" data-action="view-session-overview" data-session-id="${escapeAttr(session.id)}" style="cursor:pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.transform='none'; this.style.boxShadow='var(--shadow-sm)'">
                 <div>
                   <p class="eyebrow">${session.mode === "bluebook" ? "Bluebook Practice Test" : session.mode === "full" ? "Full test" : (session.config?.isRetry || session.subject === "both") ? "Retry Mistakes" : escapeHtml(SUBJECTS[session.subject] || "Subject test")}</p>
                   <h2>${session.mode === "bluebook" ? escapeHtml(session.title || "Bluebook Test") : escapeHtml(formatSessionDate(session.completedAt))}</h2>
-                  <small>${session.totalAnswered || 0} answered${session.totalQuestionsServed ? ` of ${session.totalQuestionsServed}` : ""}</small>
+                  <small>${resps.length ? resps.filter(r => isAnsweredResponse(r)).length : (session.totalAnswered || 0)} answered${session.totalQuestionsServed ? ` of ${session.totalQuestionsServed}` : ""}</small>
                 </div>
                 <div class="history-score">
-                  <strong>${session.totalAnswered ? formatPercent(session.totalCorrect / session.totalAnswered) : "—"}</strong>
-                  <span>${session.totalCorrect || 0} correct · ${session.totalIncorrect || 0} incorrect</span>
+                  <strong>${resps.length ? formatPercent(accuracy) : "—"}</strong>
+                  <span>${sCorrect} correct · ${sWrong} wrong · ${sOmitted} omitted</span>
                   <small>${session.averageSeconds ? `${Math.round(session.averageSeconds)}s avg/question` : ""}</small>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1862,7 +1918,8 @@
                   <button class="ghost-btn" type="button" data-action="delete-session" data-session-id="${escapeAttr(session.id)}" title="Delete this test" style="color:var(--red);border-color:var(--red-border)">✕</button>
                 </div>
               </article>
-            `).join("")}
+              `;
+            }).join("")}
           </div>
         ` : `
           <div class="empty-message" style="display:flex; flex-direction:column; align-items:center; gap:16px; padding:48px 0;">
@@ -1895,7 +1952,45 @@
       .filter(r => r.sessionId === session.id)
       .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
-    const responses = allResponses;
+    let mathCorrect = 0, mathWrong = 0, mathOmitted = 0, mathTotal = 0;
+    let rwCorrect = 0, rwWrong = 0, rwOmitted = 0, rwTotal = 0;
+    for (const r of allResponses) {
+      if (r.subject === "math") {
+        mathTotal++;
+        if (r.isCorrect) mathCorrect++;
+        else if (isAnsweredResponse(r)) mathWrong++;
+        else mathOmitted++;
+      }
+      if (r.subject === "rw") {
+        rwTotal++;
+        if (r.isCorrect) rwCorrect++;
+        else if (isAnsweredResponse(r)) rwWrong++;
+        else rwOmitted++;
+      }
+    }
+    const totalCorrect = mathCorrect + rwCorrect;
+    const totalWrong = mathWrong + rwWrong;
+    const totalOmitted = mathOmitted + rwOmitted;
+
+    if (!state.reviewFilterSubject) state.reviewFilterSubject = "both";
+    const responses = state.reviewFilterSubject === "both" 
+      ? allResponses 
+      : allResponses.filter(r => r.subject === state.reviewFilterSubject);
+
+    let summaryHtml = "";
+    if (state.reviewFilterSubject === "both" && mathTotal > 0 && rwTotal > 0) {
+      summaryHtml = `<p style="line-height: 1.6; margin-top: 4px;">
+           <span style="display:inline-block; min-width:80px; font-weight:500;">Math:</span> ${mathCorrect} correct · ${mathWrong} wrong · ${mathOmitted} omitted<br>
+           <span style="display:inline-block; min-width:80px; font-weight:500;">R&W:</span> ${rwCorrect} correct · ${rwWrong} wrong · ${rwOmitted} omitted<br>
+           <span style="display:inline-block; min-width:80px; font-weight:500;">Total:</span> ${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted
+         </p>`;
+    } else if (state.reviewFilterSubject === "math" || (mathTotal > 0 && rwTotal === 0)) {
+      summaryHtml = `<p>${mathCorrect} correct · ${mathWrong} wrong · ${mathOmitted} omitted · ${mathTotal} questions</p>`;
+    } else if (state.reviewFilterSubject === "rw" || (rwTotal > 0 && mathTotal === 0)) {
+      summaryHtml = `<p>${rwCorrect} correct · ${rwWrong} wrong · ${rwOmitted} omitted · ${rwTotal} questions</p>`;
+    } else {
+      summaryHtml = `<p>${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted · ${allResponses.length} questions</p>`;
+    }
 
     return `
       <section class="review-heading panel">
@@ -1903,19 +1998,27 @@
           <div>
             <p class="eyebrow">${session.mode === "bluebook" ? "Bluebook test review" : session.mode === "full" ? "Full test review" : (session.config?.isRetry || session.subject === "both") ? "Retry Mistakes review" : "Subject test review"}</p>
             <h1>${session.mode === "bluebook" ? escapeHtml(session.title || "Bluebook Test") : escapeHtml(formatSessionDate(session.completedAt))}</h1>
-            <p>${session.totalCorrect || 0} correct · ${session.totalIncorrect || 0} incorrect · ${session.totalAnswered || 0} answered</p>
+            ${summaryHtml}
           </div>
         </div>
-        <div style="display:flex; gap:20px;">
+        <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
+          ${(mathTotal > 0 && rwTotal > 0) ? `
+            <div class="history-tabs" role="tablist" style="margin: 0; min-height: unset; padding-bottom: 0;">
+              <button class="${state.reviewFilterSubject === "both" ? "active" : ""}" type="button" data-action="review-subject-filter" data-subject="both" style="padding: 6px 12px; font-size: 13px;">Both Subjects</button>
+              <button class="${state.reviewFilterSubject === "rw" ? "active" : ""}" type="button" data-action="review-subject-filter" data-subject="rw" style="padding: 6px 12px; font-size: 13px;">R&W Only</button>
+              <button class="${state.reviewFilterSubject === "math" ? "active" : ""}" type="button" data-action="review-subject-filter" data-subject="math" style="padding: 6px 12px; font-size: 13px;">Math Only</button>
+            </div>
+            <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+          ` : ""}
           <label class="wrong-toggle">
             <input type="checkbox" data-action="review-wrong-toggle" data-type="incorrect" ${state.reviewFilterIncorrect ? "checked" : ""}>
             <span class="toggle-ui"></span>
-            <strong>Show Incorrect</strong>
+            <strong>Show Wrong</strong>
           </label>
           <label class="wrong-toggle">
             <input type="checkbox" data-action="review-wrong-toggle" data-type="skipped" ${state.reviewFilterSkipped ? "checked" : ""}>
             <span class="toggle-ui"></span>
-            <strong>Show Skipped</strong>
+            <strong>Show Omitted</strong>
           </label>
         </div>
       </section>
@@ -2008,11 +2111,11 @@
 
   function renderReviewStatus(response) {
     if (!isAnsweredResponse(response)) {
-      return `<span class="status-pill unanswered">Skipped</span>`;
+      return `<span class="status-pill unanswered">Omitted</span>`;
     }
     return response.isCorrect
       ? `<span class="status-pill correct">Correct</span>`
-      : `<span class="status-pill incorrect">Incorrect</span>`;
+      : `<span class="status-pill incorrect">Wrong</span>`;
   }
 
   function getMistakesData() {
@@ -2020,7 +2123,11 @@
     const everWrongIds = new Set();
     const everSkippedIds = new Set();
 
-    for (const r of state.responses) {
+    const responsesToAnalyze = state.mistakesSessionId
+      ? state.responses.filter(r => r.sessionId === state.mistakesSessionId)
+      : state.responses;
+
+    for (const r of responsesToAnalyze) {
       const isSkipped = !isAnsweredResponse(r);
       const isWrong = !isSkipped && !r.isCorrect;
       if (isWrong) {
@@ -2108,7 +2215,7 @@
       <section class="hero-card compact-hero">
         <div>
           <p class="eyebrow">Retry Mistakes</p>
-          <h1>Retry incorrect or skipped questions.</h1>
+          <h1>Retry wrong or omitted questions.</h1>
           <p>Review your error areas by subject and domain, select which ones to practice, and launch a targeted retry session.</p>
         </div>
       </section>
@@ -2122,12 +2229,12 @@
           <div style="display:flex; gap:12px; flex-wrap:wrap;">
             <label class="check-card" style="flex: 1; min-width: 150px; min-height:76px; margin: 0;">
               <input type="checkbox" data-action="toggle-mistake-type" data-type="wrong" ${state.selectedMistakeTypes.has("wrong") ? "checked" : ""}>
-              <span>Incorrect Answers</span>
+              <span>Wrong Answers</span>
               <small>${wrongQuestions.length} questions</small>
             </label>
             <label class="check-card" style="flex: 1; min-width: 150px; min-height:76px; margin: 0;">
               <input type="checkbox" data-action="toggle-mistake-type" data-type="skipped" ${state.selectedMistakeTypes.has("skipped") ? "checked" : ""}>
-              <span>Skipped Questions</span>
+              <span>Omitted Questions</span>
               <small>${skippedQuestions.length} questions</small>
             </label>
           </div>
@@ -2145,7 +2252,7 @@
               <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
                 <div>
                   <p class="eyebrow">${escapeHtml(sub.label)}</p>
-                  <h2>${totalWrong + totalSkipped} total errors (${totalWrong} wrong · ${totalSkipped} skipped)</h2>
+                  <h2>${totalWrong + totalSkipped} total errors (${totalWrong} wrong · ${totalSkipped} omitted)</h2>
                 </div>
                 <div style="display:flex; gap:8px;">
                   <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>
@@ -2157,7 +2264,7 @@
                   <label class="check-card" style="height:auto; min-height:92px;">
                     <input type="checkbox" data-action="toggle-mistake-domain" data-domain="${escapeAttr(domName)}" ${state.selectedMistakeDomains.has(domName) ? "checked" : ""}>
                     <span>${escapeHtml(domName)}</span>
-                    <small>${data.wrong} wrong · ${data.skipped} skipped</small>
+                    <small>${data.wrong} wrong · ${data.skipped} omitted</small>
                   </label>
                 `).join("")}
               </div>
@@ -2600,44 +2707,27 @@
     }
     if (action === "retry-session-mistakes") {
       const sessionId = event.currentTarget.dataset.sessionId;
-      const sessionResponses = state.responses.filter(r => r.sessionId === sessionId);
-      const wrongIds = new Set();
-      const skippedIds = new Set();
-      for (const r of sessionResponses) {
-        const isSkipped = !isAnsweredResponse(r);
-        const isWrong = !isSkipped && !r.isCorrect;
-        if (isWrong) wrongIds.add(r.questionId);
-        else if (isSkipped) skippedIds.add(r.questionId);
-      }
-      for (const id of wrongIds) skippedIds.delete(id);
-
-      const allIds = new Set([...wrongIds, ...skippedIds]);
-      if (allIds.size === 0) {
-        showNotice("No mistakes or skipped questions in this test!", "info");
-        return;
-      }
-
-      const questionMap = new Map(state.questions.map(q => [q.id, q]));
-      const forcedQuestions = [];
-      for (const id of allIds) {
-        const q = questionMap.get(id);
-        if (q) forcedQuestions.push(q);
-      }
-
-      const config = {
-        subject: "both",
-        limit: forcedQuestions.length,
-        isRetry: true,
-        retrySessionId: sessionId
-      };
-      
-      startCustomPractice(config, forcedQuestions);
-    }
-    if (action === "retry-mistakes") {
+      state.mistakesSessionId = sessionId;
       const { wrongQuestions, skippedQuestions } = getMistakesData();
       const allMistakes = [...wrongQuestions, ...skippedQuestions];
       if (allMistakes.length === 0) {
-        showNotice("No mistakes or skipped questions found to practice!", "info");
+        showNotice("No mistakes or omitted questions in this test!", "info");
+        state.mistakesSessionId = null;
+        renderHome();
+        return;
+      }
+      state.selectedMistakeDomains = new Set(allMistakes.map(q => q.domain));
+      state.selectedMistakeTypes = new Set(["wrong", "skipped"]);
+      state.view = "mistakes";
+      state.notice = null;
+      renderHome();
+    }
+    if (action === "retry-mistakes") {
+      state.mistakesSessionId = null;
+      const { wrongQuestions, skippedQuestions } = getMistakesData();
+      const allMistakes = [...wrongQuestions, ...skippedQuestions];
+      if (allMistakes.length === 0) {
+        showNotice("No mistakes or omitted questions found to practice!", "info");
         renderHome();
         return;
       }
@@ -2709,13 +2799,18 @@
         return;
       }
       captureTelemetry("Started Retry Practice", { count: questionsToPractice.length });
-      startCustomPractice({ subject: "both", limit: questionsToPractice.length, isRetry: true }, questionsToPractice);
+      startCustomPractice({ subject: "both", limit: questionsToPractice.length, isRetry: true, retrySessionId: state.mistakesSessionId || null }, questionsToPractice);
     }
     if (action === "review-session") {
       state.reviewSessionId = event.currentTarget.dataset.sessionId || null;
       state.reviewFilterIncorrect = false;
       state.reviewFilterSkipped = false;
+      state.reviewFilterSubject = "both";
       state.view = "review";
+      renderHome();
+    }
+    if (action === "review-subject-filter") {
+      state.reviewFilterSubject = event.currentTarget.dataset.subject || "both";
       renderHome();
     }
     if (action === "review-wrong-toggle") {
@@ -2743,6 +2838,23 @@
     }
     if (action === "import") { fileInput.click(); }
     if (action === "dismiss-notice") { state.notice = null; dismissNoticeUI(); }
+    if (action === "wipe-all") {
+      showConfirmModal("Are you sure you want to wipe ALL your data, including imported question banks? This cannot be undone.", "Wipe All Data", async () => {
+        await DB.clearAll();
+        state.lastResult = null;
+        sessionStorage.removeItem('lastResultSessionId');
+        
+        if (window.SevSync?.isLinked()) {
+            window.SevSync.sync(true, { forcePush: true, silent: true }).catch(console.error);
+        }
+
+        state.view = "dashboard";
+        await refreshLocalData();
+        showNotice("All data wiped successfully.", "info");
+        renderHome();
+      });
+    }
+
     if (action === "reset") {
       showConfirmModal("Are you sure you want to wipe all your test progress and history?", "Reset Progress", async () => {
         await DB.clear("sessions");
@@ -3238,7 +3350,6 @@
         if (isAnswered) {
           totalAnswered++;
           if (isCorrect) totalCorrect++;
-          else totalIncorrect++;
         }
 
         responses.push({
@@ -3259,6 +3370,7 @@
     }
     
     bank.questionCount = questions.length;
+    totalIncorrect = questions.length - totalCorrect;
 
     const session = {
       id: bankId,
@@ -3296,7 +3408,7 @@
       id, externalId: String(externalId || id),
       questionId: question.questionId || metadata.questionId || "",
       bankId, importedAt: new Date().toISOString(), updatedAt: Date.now(), subject,
-      test: question.test || SUBJECTS[subject] || "",
+      test: question.assessment || question.test || SUBJECTS[subject] || "",
       domainCode, domain,
       skillCode: question.skillCode || metadata.skill_cd || "",
       skill: question.skill || metadata.skill_desc || metadata.skill_cd || "",
@@ -4122,7 +4234,7 @@
     return {
       id: test.id, mode: test.mode, subject: test.config.subject,
       startedAt: test.startedAt, completedAt, updatedAt: Date.now(),
-      totalAnswered, totalCorrect, totalIncorrect: totalAnswered - totalCorrect,
+      totalAnswered, totalCorrect, totalIncorrect: responses.length - totalCorrect,
       totalQuestionsServed: responses.length,
       averageSeconds: totalAnswered ? totalSeconds / totalAnswered : 0, totalSeconds,
       config: test.config, moduleSummaries: test.moduleSummaries || []
@@ -4197,8 +4309,8 @@
     const theta = estimateTheta(responses);
     return {
       id: module.id, title: module.title, subject: module.subject, route: module.route,
-      reason, answered: answered.length, correct, incorrect: answered.length - correct,
-      accuracy: answered.length ? correct / answered.length : 0,
+      reason, answered: answered.length, correct, incorrect: responses.length - correct,
+      accuracy: responses.length ? correct / responses.length : 0,
       theta
     };
   }
@@ -4532,7 +4644,7 @@
     return state.questions.filter(q => {
       if (!subjects.includes(q.subject)) return false;
       if (domainCodes.size && !domainCodes.has(q.domainCode)) return false;
-      if (difficulties.size && !difficulties.has(q.difficultyCode)) return false;
+      if (difficulties.size && !difficulties.has(q.difficultyCode) && q.difficultyCode) return false;
       return !answered.has(q.id);
     });
   }
@@ -4595,7 +4707,7 @@
 
     const answered = answeredResponses.length;
     return {
-      bank, overall: { answered, correct, incorrect: answered - correct, accuracy: answered ? correct / answered : 0, avgTime: timedAnswered ? totalTime / timedAnswered : 0 },
+      bank, overall: { answered, correct, incorrect: questions.length - correct, accuracy: questions.length ? correct / questions.length : 0, avgTime: timedAnswered ? totalTime / timedAnswered : 0 },
       subjects, domains: [...domainMap.values()].sort((a, b) => String(a.subject).localeCompare(String(b.subject)) || String(a.label).localeCompare(String(b.label)))
     };
   }
