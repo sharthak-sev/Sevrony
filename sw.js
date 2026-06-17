@@ -1,11 +1,12 @@
-const CACHE_NAME = "sat-practice-cache-v2.1.0";
+const CACHE_NAME = "sat-practice-cache-v2.1.1";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./db.js",
-  "./sync.js",
+  "./styles.css?v=2.1.1",
+  "./tailwind.css?v=2.1.1",
+  "./app.js?v=2.1.1",
+  "./db.js?v=2.1.1",
+  "./sync.js?v=2.1.1",
   "./logo.svg"
 ];
 
@@ -13,7 +14,19 @@ const ASSETS_TO_CACHE = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      // Force bypass HTTP cache during install by appending a dynamic timestamp
+      return Promise.all(
+        ASSETS_TO_CACHE.map((url) => {
+          const cacheBustedUrl = url.includes('?') 
+            ? `${url}&cb=${Date.now()}` 
+            : `${url}?cb=${Date.now()}`;
+          return fetch(new Request(cacheBustedUrl, { cache: 'no-cache' }))
+            .then(response => {
+              if (!response.ok) throw new Error("Network response was not ok for " + url);
+              return cache.put(url, response);
+            });
+        })
+      );
     })
   );
   self.skipWaiting();
@@ -35,8 +48,12 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+  const isSameOrigin = url.origin === location.origin;
+
   event.respondWith(
-    fetch(event.request)
+    // For same-origin requests, bypass the browser's HTTP cache to ensure we get the latest
+    fetch(event.request, isSameOrigin ? { cache: 'no-cache' } : {})
       .then((response) => {
         // Only cache valid HTTP responses
         if (response && response.status === 200 && response.type === "basic") {
