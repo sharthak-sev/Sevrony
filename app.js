@@ -74,6 +74,26 @@
     adaptiveThreshold: 0.6
   };
 
+  /* ---- Phase 1: 7-band difficulty → IRT b-value mapping ---- */
+  const SCORE_BAND_DIFFICULTY = {
+    1: -2.5, 2: -1.67, 3: -0.83, 4: 0.0, 5: 0.83, 6: 1.67, 7: 2.5
+  };
+
+  /* ---- Phase 2/6: Route-aware score ceiling ---- */
+  const LOWER_ROUTE_CEILING = 620;
+
+  /* ---- Phase 3: Content domain question blueprints (per module) ---- */
+  const MODULE_BLUEPRINT = {
+    rw: { INI: 7, CAS: 7, EOI: 6, SEC: 7 },
+    math: { H: 8, P: 7, Q: 4, S: 3 }
+  };
+
+  /* ---- Phase 7: Module 1 difficulty distribution ---- */
+  const MODULE1_DIFFICULTY_MIX = {
+    rw: { E: 9, M: 9, H: 9 },
+    math: { E: 7, M: 8, H: 7 }
+  };
+
   /* ---- SAT Math Reference Sheet formulas ---- */
   const REFERENCE_FORMULAS = [
     { section: "Circles", formulas: [
@@ -1865,10 +1885,18 @@
     }
     const rwTheta = rwMods ? (rwThetaSum / rwMods) : 0;
     const mathTheta = mathMods ? (mathThetaSum / mathMods) : 0;
-    
-    const rwScore = Math.round(Math.min(800, Math.max(200, 500 + (rwTheta * 100))) / 10) * 10;
-    const mathScore = Math.round(Math.min(800, Math.max(200, 500 + (mathTheta * 100))) / 10) * 10;
+
+    /* Phase 2: Determine route from Module 2 summaries */
+    const rwRoute = mods.find(m => m.subject === "rw" && m.id?.endsWith("2"))?.route || null;
+    const mathRoute = mods.find(m => m.subject === "math" && m.id?.endsWith("2"))?.route || null;
+
+    /* Phase 6: Sigmoid theta-to-score with route-aware ceilings */
+    const rwScore = thetaToScore(rwTheta, rwRoute);
+    const mathScore = thetaToScore(mathTheta, mathRoute);
     const totalScore = rwScore + mathScore;
+
+    const rwCapped = rwRoute === "lower";
+    const mathCapped = mathRoute === "lower";
 
     return `
       <section class="panel scoreboard-panel" style="text-align: center; margin-bottom: 24px; padding: 32px;">
@@ -1878,13 +1906,15 @@
           <div>
             <p class="muted" style="margin-bottom: 4px;">Reading & Writing</p>
             <h2 style="font-size: 2rem;">${rwScore}</h2>
+            ${rwCapped ? `<small class="muted" style="color:var(--yellow);">Capped — lower route</small>` : ""}
           </div>
           <div>
             <p class="muted" style="margin-bottom: 4px;">Math</p>
             <h2 style="font-size: 2rem;">${mathScore}</h2>
+            ${mathCapped ? `<small class="muted" style="color:var(--yellow);">Capped — lower route</small>` : ""}
           </div>
         </div>
-        <p class="muted" style="margin-top: 16px; font-size: 13px;">Scores are simulated using an IRT approximation and may not perfectly reflect official College Board scoring.</p>
+        <p class="muted" style="margin-top: 16px; font-size: 13px;">Scores simulated using a 7-band IRT model with route-aware ceilings. Your official score may differ due to proprietary CB equating.</p>
       </section>
     `;
   }
@@ -2065,11 +2095,14 @@
     const num = (response.sequence ?? index) + 1;
     const isSkipped = !isAnsweredResponse(response);
     const status = isSkipped ? "skipped" : response.isCorrect ? "correct" : "incorrect";
+    /* Phase 4: Pretest badge */
+    const pretestBadge = response.isPretest ? `<span class="status-pill" style="background:var(--zinc-200);color:var(--zinc-600);font-size:11px;">Unscored (Pretest)</span>` : "";
     if (!question) {
       return `
         <article class="panel review-card" data-status="${status}">
           <div class="review-card-header">
             <strong>Question ${num}</strong>
+            ${pretestBadge}
             ${renderReviewStatus(response)}
           </div>
           <p class="muted">Question data no longer available. Your answer: ${escapeHtml(response.answer || "blank")}.</p>
@@ -2085,6 +2118,7 @@
             <strong>${escapeHtml(question.domain)} · ${escapeHtml(response.moduleTitle || SUBJECTS[question.subject] || "")}</strong>
           </div>
           <div class="review-meta">
+            ${pretestBadge}
             <button type="button" class="ghost-btn icon-btn report-btn" data-action="report-question" data-qid="${escapeHtml(question.id)}" title="Report issue with question">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
             </button>
@@ -3558,7 +3592,12 @@
     }
 
     const usedIds = new Set();
-    const rwModule1 = pickModuleQuestions("rw", config.difficulties, FULL_TEST.rw.size, usedIds, config);
+    /* Phase 7: Module 1 uses calibrated E/M/H mix instead of config defaults */
+    let rwModule1 = pickModuleQuestions("rw", ["E", "M", "H"], FULL_TEST.rw.size, usedIds, config);
+    /* Phase 5: Order questions easiest→hardest within domain groups */
+    rwModule1 = orderModuleQuestions(rwModule1);
+    /* Phase 4: Mark 2 pretest (unscored) questions */
+    markPretestQuestions(rwModule1);
 
     state.activeTest = {
       id: uid("session"), mode: "full", config,
@@ -4142,7 +4181,9 @@
     if (module.id === "rw1") {
       const route = summary.theta >= 0.0 ? "upper" : "lower";
       const usedIds = new Set(test.usedIds);
-      const questions = pickModuleQuestions("rw", routeDifficulties(route), FULL_TEST.rw.size, usedIds, test.config);
+      let questions = pickModuleQuestions("rw", routeDifficulties(route), FULL_TEST.rw.size, usedIds, test.config);
+      questions = orderModuleQuestions(questions); /* Phase 5 */
+      markPretestQuestions(questions); /* Phase 4 */
       test.usedIds = [...usedIds];
       showTransition(makeModule("rw2", "rw", 2, "Reading and Writing — Module 2", FULL_TEST.rw.seconds, questions, route),
         `${route === "upper" ? "Upper" : "Lower"} difficulty route based on Module 1 performance.`, Math.round(FULL_TEST.rw.seconds / 60));
@@ -4154,7 +4195,9 @@
     if (module.id === "math1") {
       const route = summary.theta >= 0.0 ? "upper" : "lower";
       const usedIds = new Set(test.usedIds);
-      const questions = pickModuleQuestions("math", routeDifficulties(route), FULL_TEST.math.size, usedIds, test.config);
+      let questions = pickModuleQuestions("math", routeDifficulties(route), FULL_TEST.math.size, usedIds, test.config);
+      questions = orderModuleQuestions(questions); /* Phase 5 */
+      markPretestQuestions(questions); /* Phase 4 */
       test.usedIds = [...usedIds];
       showTransition(makeModule("math2", "math", 2, "Math — Module 2", FULL_TEST.math.seconds, questions, route),
         `${route === "upper" ? "Upper" : "Lower"} difficulty route based on Module 1 performance.`, Math.round(FULL_TEST.math.seconds / 60));
@@ -4211,7 +4254,10 @@
     state.transitionLocked = true;
     stopTicker();
     const usedIds = new Set(test.usedIds);
-    const questions = pickModuleQuestions("math", test.config.difficulties, FULL_TEST.math.size, usedIds, test.config);
+    /* Phase 7: Module 1 uses calibrated E/M/H mix */
+    let questions = pickModuleQuestions("math", ["E", "M", "H"], FULL_TEST.math.size, usedIds, test.config);
+    questions = orderModuleQuestions(questions); /* Phase 5 */
+    markPretestQuestions(questions); /* Phase 4 */
     test.usedIds = [...usedIds];
     showTransition(makeModule("math1", "math", 1, "Math — Module 1", FULL_TEST.math.seconds, questions, null),
       "Get ready for the Math section.", Math.round(FULL_TEST.math.seconds / 60));
@@ -4283,6 +4329,8 @@
       subject: question.subject, domainCode: question.domainCode, domain: question.domain,
       skillCode: question.skillCode, skill: question.skill,
       difficultyCode: question.difficultyCode, difficulty: question.difficulty,
+      scoreBand: question.scoreBand || null, /* Phase 1: thread 7-band difficulty */
+      isPretest: question._isPretest || false, /* Phase 4: pretest flag */
       answer: String(answer || "").trim(),
       correctAnswers: question.correctAnswers || [],
       isAnswered: score.wasAnswered, isCorrect: score.isCorrect,
@@ -4300,13 +4348,23 @@
     return { wasAnswered: true, isCorrect: expected.map(normalizeFreeResponse).includes(normalizeFreeResponse(answer)) };
   }
 
+  /* Phase 1: Get IRT difficulty parameter from 7-band score_band or fallback to E/M/H */
+  function getDifficultyParam(response) {
+    const band = response.scoreBand;
+    if (band != null && band >= 1 && band <= 7) {
+      return SCORE_BAND_DIFFICULTY[band];
+    }
+    return { E: -1.5, M: 0.0, H: 1.5 }[response.difficultyCode || "M"] ?? 0;
+  }
+
   function estimateTheta(responses) {
-    const difficulties = { E: -1.5, M: 0.0, H: 1.5 };
     const items = [];
     let score = 0;
     
     for (const r of responses) {
-      let b = difficulties[r.difficultyCode || "M"] ?? 0;
+      /* Phase 4: Exclude pretest items from scoring */
+      if (r.isPretest) continue;
+      let b = getDifficultyParam(r); /* Phase 1: 7-band difficulty */
       let u = r.isCorrect ? 1 : 0;
       items.push({ b, u });
       score += u;
@@ -4333,14 +4391,28 @@
     return Math.max(-3.0, Math.min(3.0, theta));
   }
 
+  /* Phase 2/6: Linear theta-to-score with route-aware ceiling.
+     IRT theta→scaled score is a linear transform by design.
+     The "S-curve" in real SAT scoring arises from raw→scaled conversion,
+     not from theta→scaled. Route ceiling is the key improvement here. */
+  function thetaToScore(theta, route) {
+    const ceiling = route === "lower" ? LOWER_ROUTE_CEILING : 800;
+    const raw = 500 + (theta * 100);
+    const clamped = Math.max(200, Math.min(ceiling, raw));
+    return Math.round(clamped / 10) * 10;
+  }
+
   function summarizeModule(module, responses, reason) {
     const answered = responses.filter(isAnsweredResponse);
-    const correct = answered.filter(r => r.isCorrect).length;
-    const theta = estimateTheta(responses);
+    /* Phase 4: Only count non-pretest responses for accuracy */
+    const scoredResponses = responses.filter(r => !r.isPretest);
+    const scoredAnswered = scoredResponses.filter(isAnsweredResponse);
+    const correct = scoredAnswered.filter(r => r.isCorrect).length;
+    const theta = estimateTheta(responses); /* estimateTheta already skips pretest internally */
     return {
       id: module.id, title: module.title, subject: module.subject, route: module.route,
-      reason, answered: answered.length, correct, incorrect: responses.length - correct,
-      accuracy: responses.length ? correct / responses.length : 0,
+      reason, answered: answered.length, correct, incorrect: scoredResponses.length - correct,
+      accuracy: scoredResponses.length ? correct / scoredResponses.length : 0,
       theta
     };
   }
@@ -4630,9 +4702,62 @@
     const emergency = getFilteredQuestions({ ...config, subject, difficulties: ["E", "M", "H"], excludeAnswered: false })
       .filter(q => !usedIds.has(q.id) && !preferred.some(p => p.id === q.id) && !fallback.some(f => f.id === q.id));
 
-    const selected = balancedPick([...preferred, ...fallback, ...emergency], difficulties, count);
+    const pool = [...preferred, ...fallback, ...emergency];
+    /* Phase 3: Try domain-balanced pick first, fall back to difficulty-balanced */
+    const blueprint = MODULE_BLUEPRINT[subject];
+    const selected = blueprint
+      ? blueprintPick(pool, blueprint, difficulties, count)
+      : balancedPick(pool, difficulties, count);
     for (const q of selected) usedIds.add(q.id);
     return selected;
+  }
+
+  /* Phase 3: Domain-blueprint-aware question selection */
+  function blueprintPick(questions, blueprint, difficulties, count) {
+    const unique = dedupeBy(questions, q => q.id);
+    const selected = [];
+    const usedInPick = new Set();
+    const diffOrder = { E: 0, M: 1, H: 2 };
+    const allowedDiffs = new Set(difficulties.length ? difficulties : ["E", "M", "H"]);
+
+    // First pass: fill domain quotas
+    for (const [domainCode, quota] of Object.entries(blueprint)) {
+      const candidates = shuffle(
+        unique.filter(q => (q.domainCode || "") === domainCode && !usedInPick.has(q.id))
+      ).sort((a, b) => {
+        // Prefer questions matching the allowed difficulties
+        const aMatch = allowedDiffs.has(a.difficultyCode) ? 0 : 1;
+        const bMatch = allowedDiffs.has(b.difficultyCode) ? 0 : 1;
+        return aMatch - bMatch;
+      });
+      let filled = 0;
+      for (const q of candidates) {
+        if (filled >= quota) break;
+        if (!usedInPick.has(q.id)) {
+          selected.push(q);
+          usedInPick.add(q.id);
+          filled++;
+        }
+      }
+    }
+
+    // Second pass: fill remaining seats from any domain, respecting difficulty
+    if (selected.length < count) {
+      const remaining = shuffle(
+        unique.filter(q => !usedInPick.has(q.id))
+      ).sort((a, b) => {
+        const aMatch = allowedDiffs.has(a.difficultyCode) ? 0 : 1;
+        const bMatch = allowedDiffs.has(b.difficultyCode) ? 0 : 1;
+        return aMatch - bMatch;
+      });
+      for (const q of remaining) {
+        if (selected.length >= count) break;
+        selected.push(q);
+        usedInPick.add(q.id);
+      }
+    }
+
+    return selected.slice(0, count);
   }
 
   function balancedPick(questions, difficulties, count) {
@@ -4663,6 +4788,32 @@
 
   function routeDifficulties(route) {
     return route === "upper" ? ["M", "H"] : ["E", "M"];
+  }
+
+  /* Phase 4: Mark 2 random questions per module as pretest (unscored) */
+  function markPretestQuestions(questions) {
+    const pretestCount = Math.min(2, questions.length);
+    const indices = new Set();
+    while (indices.size < pretestCount) {
+      indices.add(Math.floor(Math.random() * questions.length));
+    }
+    for (let i = 0; i < questions.length; i++) {
+      questions[i]._isPretest = indices.has(i);
+    }
+  }
+
+  /* Phase 5: Order questions easiest→hardest within domain groups */
+  function orderModuleQuestions(questions) {
+    const diffOrder = { E: 0, M: 1, H: 2 };
+    const domainGroups = {};
+    for (const q of questions) {
+      const key = q.domainCode || "ZZZ";
+      (domainGroups[key] ||= []).push(q);
+    }
+    for (const group of Object.values(domainGroups)) {
+      group.sort((a, b) => (diffOrder[a.difficultyCode] ?? 1) - (diffOrder[b.difficultyCode] ?? 1));
+    }
+    return Object.values(domainGroups).flat();
   }
 
   function getFilteredQuestions(config) {
