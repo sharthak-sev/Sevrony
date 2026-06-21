@@ -2031,6 +2031,18 @@
         </div>
       </section>
       <section class="panel history-panel">
+        ${renderHistoryPanelContent()}
+      </section>
+    `;
+  }
+
+  
+  function renderHistoryPanelContent() {
+    const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
+    const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
+    const sessions = state.historyTab === "full" ? fullTests : subjectTests;
+
+    return `
         <div class="history-tabs" role="tablist">
           <button class="${state.historyTab === "full" ? "active" : ""}" type="button" data-action="history-tab" data-tab="full">Full Tests <span>${fullTests.length}</span></button>
           <button class="${state.historyTab === "subject" ? "active" : ""}" type="button" data-action="history-tab" data-tab="subject">Subject Tests <span>${subjectTests.length}</span></button>
@@ -2086,11 +2098,10 @@
              ` : ""}
           </div>
         `}
-      </section>
-    `;
+      `;
   }
 
-  function renderTestReview() {
+function renderTestReview() {
     const session = state.sessions.find(s => s.id === state.reviewSessionId);
     if (!session) {
       return `
@@ -2920,8 +2931,18 @@
       renderHome();
     }
     if (action === "history-tab") {
-      state.historyTab = event.currentTarget.dataset.tab || "full";
-      renderHome();
+      const newTab = event.currentTarget.dataset.tab || "full";
+      if (state.historyTab === newTab) return;
+      state.historyTab = newTab;
+      
+      const panel = document.querySelector('.history-panel');
+      if (panel) {
+        panel.innerHTML = renderHistoryPanelContent();
+        bindHomeEvents();
+      } else {
+        renderHome();
+      }
+      return;
     }
     if (action === "retry-session-mistakes") {
       const sessionId = event.currentTarget.dataset.sessionId;

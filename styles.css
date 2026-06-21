@@ -109,6 +109,7 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: none;
 }
 
 .sidebar-collapsed .sidebar {
@@ -2084,6 +2085,7 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
     transform: translateX(0);
     width: 260px;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+    overscroll-behavior: none;
   }
   .sidebar-collapsed .sidebar {
     transform: translateX(-100%);
@@ -2097,6 +2099,7 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
     backdrop-filter: blur(2px);
     z-index: 99;
     animation: fade-in 0.2s ease-out forwards;
+    touch-action: none;
   }
   
   body:has(.app-shell:not(.sidebar-collapsed)) {
