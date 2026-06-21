@@ -286,26 +286,21 @@
         refreshLocalData().then(() => renderHome());
       });
       SevSync.onStateChange(() => {
-        const wrapper = document.querySelector('.sync-status-wrapper');
-        if (wrapper) {
-          wrapper.outerHTML = renderSyncWidget();
-          const newWrapper = document.querySelector('.sync-status-wrapper');
-          if (newWrapper) {
-            for (const btn of newWrapper.querySelectorAll("[data-action]")) {
-              btn.addEventListener("click", handleHomeAction);
-            }
+        const wrappers = document.querySelectorAll('.sync-status-wrapper');
+        if (wrappers.length > 0) {
+          for (const wrapper of wrappers) {
+            wrapper.outerHTML = renderSyncWidget();
           }
         } else {
-          // Fallback if the wrapper is not found but container is
-          const widget = document.querySelector('.sync-status-container');
-          if (widget) {
+          const widgets = document.querySelectorAll('.sync-status-container');
+          for (const widget of widgets) {
             widget.outerHTML = renderSyncWidget();
-            const newWrapper = document.querySelector('.sync-status-wrapper');
-            if (newWrapper) {
-              for (const btn of newWrapper.querySelectorAll("[data-action]")) {
-                btn.addEventListener("click", handleHomeAction);
-              }
-            }
+          }
+        }
+        const newWrappers = document.querySelectorAll('.sync-status-wrapper');
+        for (const newWrapper of newWrappers) {
+          for (const btn of newWrapper.querySelectorAll("[data-action]")) {
+            btn.addEventListener("click", handleHomeAction);
           }
         }
       });
@@ -842,33 +837,12 @@
 
   function routeTransition(newRoute, doRender) {
     const isRouteChanging = _currentRoute !== newRoute;
-
-    if (!document.startViewTransition || !isRouteChanging || _currentRoute === null) {
-      _currentRoute = newRoute;
-      if (isRouteChanging) captureTelemetry("$pageview", { view: newRoute });
-      doRender();
-      if (isRouteChanging) {
-        window.scrollTo(0, 0);
-      }
-      return;
-    }
-    let type = "context";
-    if (
-      (_currentRoute === "dashboard" && ["config", "review", "results", "mistakes", "activeTest"].includes(newRoute)) ||
-      (_currentRoute === "marketing" && newRoute === "onboarding") ||
-      (_currentRoute === "onboarding" && newRoute === "dashboard")
-    ) {
-      type = "drill";
-    }
     _currentRoute = newRoute;
-    captureTelemetry("$pageview", { view: newRoute });
-    document.documentElement.dataset.transition = type;
-    const t = document.startViewTransition(() => {
-      doRender();
+    if (isRouteChanging) captureTelemetry("$pageview", { view: newRoute });
+    doRender();
+    if (isRouteChanging) {
       window.scrollTo(0, 0);
-    });
-    t.ready.catch(() => {});
-    t.finished.catch(() => {}).finally(() => delete document.documentElement.dataset.transition);
+    }
   }
 
   let lastPushedStateStr = "";
@@ -964,20 +938,34 @@
         return;
       }
 
-      app.className = "app-shell";
+      let shellClass = "app-shell";
+      const isMobile = window.innerWidth <= 920;
+      let savedState = localStorage.getItem("sidebarCollapsed");
+      
+      if (isMobile) {
+        savedState = "true";
+        localStorage.setItem("sidebarCollapsed", "true");
+      }
+      
+      if (savedState === "true") {
+        shellClass += " sidebar-collapsed";
+      }
+      app.className = shellClass;
       app.innerHTML = `
-        ${renderTopbar()}
-        ${state.notice ? renderNotice(state.notice) : ""}
-        ${renderIosWarningBanner()}
-        <main class="main-grid">
-          ${state.view === "results" && state.lastResult ? renderSessionDashboard(state.lastResult) : ""}
-          ${state.view === "config" ? renderTestConfig() : ""}
-          ${state.view === "history" ? renderTestHistory() : ""}
-          ${state.view === "review" ? renderTestReview() : ""}
-          ${state.view === "dashboard" ? renderDashboard() : ""}
-          ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
-          ${state.view === "backup" ? renderBackupView() : ""}
-        </main>
+        ${renderSidebar()}
+        <div class="main-content-wrapper">
+          ${state.notice ? renderNotice(state.notice) : ""}
+          ${renderIosWarningBanner()}
+          <main class="main-grid">
+            ${state.view === "results" && state.lastResult ? renderSessionDashboard(state.lastResult) : ""}
+            ${state.view === "config" ? renderTestConfig() : ""}
+            ${state.view === "history" ? renderTestHistory() : ""}
+            ${state.view === "review" ? renderTestReview() : ""}
+            ${state.view === "dashboard" ? renderDashboard() : ""}
+            ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
+            ${state.view === "backup" ? renderBackupView() : ""}
+          </main>
+        </div>
       `;
       bindHomeEvents();
     });
@@ -1257,32 +1245,77 @@
       <div class="sync-status-wrapper" style="position: relative; display: inline-flex;">
         <button class="sync-status-container ${statusClass}" type="button" data-action="${action}" data-tour-target="sync" title="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Cloud Sync Status"}" aria-label="${action === "force-cloud-sync" ? "Reconnect cloud sync" : "Open cloud sync status"}">
           ${iconHTML}
-          <span>${text}</span>
+          <span class="nav-label">${text}</span>
         </button>
         ${bubbleHTML}
       </div>
     `;
   }
 
-  function renderTopbar() {
+  function renderSidebar() {
     return `
-      <header class="topbar" style="position: relative; z-index: 9999;">
-        <button class="brand-mark" type="button" data-action="dashboard" aria-label="Open dashboard">
-          <img class="brand-icon" src="logo.svg" alt="Sevrony Logo">
-          <span>
-            <strong>Sevrony <span style="color: var(--ink-muted); font-size: 0.85em; font-weight: normal; margin-left: 4px;">${APP_VERSION}</span></strong>
-            <small>Local question bank · Timed tests</small>
-          </span>
+      <div class="sidebar-overlay" data-action="toggle-sidebar"></div>
+      <div class="mobile-header">
+        <button class="sidebar-toggle mobile-only" type="button" data-action="toggle-sidebar" aria-label="Toggle sidebar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
         </button>
-        <nav class="top-actions">
+        <span class="mobile-brand" style="flex: 1;">Sevrony <small>${APP_VERSION}</small></span>
+        <div class="mobile-sync-container mobile-only" style="display: flex; align-items: center;">
           ${renderSyncWidget()}
-          <button class="ghost-btn support-btn" type="button" data-action="open-support" style="display: inline-flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> Support the project</button>
-          <button class="ghost-btn" type="button" data-action="dashboard">Dashboard</button>
-          <button class="ghost-btn" type="button" data-action="history" data-tour-target="history-nav">Past Tests</button>
-          <button class="ghost-btn" type="button" data-action="backup" data-tour-target="backup-nav">Data & Backups</button>
-          <button class="ghost-btn" type="button" data-action="privacy">Privacy</button>
+        </div>
+      </div>
+      <aside class="sidebar">
+        <div class="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <button class="brand-mark" type="button" data-action="dashboard" aria-label="Open dashboard" style="border:none;background:transparent;padding:0;">
+            <img class="brand-icon" src="logo.svg" alt="Sevrony Logo">
+            <span class="nav-label">
+              <strong>Sevrony <span style="color: var(--ink-muted); font-size: 0.85em; font-weight: normal; margin-left: 4px;">${APP_VERSION}</span></strong>
+              <small>Local question bank</small>
+            </span>
+          </button>
+          <button class="sidebar-toggle desktop-only" type="button" data-action="toggle-sidebar" aria-label="Toggle sidebar" style="padding: 8px; border-radius: 8px; color: var(--ink-muted);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
+          </button>
+        </div>
+        
+        <nav class="sidebar-nav">
+          <div class="nav-section">
+            <p class="nav-heading">Main Menu</p>
+            <button class="nav-item ${state.view === 'dashboard' ? 'active' : ''}" type="button" data-action="dashboard" title="Dashboard">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span class="nav-label">Dashboard</span>
+            </button>
+            <button class="nav-item ${state.view === 'history' ? 'active' : ''}" type="button" data-action="history" data-tour-target="history-nav" title="Past Tests">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              <span class="nav-label">Past Tests</span>
+            </button>
+            <button class="nav-item ${state.view === 'mistakes' ? 'active' : ''}" type="button" data-action="retry-mistakes" title="Retry Mistakes">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+              <span class="nav-label">Retry Mistakes</span>
+            </button>
+          </div>
+
+          <div class="nav-section mt-auto">
+            <p class="nav-heading">Settings</p>
+            <button class="nav-item ${state.view === 'backup' ? 'active' : ''}" type="button" data-action="backup" data-tour-target="backup-nav" title="Data & Backups">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+              <span class="nav-label">Data & Backups</span>
+            </button>
+            <button class="nav-item ${state.view === 'privacy' ? 'active' : ''}" type="button" data-action="privacy" title="Privacy">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span class="nav-label">Privacy</span>
+            </button>
+            <button class="nav-item support-btn" type="button" data-action="open-support" title="Support the project">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+              <span class="nav-label">Support the project</span>
+            </button>
+          </div>
+          
+          <div class="sidebar-footer desktop-only">
+            ${renderSyncWidget()}
+          </div>
         </nav>
-      </header>
+      </aside>
     `;
   }
 
@@ -1409,12 +1442,14 @@
 
     const week = [];
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay());
+    // Fix: start week on Monday
+    const dayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1; 
+    startOfWeek.setDate(today.getDate() - dayOfWeek);
     for (let i = 0; i < 7; i++) {
        const d = new Date(startOfWeek);
        d.setDate(d.getDate() + i);
        const dStr = toDateStr(d);
-       week.push({ day: ["S","M","T","W","T","F","S"][i], active: activeDates.has(dStr), isToday: dStr === todayStr, isFuture: d > today });
+       week.push({ day: ["M","T","W","T","F","S","S"][i], active: activeDates.has(dStr), isToday: dStr === todayStr, isFuture: d > today });
     }
 
     return { current, longest, week };
@@ -1422,34 +1457,88 @@
 
   function renderStreakWidget() {
     const data = calculateStreakData(state.sessions);
-    const weekDots = data.week.map(w => {
-      let cssClass = "streak-dot";
-      if (w.active) cssClass += " active";
-      if (w.isToday) cssClass += " today";
-      if (w.isFuture) cssClass += " future";
-      return `<div class="streak-day"><div class="${cssClass}"></div><small>${w.day}</small></div>`;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const weekDots = data.week.map((w, index) => {
+      let isCompleted = w.active;
+      let isToday = w.isToday;
+      let isFuture = w.isFuture;
+      
+      let dayLabel = w.day.slice(0,1);
+
+      let boxStyle = `position: relative; display: flex; width: 100%; aspect-ratio: 1/1; max-width: 48px; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid; transition: all 0.2s; margin: 0 auto; box-sizing: border-box;`;
+      
+      let icon = "";
+      if (isFuture) {
+        boxStyle += `border-color: color-mix(in srgb, var(--line, #e2e8f0) 40%, transparent); background: color-mix(in srgb, var(--panel-alt, #f8fafc) 20%, transparent); opacity: 0.5;`;
+      } else if (isCompleted) {
+        boxStyle += `border-color: var(--ink, #0f172a); background: var(--ink, #0f172a);`;
+        icon = `<svg xmlns="http://www.w3.org/2000/svg" style="width: 45%; height: 45%; max-width: 24px; max-height: 24px;" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
+      } else {
+        boxStyle += `border-color: var(--line, #e2e8f0); background: color-mix(in srgb, var(--panel-alt, #f8fafc) 30%, transparent);`;
+      }
+      
+      if (isToday) {
+        if (!isCompleted) {
+          boxStyle += `border-color: var(--ink, #0f172a); border-width: 2px;`;
+        } else {
+          boxStyle += `box-shadow: 0 0 0 2px var(--panel, #fff), 0 0 0 4px var(--ink, #0f172a);`;
+        }
+      }
+
+      let textColor = isToday && isCompleted ? 'var(--ink, #0f172a)' : (isFuture ? 'color-mix(in srgb, var(--ink-muted) 50%, transparent)' : 'var(--ink-muted, #64748b)');
+
+      return `
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 0 2px; box-sizing: border-box;">
+          <div style="${boxStyle}">
+            ${icon}
+          </div>
+          <span style="font-size: 13px; font-weight: 500; color: ${textColor};">${dayLabel}</span>
+        </div>
+      `;
     }).join("");
 
     return `
-      <section class="panel streak-panel" style="margin-top: 24px; margin-bottom: 24px; padding: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
-          <div style="display: flex; gap: 32px; flex-wrap: wrap;">
-            <div>
-              <p class="eyebrow">Current Streak</p>
-              <h2 style="font-size: 28px; color: var(--amber); margin-top: 4px; display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> ${data.current} Day${data.current === 1 ? '' : 's'}</h2>
+      <section style="width: 100%; max-width: 768px; margin: 0 auto 24px auto; box-sizing: border-box;">
+        <div style="width: 100%; display: flex; flex-direction: column; border-radius: 16px; border: 1px solid var(--line, #e2e8f0); background: var(--panel, #fff); padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); box-sizing: border-box;">
+          
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 140px;">
+              <div style="display: flex; height: 48px; width: 48px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--ink, #0f172a) 8%, transparent);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink, #0f172a)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+              </div>
+              <div style="display: flex; flex-direction: column; justify-content: center;">
+                <h3 style="font-size: 13px; font-weight: 500; color: var(--ink-muted, #64748b); margin: 0;">Current Streak</h3>
+                <div style="display: flex; align-items: baseline; gap: 4px; margin-top: 2px;">
+                  <span style="font-size: 26px; font-weight: 700; color: var(--ink, #0f172a); line-height: 1;">${data.current}</span>
+                  <span style="font-size: 14px; font-weight: 500; color: var(--ink-muted, #64748b);">days</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <p class="eyebrow">Longest Streak</p>
-              <h2 style="font-size: 28px; color: var(--bb-blue); margin-top: 4px; display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg> ${data.longest} Day${data.longest === 1 ? '' : 's'}</h2>
+            
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 140px; justify-content: flex-end;">
+              <div style="display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
+                <h3 style="font-size: 13px; font-weight: 500; color: var(--ink-muted, #64748b); margin: 0;">Longest Streak</h3>
+                <div style="display: flex; align-items: baseline; gap: 4px; margin-top: 2px;">
+                  <span style="font-size: 26px; font-weight: 700; color: var(--ink, #0f172a); line-height: 1;">${data.longest}</span>
+                  <span style="font-size: 14px; font-weight: 500; color: var(--ink-muted, #64748b);">days</span>
+                </div>
+              </div>
+              <div style="display: flex; height: 48px; width: 48px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--ink, #0f172a) 8%, transparent);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink, #0f172a)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+              </div>
             </div>
           </div>
-          <div class="streak-week" style="display: flex; gap: 12px;">
+          
+          <div style="border-top: 1px solid var(--line, #e2e8f0); padding-top: 20px; display: flex; justify-content: space-between; width: 100%; box-sizing: border-box;">
             ${weekDots}
           </div>
         </div>
       </section>
     `;
   }
+
 
   function renderDashboard() {
     const metrics = buildMetrics(state.questions, state.responses);
@@ -1470,103 +1559,100 @@
     }
 
     return `
-      <section class="hero-card" data-tour-target="dashboard-hero">
+      <div class="hero-actions" style="display: flex; justify-content: space-between; margin-bottom: 32px; gap: 16px;" data-tour-target="dashboard-hero">
         <div>
-          <p class="eyebrow">Global overview</p>
-          <h1>Your SAT Practice Dashboard</h1>
-          <p>${state.banks.length} imported bank${state.banks.length === 1 ? "" : "s"} · ${state.questions.length} total questions</p>
+          <h1 style="font-size: 32px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 4px;">Dashboard</h1>
+          <p style="color: var(--ink-muted); font-size: 15px; margin: 0;">${state.banks.length} imported bank${state.banks.length === 1 ? "" : "s"} · ${state.questions.length} total questions</p>
         </div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <button class="primary-btn large" type="button" data-action="config" data-tour-target="create-test">Create New Test</button>
-          <button class="ghost-btn large" type="button" data-action="retry-mistakes" style="background:var(--paper);border-color:var(--line)">Retry Mistakes</button>
+        <div class="top-actions" style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="ghost-btn" type="button" data-action="retry-mistakes" style="background:var(--paper); border-color:var(--line); padding: 8px 16px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-3px"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+            Retry Mistakes
+          </button>
+          <button class="primary-btn" type="button" data-action="config" data-tour-target="create-test" style="padding: 8px 16px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-3px"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            Create New Test
+          </button>
         </div>
-      </section>
+      </div>
 
-      ${renderStreakWidget()}
-
-      ${!window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
-      <section class="panel" style="margin-top: 0; display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-color: var(--blue); border-left: 4px solid var(--blue); background: color-mix(in srgb, var(--blue) 5%, var(--card));">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-        <div style="flex: 1;">
-          <strong style="display: block; margin-bottom: 2px;">Your data isn't backed up to the cloud</strong>
-          <span class="muted" style="font-size: 13px;">Enable cloud sync to access your data across devices.</span>
-        </div>
-        <div style="display: flex; gap: 8px; flex-shrink: 0;">
-          <button class="secondary-btn" data-action="setup-cloud-sync" style="padding: 6px 16px; font-size: 13px;">Set Up</button>
-          <button class="ghost-btn" data-action="dismiss-sync-banner" style="padding: 6px 12px; font-size: 13px;">Dismiss</button>
-        </div>
-      </section>
-      ` : ''}
-
-      <section class="metric-grid" data-tour-target="metrics">
-        ${renderMetric("Math Bank", mathCount, "questions imported")}
-        ${renderMetric("RW Bank", rwCount, "questions imported")}
-        ${renderMetric("Accuracy", formatPercent(metrics.overall.accuracy), `${metrics.overall.answered} answered`)}
-        ${renderMetric("Avg Time", metrics.overall.avgTime ? `${Math.round(metrics.overall.avgTime)}s` : "—", "per question")}
-      </section>
-
-      <section class="panel two-column">
-        <div>
-          <div class="panel-heading">
-            <p class="eyebrow">Progress</p>
-            <h2>Skill Level by Domain</h2>
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        ${!window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
+        <section class="panel cloud-sync-banner" style="display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-color: var(--blue); border-left: 4px solid var(--blue); background: color-mix(in srgb, var(--blue) 5%, var(--card));">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+          <div style="flex: 1;">
+            <strong style="display: block; margin-bottom: 2px;">Your data isn't backed up to the cloud</strong>
+            <span class="muted" style="font-size: 13px;">Enable cloud sync to access your data across devices.</span>
           </div>
-          ${renderDomainPerformance(metrics.domains)}
-        </div>
-        <div>
-          <div class="panel-heading">
-            <p class="eyebrow">Volume</p>
-            <h2>Completed Questions</h2>
+          <div class="cloud-sync-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
+            <button class="secondary-btn" data-action="setup-cloud-sync" style="padding: 6px 16px; font-size: 13px;">Set Up</button>
+            <button class="ghost-btn" data-action="dismiss-sync-banner" style="padding: 6px 12px; font-size: 13px;">Dismiss</button>
           </div>
-          ${renderVolumeStats(metrics.domains, metrics.subjects)}
-        </div>
-      </section>
+        </section>
+        ` : ''}
 
-      <section class="panel two-column" style="margin-top: 32px;">
-        <div>
-          <div class="panel-heading">
-            <p class="eyebrow">Timing</p>
-            <h2>Average Time by Subject</h2>
+        ${renderStreakWidget()}
+
+        <section class="metric-grid" data-tour-target="metrics">
+          ${renderMetric("Math Bank", mathCount, "Questions imported", "", `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>`)}
+          ${renderMetric("RW Bank", rwCount, "Questions imported", "", `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 Z"/></svg>`)}
+          ${renderMetric("Accuracy", formatPercent(metrics.overall.accuracy), `${metrics.overall.answered} questions answered`, "", `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`)}
+          ${renderMetric("Avg Time", metrics.overall.avgTime ? `${Math.round(metrics.overall.avgTime)}s` : "—", "Per question", "", `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`)}
+        </section>
+
+        <div class="dashboard-card-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px;">
+          <section class="panel">
+            <div class="panel-heading" style="margin-bottom: 20px;">
+              <h2 style="font-size: 16px; font-weight: 600; letter-spacing: 0;">Skill Level by Domain</h2>
+              <p class="muted" style="font-size: 13px; margin-top: 2px;">Your proficiency based on recent performance.</p>
+            </div>
+            ${renderDomainPerformance(metrics.domains)}
+          </section>
+          <section class="panel">
+            <div class="panel-heading" style="margin-bottom: 20px;">
+              <h2 style="font-size: 16px; font-weight: 600; letter-spacing: 0;">Completed Questions</h2>
+              <p class="muted" style="font-size: 13px; margin-top: 2px;">Volume by domain and subject.</p>
+            </div>
+            ${renderVolumeStats(metrics.domains, metrics.subjects)}
+          </section>
+        </div>
+
+        <div class="dashboard-card-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px;">
+          <section class="panel">
+            <div class="panel-heading" style="margin-bottom: 20px;">
+              <h2 style="font-size: 16px; font-weight: 600; letter-spacing: 0;">Average Time by Subject</h2>
+              <p class="muted" style="font-size: 13px; margin-top: 2px;">Your speed across different subjects.</p>
+            </div>
+            ${renderSubjectTiming(metrics.subjects)}
+          </section>
+          <section class="panel">
+            <div class="panel-heading" style="margin-bottom: 20px;">
+              <h2 style="font-size: 16px; font-weight: 600; letter-spacing: 0;">Priority Review Areas</h2>
+              <p class="muted" style="font-size: 13px; margin-top: 2px;">Topics where you struggle the most.</p>
+            </div>
+            ${renderWeaknesses(metrics.domains)}
+          </section>
+        </div>
+
+        <section class="panel support-panel">
+          <div class="panel-heading" style="margin-bottom: 12px;">
+            <h2 style="font-size: 16px; font-weight: 600; letter-spacing: 0; display: flex; align-items: center; gap: 8px;">
+              Support the project
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+            </h2>
           </div>
-          ${renderSubjectTiming(metrics.subjects)}
-        </div>
-        <div>
-          <div class="panel-heading">
-            <p class="eyebrow">Weaknesses</p>
-            <h2>Priority Review Areas</h2>
+          <p class="muted" style="font-size: 14px;">If this tool helped your SAT prep, you can support its development!</p>
+          <div style="margin-top: 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <a href="https://ko-fi.com/sevrony" target="_blank" rel="noopener noreferrer">
+              <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi" style="height: 36px; border-radius: 4px;">
+            </a>
+            <div class="support-code-wrap" style="margin-top: 0; padding: 6px 12px; font-size: 13px;">
+              <span>UPI ID:</span>
+              <code title="Copy UPI ID">sharthak-jaiswal@fam</code>
+            </div>
           </div>
-          ${renderWeaknesses(metrics.domains)}
-        </div>
-      </section>
-
-      <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
-        <div class="panel-heading">
-          <p class="eyebrow" style="color: var(--red);">Danger Zone</p>
-          <h2 style="color: var(--red);">Data Controls</h2>
-        </div>
-        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Resetting progress wipes your test history but keeps your question banks. Wiping all data deletes everything, including question banks.</p>
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-          <button class="danger-btn" type="button" data-action="reset">Reset Progress</button>
-          <button class="danger-btn" type="button" data-action="wipe-all">Wipe All Data</button>
-        </div>
-      </section>
-
-      <section class="panel support-panel" style="margin-top: 32px;">
-        <div class="panel-heading">
-          <p class="eyebrow">Support this project</p>
-          <h2 style="display: flex; align-items: center; gap: 8px;">Support the project <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--red);"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></h2>
-        </div>
-        <p class="muted">If this tool helped your SAT prep, you can support its development!</p>
-        <div style="margin-top: 16px;">
-          <a href="https://ko-fi.com/sevrony" target="_blank" rel="noopener noreferrer">
-            <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support me on Ko-fi" style="height: 36px; border-radius: 4px;">
-          </a>
-        </div>
-        <div class="support-code-wrap" style="margin-top: 16px;">
-          <span>UPI ID:</span>
-          <code title="Copy UPI ID">sharthak-jaiswal@fam</code>
-        </div>
-      </section>
+        </section>
+      </div>
     `;
   }
 
@@ -1629,7 +1715,7 @@
       ` : ''}
 
       <section class="panel two-column" style="margin-top: 32px;">
-        <div style="border-right: 1px solid var(--border); padding-right: 24px;">
+        <div class="backup-col-left">
           <div class="panel-heading">
             <p class="eyebrow">Data Security</p>
             <h2>Automatic Backups</h2>
@@ -1641,7 +1727,7 @@
             : `<button class="secondary-btn" data-action="link-backup">Link Backup Folder</button>`}
           ${state.backupMessage ? `<p style="color:var(--${state.backupMessage.type === 'error' ? 'red' : 'bb-blue'}); font-size:13px; margin-top:8px;">${escapeHtml(state.backupMessage.text)}</p>` : ''}
         </div>
-        <div style="padding-left: 24px;">
+        <div class="backup-col-right">
           <div class="panel-heading">
             <p class="eyebrow">Data Portability</p>
             <h2>Manual Transfer</h2>
@@ -1651,6 +1737,18 @@
             <button class="ghost-btn" data-action="download-backup">Download Backup</button>
             <button class="secondary-btn" data-action="restore-backup">Restore File</button>
           </div>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
+        <div class="panel-heading">
+          <p class="eyebrow" style="color: var(--red);">Danger Zone</p>
+          <h2 style="color: var(--red);">Data Controls</h2>
+        </div>
+        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Resetting progress wipes your test history but keeps your question banks. Wiping all data deletes everything, including question banks.</p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="danger-btn" type="button" data-action="reset">Reset Progress</button>
+          <button class="danger-btn" type="button" data-action="wipe-all">Wipe All Data</button>
         </div>
       </section>
     `;
@@ -1792,7 +1890,7 @@
             }
           }
           return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <div class="dashboard-card-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; margin-bottom: 24px;">
               <div class="panel" style="padding: 20px; background: var(--bg);">
                 <p class="eyebrow" style="margin-bottom: 8px;">Reading & Writing</p>
                 <div style="font-size: 1.1rem; font-weight: 500;">${rwC} correct · ${rwW} wrong · ${rwO} omitted</div>
@@ -2035,17 +2133,17 @@
 
     let summaryHtml = "";
     if (state.reviewFilterSubject === "both" && mathTotal > 0 && rwTotal > 0) {
-      summaryHtml = `<p style="line-height: 1.6; margin-top: 4px;">
-           <span style="display:inline-block; min-width:80px; font-weight:500;">Math:</span> ${mathCorrect} correct · ${mathWrong} wrong · ${mathOmitted} omitted<br>
-           <span style="display:inline-block; min-width:80px; font-weight:500;">R&W:</span> ${rwCorrect} correct · ${rwWrong} wrong · ${rwOmitted} omitted<br>
-           <span style="display:inline-block; min-width:80px; font-weight:500;">Total:</span> ${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted
-         </p>`;
+      summaryHtml = `<div class="review-summary">
+           <p class="review-summary-row"><span class="review-summary-label">Math:</span><span>${mathCorrect} correct · ${mathWrong} wrong · ${mathOmitted} omitted</span></p>
+           <p class="review-summary-row"><span class="review-summary-label">R&W:</span><span>${rwCorrect} correct · ${rwWrong} wrong · ${rwOmitted} omitted</span></p>
+           <p class="review-summary-row"><span class="review-summary-label">Total:</span><span>${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted</span></p>
+         </div>`;
     } else if (state.reviewFilterSubject === "math" || (mathTotal > 0 && rwTotal === 0)) {
-      summaryHtml = `<p>${mathCorrect} correct · ${mathWrong} wrong · ${mathOmitted} omitted · ${mathTotal} questions</p>`;
+      summaryHtml = `<p class="review-summary-single">${mathCorrect} correct · ${mathWrong} wrong · ${mathOmitted} omitted · ${mathTotal} questions</p>`;
     } else if (state.reviewFilterSubject === "rw" || (rwTotal > 0 && mathTotal === 0)) {
-      summaryHtml = `<p>${rwCorrect} correct · ${rwWrong} wrong · ${rwOmitted} omitted · ${rwTotal} questions</p>`;
+      summaryHtml = `<p class="review-summary-single">${rwCorrect} correct · ${rwWrong} wrong · ${rwOmitted} omitted · ${rwTotal} questions</p>`;
     } else {
-      summaryHtml = `<p>${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted · ${allResponses.length} questions</p>`;
+      summaryHtml = `<p class="review-summary-single">${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted · ${allResponses.length} questions</p>`;
     }
 
     return `
@@ -2057,14 +2155,14 @@
             ${summaryHtml}
           </div>
         </div>
-        <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
+        <div class="review-filter-bar" style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
           ${(mathTotal > 0 && rwTotal > 0) ? `
-            <div class="history-tabs" role="tablist" style="margin: 0; min-height: unset; padding-bottom: 0;">
+            <div class="history-tabs review-subject-tabs" role="tablist" style="margin: 0; min-height: unset; padding-bottom: 0;">
               <button class="${state.reviewFilterSubject === "both" ? "active" : ""}" type="button" data-action="review-subject-filter" data-subject="both" style="padding: 6px 12px; font-size: 13px;">Both Subjects</button>
               <button class="${state.reviewFilterSubject === "rw" ? "active" : ""}" type="button" data-action="review-subject-filter" data-subject="rw" style="padding: 6px 12px; font-size: 13px;">R&W Only</button>
               <button class="${state.reviewFilterSubject === "math" ? "active" : ""}" type="button" data-action="review-subject-filter" data-subject="math" style="padding: 6px 12px; font-size: 13px;">Math Only</button>
             </div>
-            <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
+            <div class="review-filter-divider" style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></div>
           ` : ""}
           <label class="wrong-toggle">
             <input type="checkbox" data-action="review-wrong-toggle" data-type="incorrect" ${state.reviewFilterIncorrect ? "checked" : ""}>
@@ -2359,34 +2457,88 @@
   function renderDomainPerformance(domains) {
     if (!domains.length) return `<p class="muted">Answer some questions to see skill levels.</p>`;
     return `
-      <div class="domain-list">
-        ${domains.map(d => `
-          <article class="domain-row">
-            <div><strong>${escapeHtml(d.label)}</strong><small>${escapeHtml(SUBJECTS[d.subject] || d.subject)} · ${d.answered} answered</small></div>
-            <div class="level-meter" aria-label="Level ${d.skillLevel}/7"><span style="width:${d.skillLevel / 7 * 100}%"></span></div>
-            <b>Lv ${d.skillLevel}</b>
-          </article>
-        `).join("")}
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        ${domains.map(d => {
+          const color = d.subject === 'math' ? 'var(--blue)' : 'var(--amber)';
+          return `
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+              <span style="font-size: 14px; font-weight: 500; color: var(--ink);">${escapeHtml(d.label)}</span>
+              <span style="font-size: 13px; font-weight: 600; color: var(--ink-muted);">${Math.round(d.accuracy * 100)}% Accuracy</span>
+            </div>
+            <div style="height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; display: flex;">
+              <div style="width: ${d.accuracy * 100}%; background: ${color}; border-radius: 5px; transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+            </div>
+          </div>
+          `;
+        }).join("")}
       </div>
     `;
   }
 
   function renderVolumeStats(domains, subjects) {
     if (!domains.length) return `<p class="muted">No completed questions yet.</p>`;
+    const maxVal = Math.max(...domains.map(x => x.answered), 1);
+    
+    const mathAnswered = domains.filter(d => d.subject === 'math').reduce((a, b) => a + b.answered, 0);
+    const rwAnswered = domains.filter(d => d.subject === 'rw').reduce((a, b) => a + b.answered, 0);
+    const totalAnswered = mathAnswered + rwAnswered;
+    const mathPercent = totalAnswered > 0 ? (mathAnswered / totalAnswered) * 100 : 0;
+    
     return `
-      <div class="domain-list">
-        ${Object.entries(SUBJECTS).map(([sub, label]) => `
-          <article class="domain-row compact-row subject-total">
-            <div><strong>${label}</strong><small>Total</small></div>
-            <b>${subjects[sub]?.answered || 0}</b>
-          </article>
-        `).join("")}
-        ${domains.map(d => `
-          <article class="domain-row compact-row">
-            <div><strong>${escapeHtml(d.label)}</strong><small>${escapeHtml(SUBJECTS[d.subject] || d.subject)}</small></div>
-            <b>${d.answered}</b>
-          </article>
-        `).join("")}
+      <div style="display: flex; align-items: center; justify-content: center; gap: 32px; margin-bottom: 32px; margin-top: 8px;">
+        <div style="position: relative; width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(var(--blue) ${mathPercent}%, var(--amber) 0);">
+          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80px; height: 80px; background: var(--panel); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            <span style="font-size: 18px; font-weight: 700; color: var(--ink);">${totalAnswered}</span>
+            <span style="font-size: 11px; color: var(--ink-muted);">Total</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 12px; height: 12px; border-radius: 3px; background: var(--blue);"></div>
+            <div style="display: flex; flex-direction: column;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1;">${mathAnswered} Math</span>
+              <span style="font-size: 11px; color: var(--ink-muted);">${Math.round(mathPercent)}%</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 12px; height: 12px; border-radius: 3px; background: var(--amber);"></div>
+            <div style="display: flex; flex-direction: column;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1;">${rwAnswered} R/W</span>
+              <span style="font-size: 11px; color: var(--ink-muted);">${Math.round(100 - mathPercent)}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 160px; gap: 8px; border-top: 1px solid var(--line); padding-top: 24px; position: relative;" class="volume-bar-chart">
+        ${domains.map(d => {
+          const height = (d.answered / maxVal) * 100;
+          const color = d.subject === 'math' ? 'var(--blue)' : 'var(--amber)';
+          const abbrMap = {
+            "Advanced Math": "Adv",
+            "Algebra": "Alg",
+            "Geometry and Trigonometry": "Geo",
+            "Problem-Solving and Data Analysis": "Data",
+            "Craft and Structure": "Craft",
+            "Expression of Ideas": "Expr",
+            "Information and Ideas": "Info",
+            "Standard English Conventions": "Conv"
+          };
+          const shortName = abbrMap[d.label] || d.label.substring(0, 4);
+          return `
+            <div class="volume-bar-group" style="display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; min-width: 0; position: relative; cursor: pointer;">
+              <span style="font-size: 11px; font-weight: 600; color: var(--ink); margin-bottom: 6px;">${d.answered}</span>
+              <div style="width: 100%; max-width: 32px; height: ${height}%; background: ${color}; border-radius: 4px 4px 0 0; opacity: 0.85; transition: height 1s ease-out, opacity 0.2s;"></div>
+              <span style="font-size: 10px; color: var(--ink-muted); text-align: center; margin-top: 6px;">${escapeHtml(shortName)}</span>
+              
+              <div class="volume-bar-tooltip" style="position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 6px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap; z-index: 10; opacity: 0; pointer-events: none; transition: opacity 0.2s; box-shadow: var(--shadow-md);">
+                ${escapeHtml(d.label)}
+                <div style="position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--ink);"></div>
+              </div>
+            </div>
+          `;
+        }).join("")}
       </div>
     `;
   }
@@ -2729,6 +2881,12 @@
       return;
     }
 
+    if (action === "toggle-sidebar") {
+      app.classList.toggle("sidebar-collapsed");
+      localStorage.setItem("sidebarCollapsed", app.classList.contains("sidebar-collapsed"));
+      return;
+    }
+
     if (action === "scroll-top") {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -3019,14 +3177,14 @@
     }
     if (action === "dismiss-session-bubble") {
       sessionBubbleDismissed = true;
-      const wrapper = document.querySelector('.sync-status-wrapper');
-      if (wrapper) {
+      const wrappers = document.querySelectorAll('.sync-status-wrapper');
+      for (const wrapper of wrappers) {
         wrapper.outerHTML = renderSyncWidget();
-        const newWrapper = document.querySelector('.sync-status-wrapper');
-        if (newWrapper) {
-          for (const btn of newWrapper.querySelectorAll("[data-action]")) {
-            btn.addEventListener("click", handleHomeAction);
-          }
+      }
+      const newWrappers = document.querySelectorAll('.sync-status-wrapper');
+      for (const newWrapper of newWrappers) {
+        for (const btn of newWrapper.querySelectorAll("[data-action]")) {
+          btn.addEventListener("click", handleHomeAction);
         }
       }
       return;
