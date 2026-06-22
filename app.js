@@ -782,7 +782,7 @@
         : "Syncing account";
 
     let visualElement = "";
-    if (variant === "import") {
+    if (variant === "import" || variant === "restore") {
       const isIndet = busy?.progress == null;
       const progressWidth = isIndet ? "" : `style="width: ${busy.progress}%"`;
       const fillClass = isIndet ? "shadcn-progress-fill indeterminate" : "shadcn-progress-fill";
@@ -793,28 +793,11 @@
           <div class="shadcn-progress-bg"><div class="${fillClass}" ${progressWidth}></div></div>
         </div>
       `;
-    } else if (variant === "sync") {
+    } else {
       visualElement = `
         <div class="shadcn-spinner-container">
           <svg class="shadcn-loader" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
           <p class="muted">Establishing secure connection...</p>
-        </div>
-      `;
-    } else {
-      visualElement = `
-        <div class="skeleton-layout" aria-hidden="true">
-          <div class="skeleton-line skeleton-title"></div>
-          <div class="skeleton-grid">
-            <div class="skeleton-box"></div>
-            <div class="skeleton-box"></div>
-            <div class="skeleton-box"></div>
-            <div class="skeleton-box"></div>
-          </div>
-          <div class="skeleton-panel">
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line short"></div>
-            <div class="skeleton-chart"></div>
-          </div>
         </div>
       `;
     }
@@ -1212,18 +1195,17 @@
     let text = "";
     let action = "backup";
     let statusClass = "is-synced";
-    
     if (status.syncing) {
-      iconHTML = '<svg class="sync-spinner" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+      iconHTML = '<svg class="sync-spinner" style="flex-shrink: 0;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
       text = "Syncing...";
       statusClass = "is-syncing";
     } else if (!status.tokenValid) {
-      iconHTML = '<div class="warning-dot"></div>';
+      iconHTML = '<svg class="sync-icon" style="flex-shrink: 0;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 2 20 20"/><path d="M22.61 16.95A6 6 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/></svg>';
       text = "Session Expired";
       action = "force-cloud-sync";
       statusClass = "is-expired";
     } else {
-      iconHTML = '<div class="success-dot"></div>';
+      iconHTML = '<svg class="sync-icon" style="flex-shrink: 0;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m9 15 3 3 5-5"/></svg>';
       text = "Synced";
     }
 
@@ -2495,16 +2477,20 @@ function renderTestReview() {
     const rwAnswered = domains.filter(d => d.subject === 'rw').reduce((a, b) => a + b.answered, 0);
     const totalAnswered = mathAnswered + rwAnswered;
     const mathPercent = totalAnswered > 0 ? (mathAnswered / totalAnswered) * 100 : 0;
+    const pieGradient = totalAnswered > 0
+      ? `conic-gradient(var(--blue) ${mathPercent}%, var(--amber) 0)`
+      : `var(--line)`;
+    const legendOpacity = totalAnswered > 0 ? '1' : '0.45';
     
     return `
       <div style="display: flex; align-items: center; justify-content: center; gap: 32px; margin-bottom: 32px; margin-top: 8px;">
-        <div style="position: relative; width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(var(--blue) ${mathPercent}%, var(--amber) 0);">
+        <div style="position: relative; width: 120px; height: 120px; border-radius: 50%; background: ${pieGradient};">
           <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80px; height: 80px; background: var(--panel); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
             <span style="font-size: 18px; font-weight: 700; color: var(--ink);">${totalAnswered}</span>
             <span style="font-size: 11px; color: var(--ink-muted);">Total</span>
           </div>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 12px; opacity: ${legendOpacity};">
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 12px; height: 12px; border-radius: 3px; background: var(--blue);"></div>
             <div style="display: flex; flex-direction: column;">
@@ -3382,7 +3368,7 @@ function renderTestReview() {
         
         showConfirmModal("Restore backup? This will overwrite your current progress.", "Restore", async () => {
           try {
-            setBusy("Restoring backup", "Rebuilding your local question bank, sessions, and dashboard metrics.", "restore");
+            setBusy("Restoring backup", "Rebuilding your local question bank, sessions, and dashboard metrics.", "import");
             await nextPaint();
             const now = Date.now();
             const stamp = record => ({ ...record, updatedAt: now });
@@ -3394,12 +3380,27 @@ function renderTestReview() {
               updatedAt: now
             })));
             const responseData = dedupeResponses([...(payload.responses || []).map(stamp), ...embeddedResponses]);
+            
+            const filteredBanks = banksData.filter(record => !isDeletedRecord(record)).map(stamp);
+            const filteredQuestions = payload.questions.filter(record => !isDeletedRecord(record)).map(stamp);
 
             await DB.clearAll();
-            if (banksData.length) await putManyChunked("questionBanks", banksData.filter(record => !isDeletedRecord(record)).map(stamp));
-            if (payload.questions.length) await putManyChunked("questions", payload.questions.filter(record => !isDeletedRecord(record)).map(stamp));
-            if (sessionsData.length) await putManyChunked("sessions", sessionsData);
-            if (responseData.length) await putManyChunked("responses", responseData);
+            
+            const totalRecords = filteredBanks.length + filteredQuestions.length + sessionsData.length + responseData.length;
+            let baseWritten = 0;
+            const trackProgress = (storeSize) => (percentComplete) => {
+              const currentWritten = baseWritten + Math.round(storeSize * percentComplete / 100);
+              if (percentComplete === 100) {
+                 baseWritten += storeSize;
+              }
+              setBusy("Restoring backup", "Rebuilding your local question bank, sessions, and dashboard metrics.", "import",
+                Math.min(99, Math.round((currentWritten / totalRecords) * 100)));
+            };
+
+            if (filteredBanks.length) await putManyChunked("questionBanks", filteredBanks, 300, trackProgress(filteredBanks.length));
+            if (filteredQuestions.length) await putManyChunked("questions", filteredQuestions, 300, trackProgress(filteredQuestions.length));
+            if (sessionsData.length) await putManyChunked("sessions", sessionsData, 300, trackProgress(sessionsData.length));
+            if (responseData.length) await putManyChunked("responses", responseData, 300, trackProgress(responseData.length));
 
             await refreshLocalData();
             clearBusy(false);

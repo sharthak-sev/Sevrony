@@ -30,9 +30,17 @@
 </head>
 <body>
   <div id="app">
-    <div class="boot-card">
-      <div class="loader"></div>
-      <p>Loading local practice data…</p>
+    <div class="boot-shell">
+      <div class="boot-card">
+        <img class="boot-logo" src="logo.svg" alt="Sevrony" width="48" height="48">
+        <div class="boot-text">
+          <h1>Sevrony</h1>
+          <p>Loading local practice data…</p>
+        </div>
+        <div class="boot-progress-bg">
+          <div class="boot-progress-fill"></div>
+        </div>
+      </div>
     </div>
   </div>
   <input id="fileInput" type="file" accept=".sat-test,application/json,.json,text/plain,*/*" multiple hidden>
