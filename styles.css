@@ -3342,18 +3342,31 @@ html[data-transition="drill"]::view-transition-new(root) {
   padding-top: 0;
 }
 
+.shadcn-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 .shadcn-accordion-item {
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.shadcn-accordion-item:not(.expanded):hover {
+  border-color: var(--ink-secondary);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
 }
 .shadcn-accordion-item:last-child {
-  border-bottom: none;
 }
 .shadcn-accordion-trigger {
   display: flex;
   flex: 1;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 0;
+  padding: 1rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.2s;
@@ -3365,7 +3378,7 @@ html[data-transition="drill"]::view-transition-new(root) {
   cursor: pointer;
 }
 .shadcn-accordion-trigger:hover {
-  text-decoration: underline;
+  background: transparent;
 }
 .shadcn-accordion-trigger svg {
   height: 1rem;
@@ -3383,8 +3396,7 @@ html[data-transition="drill"]::view-transition-new(root) {
   animation: shadcn-accordion-down 0.2s ease-out;
 }
 .shadcn-accordion-content-inner {
-  padding-bottom: 1rem;
-  padding-top: 0;
+  padding: 0 1.25rem 1.25rem 1.25rem;
 }
 @keyframes shadcn-accordion-down {
   from { height: 0; opacity: 0; }
@@ -3401,22 +3413,33 @@ html[data-transition="drill"]::view-transition-new(root) {
 .styled-select {
   appearance: none;
   -webkit-appearance: none;
-  background-color: var(--card-bg);
+  background-color: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 8px 32px 8px 12px;
+  border-radius: var(--radius-md);
+  padding: 10px 36px 10px 14px;
   font-size: 0.875rem;
+  font-weight: 500;
   color: var(--ink);
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
+  background-position: right 12px center;
+  background-size: 16px;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
 }
-.styled-select:focus {
-  border-color: var(--bb-blue);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+.styled-select:hover {
+  background-color: var(--surface-1);
+  border-color: var(--ink-muted);
+}
+.styled-select:focus-visible {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.styled-select:focus:not(:focus-visible) {
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
 }
 
 .explanation-card[open] > summary .show-text { display: none; }

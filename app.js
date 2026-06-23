@@ -255,6 +255,22 @@
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("beforeunload", handleBeforeUnload);
     
+    // Fix native select focus retention in Chrome
+    let lastInteractionWasMouse = false;
+    document.addEventListener("mousedown", () => lastInteractionWasMouse = true, true);
+    document.addEventListener("keydown", () => lastInteractionWasMouse = false, true);
+    document.addEventListener("mousedown", (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.tagName === "SELECT" && e.target !== activeEl) {
+        activeEl.blur();
+      }
+    });
+    document.addEventListener("change", (e) => {
+      if (e.target && e.target.tagName === "SELECT" && lastInteractionWasMouse) {
+        e.target.blur();
+      }
+    });
+    
     // Global Drag and Drop support
     document.addEventListener("dragover", e => {
       e.preventDefault();
@@ -1286,7 +1302,16 @@
               <span class="nav-label">Retry Mistakes</span>
             </button>
             <button class="nav-item ${state.view === 'mistakes-log' ? 'active' : ''}" type="button" data-action="mistakes-log" title="Mistakes Log">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <g transform="rotate(-30 12 12)">
+                  <ellipse cx="6" cy="12" rx="3" ry="5"/>
+                  <line x1="6" y1="7" x2="18" y2="7"/>
+                  <line x1="6" y1="17" x2="18" y2="17"/>
+                  <path d="M18 7c1.66 0 3 2.24 3 5s-1.34 5-3 5"/>
+                  <line x1="10" y1="10" x2="16" y2="10"/>
+                  <line x1="12" y1="14" x2="17" y2="14"/>
+                </g>
+              </svg>
               <span class="nav-label">Mistakes Log</span>
             </button>
           </div>
@@ -2588,7 +2613,7 @@ function renderTestReview() {
               let expandedHtml = "";
               if (isExpanded) {
                 expandedHtml = `
-                  <div class="shadcn-accordion-content">
+                  <div class="shadcn-accordion-content" ${state.mistakesLog.justToggled !== r.id ? 'style="animation: none;"' : ''}>
                     <div class="shadcn-accordion-content-inner">
                       <div class="question-content" style="margin-bottom: 16px; margin-top: 0;">
                         ${q.stimulus ? sanitizeHtml(q.stimulus) + '<br><br>' : ''}
@@ -2601,20 +2626,59 @@ function renderTestReview() {
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                           <h4 style="font-size: 0.9em; font-weight: 600; margin: 0;">Personal Notes & Tags</h4>
                         </div>
-                        <div class="shadcn-filters-row" style="margin-bottom: 12px;">
-                          ${Array.from(allUsedTags).map(tag => `
-                            <button type="button" data-action="ml-toggle-tag" data-id="${r.id}" data-tag="${tag}" class="tag-badge ${(r.tags || []).includes(tag) ? 'active' : ''}" ${r.notes ? "disabled" : ""}>
-                              ${tag}
-                            </button>
-                          `).join("")}
-                          <button type="button" data-action="ml-add-custom-tag" data-id="${r.id}" class="tag-badge" style="border-style: dashed; background: transparent;" ${r.notes ? "disabled" : ""}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add Tag
+                        <div class="ml-note-empty-state" data-id="${r.id}" style="display: ${!(r.notes || (r.tags && r.tags.length > 0)) ? 'flex' : 'none'}; justify-content: center; padding: 12px 0;">
+                          <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="border-radius: 6px; background-color: transparent; color: var(--ink); border: 1px dashed var(--line); width: 100%; height: 48px; transition: background-color 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.backgroundColor='color-mix(in srgb, var(--line) 30%, transparent)'" onmouseout="this.style.backgroundColor='transparent'">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                            Add Note
                           </button>
                         </div>
-                        <textarea class="ml-note-input" data-id="${r.id}" placeholder="Why did you get this wrong? What will you do differently next time?" style="width: 100%; min-height: 80px; padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-family: inherit; resize: vertical; margin-bottom: 12px; transition: opacity 0.2s, background 0.2s;" ${r.notes ? "disabled" : ""}>${r.notes || ""}</textarea>
-                        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px;">
-                          <span class="ml-error-msg" id="ml-error-${r.id}" style="color: var(--red); font-size: 0.85em; display: none;">Please select at least one tag.</span>
-                          <button type="button" class="primary-btn" data-action="ml-save-notes" data-id="${r.id}">${r.notes ? "Edit Note" : "Save Note"}</button>
+
+                        <div class="ml-note-view-area" data-id="${r.id}" style="display: ${(r.notes || (r.tags && r.tags.length > 0)) ? 'block' : 'none'}; margin-bottom: 16px;">
+                          <div style="border-radius: 8px; border: 1px solid var(--line); background-color: var(--paper); color: var(--ink); box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden;">
+                            <div style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+                              
+                              ${(r.tags && r.tags.length > 0) ? `
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                  ${r.tags.map(t => `
+                                    <span style="display: inline-flex; align-items: center; border-radius: 9999px; border: 1px solid transparent; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; background-color: var(--ink); color: var(--paper);">
+                                      ${t}
+                                    </span>
+                                  `).join("")}
+                                </div>
+                              ` : ''}
+
+                              ${r.notes ? `
+                                <div style="font-size: 0.875rem; line-height: 1.5; color: var(--ink); white-space: pre-wrap; font-weight: 400;">${escapeHtml(r.notes).replace(/\n/g, '<br>')}</div>
+                              ` : ''}
+                            </div>
+                            
+                            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--line); background-color: color-mix(in srgb, var(--line) 30%, transparent);">
+                              <button type="button" class="ghost-btn" data-action="ml-delete-notes" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 0.875rem; font-weight: 500; border-radius: 6px; color: var(--ink); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='var(--line)'" onmouseout="this.style.backgroundColor='transparent'">
+                                Delete
+                              </button>
+                              <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 0.875rem; font-weight: 500; border-radius: 6px; background-color: var(--ink); color: var(--paper);">
+                                Edit Note
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="ml-note-edit-area" data-id="${r.id}" style="display: none;">
+                          <div class="shadcn-filters-row" style="margin-bottom: 12px;">
+                            ${Array.from(allUsedTags).map(tag => `
+                              <button type="button" data-action="ml-toggle-tag" data-id="${r.id}" data-tag="${tag}" class="tag-badge ${(r.tags || []).includes(tag) ? 'active' : ''}">
+                                ${tag}
+                              </button>
+                            `).join("")}
+                            <button type="button" data-action="ml-add-custom-tag" data-id="${r.id}" class="tag-badge" style="border-style: dashed; background: transparent;">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add Tag
+                            </button>
+                          </div>
+                          <textarea class="ml-note-input" data-action="ml-note-input" data-id="${r.id}" data-original="${escapeHtml(r.notes || "")}" placeholder="Why did you get this wrong? What will you do differently next time?" style="width: 100%; min-height: 80px; padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-family: inherit; resize: vertical; margin-bottom: 12px; transition: opacity 0.2s, background 0.2s;">${r.notes || ""}</textarea>
+                          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px;">
+                            <span class="ml-error-msg" id="ml-error-${r.id}" style="color: var(--red); font-size: 0.85em; display: none;">Please select at least one tag.</span>
+                            <button type="button" class="primary-btn" data-action="ml-save-notes" data-id="${r.id}">Save Note</button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2622,7 +2686,7 @@ function renderTestReview() {
                 `;
               }
 
-              return `<div class="shadcn-accordion-item">${headerHtml}${expandedHtml}</div>`;
+              return `<div class="shadcn-accordion-item ${isExpanded ? 'expanded' : ''}">${headerHtml}${expandedHtml}</div>`;
             }).join("")}
           </div>
         </div>
@@ -2805,6 +2869,8 @@ function renderTestReview() {
     for (const btn of app.querySelectorAll("[data-action]")) {
       if (btn.tagName === "SELECT" || btn.tagName === "INPUT") {
         btn.addEventListener("change", handleHomeAction);
+      } else if (btn.tagName === "TEXTAREA") {
+        btn.addEventListener("input", handleHomeAction);
       } else {
         btn.addEventListener("click", handleHomeAction);
       }
@@ -3182,12 +3248,28 @@ function renderTestReview() {
       } else {
         state.mistakesLog.expanded.add(id);
       }
+      state.mistakesLog.justToggled = id;
       updateMistakesLogUI();
+      state.mistakesLog.justToggled = null;
       if (!wasExpanded) {
         setTimeout(() => {
           const card = document.querySelector(`.shadcn-accordion-trigger[data-id="${id}"]`);
           if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }, 50);
+      }
+    }
+    if (action === "ml-edit-notes-toggle") {
+      const target = event.currentTarget || event.target;
+      const id = target.dataset.id;
+      const emptyState = document.querySelector(`.ml-note-empty-state[data-id="${id}"]`);
+      const viewArea = document.querySelector(`.ml-note-view-area[data-id="${id}"]`);
+      const editArea = document.querySelector(`.ml-note-edit-area[data-id="${id}"]`);
+      if (emptyState) emptyState.style.display = 'none';
+      if (viewArea) viewArea.style.display = 'none';
+      if (editArea) {
+        editArea.style.display = 'block';
+        const textarea = editArea.querySelector('textarea');
+        if (textarea) textarea.focus();
       }
     }
     if (action === "ml-toggle-tag") {
@@ -3228,39 +3310,56 @@ function renderTestReview() {
         }
       }
     }
+    if (action === "ml-delete-notes") {
+      const target = event.currentTarget || event.target;
+      const id = target.dataset.id;
+      const r = state.responses.find(res => res.id === id);
+      if (r) {
+        showConfirmModal("Are you sure you want to delete this note and its tags?", "Delete Note", () => {
+          r.notes = "";
+          r.tags = [];
+          r.updatedAt = Date.now();
+          const textarea = document.querySelector(`textarea.ml-note-input[data-id="${id}"]`);
+          if (textarea) textarea.value = "";
+          DB.put("responses", r).then(() => {
+            updateMistakesLogUI();
+          }).catch(console.error);
+        });
+      }
+    }
     if (action === "ml-save-notes") {
       const target = event.currentTarget || event.target;
       const id = target.dataset.id;
       const r = state.responses.find(res => res.id === id);
       if (r) {
         const textarea = document.querySelector(`textarea.ml-note-input[data-id="${id}"]`);
-        const buttons = document.querySelectorAll(`button[data-action="ml-toggle-tag"][data-id="${id}"], button[data-action="ml-add-custom-tag"][data-id="${id}"]`);
         const errorMsg = document.getElementById(`ml-error-${id}`);
         
         if (textarea) {
-          if (textarea.disabled) {
-            textarea.disabled = false;
-            buttons.forEach(b => b.disabled = false);
-            target.textContent = "Save Note";
-            textarea.focus();
-            return;
-          }
-          
           if (!r.tags || r.tags.length === 0) {
-            if (errorMsg) {
-              errorMsg.style.display = "block";
-              setTimeout(() => errorMsg.style.display = "none", 3000);
+            if (textarea.value.trim() !== "") {
+              if (errorMsg) {
+                errorMsg.style.display = "block";
+                setTimeout(() => errorMsg.style.display = "none", 3000);
+              }
+              return;
+            } else {
+              r.notes = "";
+              r.tags = [];
+              r.updatedAt = Date.now();
+              textarea.value = "";
+              DB.put("responses", r).then(() => {
+                updateMistakesLogUI();
+              }).catch(console.error);
+              return;
             }
-            return;
           }
           
           if (errorMsg) errorMsg.style.display = "none";
-          r.notes = textarea.value;
+          
+          r.notes = textarea.value.trim() === "" ? "" : textarea.value;
           r.updatedAt = Date.now();
           DB.put("responses", r).then(() => {
-            textarea.disabled = true;
-            buttons.forEach(b => b.disabled = true);
-            target.textContent = "Edit Note";
             updateMistakesLogUI();
           }).catch(console.error);
         }
