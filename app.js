@@ -339,7 +339,7 @@
 
       if (window.location.hash) {
         const hashView = window.location.hash.slice(1);
-        if (["dashboard", "history", "config", "mistakes", "results", "review", "marketing", "privacy"].includes(hashView)) {
+        if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy"].includes(hashView)) {
            state.view = hashView;
         }
       }
@@ -740,7 +740,16 @@
     ]);
 
     state.banks = banks.filter(record => !isDeletedRecord(record)).sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)));
-    state.questions = questions.filter(record => !isDeletedRecord(record)).sort((a, b) => {
+    state.questions = questions.filter(record => !isDeletedRecord(record)).map(q => {
+      if (q.difficulty === "Unspecified" && q.raw) {
+        const d = q.difficultyCode || q.raw.difficultyCode || q.raw.difficultyLevel || q.raw.difficulty_level || "";
+        if (d) {
+          q.difficultyCode = d;
+          q.difficulty = q.raw.difficulty || DIFFICULTIES[d] || d || "Unspecified";
+        }
+      }
+      return q;
+    }).sort((a, b) => {
       const subject = String(a.subject).localeCompare(String(b.subject));
       if (subject !== 0) return subject;
       return String(a.questionId || a.id).localeCompare(String(b.questionId || b.id));
@@ -886,7 +895,7 @@
       return;
     }
 
-    if (state.questions.length === 0 && ["dashboard", "history", "config", "mistakes", "results", "review", "marketing"].includes(state.view)) {
+    if (state.questions.length === 0 && ["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing"].includes(state.view)) {
       state.view = "onboarding";
     }
 
@@ -946,6 +955,7 @@
             ${state.view === "review" ? renderTestReview() : ""}
             ${state.view === "dashboard" ? renderDashboard() : ""}
             ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
+            ${state.view === "mistakes-log" ? renderMistakesLog() : ""}
             ${state.view === "backup" ? renderBackupView() : ""}
           </main>
         </div>
@@ -1274,6 +1284,10 @@
             <button class="nav-item ${state.view === 'mistakes' ? 'active' : ''}" type="button" data-action="retry-mistakes" title="Retry Mistakes">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
               <span class="nav-label">Retry Mistakes</span>
+            </button>
+            <button class="nav-item ${state.view === 'mistakes-log' ? 'active' : ''}" type="button" data-action="mistakes-log" title="Mistakes Log">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              <span class="nav-label">Mistakes Log</span>
             </button>
           </div>
 
@@ -2225,7 +2239,10 @@ function renderTestReview() {
           </div>
         </div>
         <details class="explanation-card">
-          <summary><strong>Show Explanation</strong></summary>
+          <summary>
+            <strong class="show-text">Show Explanation</strong>
+            <strong class="hide-text">Hide Explanation</strong>
+          </summary>
           <div class="html-content rationale">${sanitizeHtml(question.rationale || "No explanation included in this export.")}</div>
         </details>
       </article>
@@ -2435,6 +2452,185 @@ function renderTestReview() {
     `;
   }
 
+  function renderMistakesLog() {
+    state.mistakesLog = state.mistakesLog || {
+      expanded: new Set(),
+      filterSubject: "all",
+      filterDomain: "all",
+      filterTags: new Set(),
+      filterType: "all"
+    };
+
+    const MISTAKE_TAGS = ["Silly mistake", "Time crunch", "Conceptual error", "Misread question", "Calculation error", "Guessed"];
+
+    const allMistakes = state.responses.filter(r => !r.isCorrect && r.sessionId !== "active_test");
+    const questionsMap = new Map(state.questions.map(q => [q.id, q]));
+    let validMistakes = allMistakes.filter(r => questionsMap.has(r.questionId));
+
+    validMistakes.sort((a, b) => (b.answeredAt || 0) - (a.answeredAt || 0));
+
+    if (state.mistakesLog.filterSubject !== "all") {
+      validMistakes = validMistakes.filter(r => r.subject === state.mistakesLog.filterSubject);
+    }
+    if (state.mistakesLog.filterDomain !== "all") {
+      validMistakes = validMistakes.filter(r => r.domainCode === state.mistakesLog.filterDomain);
+    }
+    if (state.mistakesLog.filterTags.size > 0) {
+      validMistakes = validMistakes.filter(r => {
+        if (!r.tags || r.tags.length === 0) return false;
+        return r.tags.some(t => state.mistakesLog.filterTags.has(t));
+      });
+    }
+
+    if (state.mistakesLog.filterType === "incorrect") {
+      validMistakes = validMistakes.filter(r => r.isAnswered !== false);
+    } else if (state.mistakesLog.filterType === "omitted") {
+      validMistakes = validMistakes.filter(r => r.isAnswered === false);
+    }
+
+    const subjects = ["all", ...new Set(allMistakes.map(r => r.subject))];
+    const domains = state.mistakesLog.filterSubject === "all"
+      ? ["all", ...new Set(allMistakes.map(r => r.domainCode))]
+      : ["all", ...new Set(allMistakes.filter(r => r.subject === state.mistakesLog.filterSubject).map(r => r.domainCode))];
+    
+    let allUsedTags = new Set(MISTAKE_TAGS);
+    allMistakes.forEach(r => {
+       if(r.tags) r.tags.forEach(t => allUsedTags.add(t));
+    });
+
+    return `
+      <div id="mistakes-log-container">
+        <div class="shadcn-card" style="margin-bottom: 24px;">
+          <div class="shadcn-card-header">
+            <div class="shadcn-card-title" style="font-size: 1.5rem;">Mistakes Log</div>
+            <div class="shadcn-card-description">Review your past mistakes, add personal notes, and tag them to identify patterns.</div>
+          </div>
+          <div class="shadcn-card-content">
+            <div class="shadcn-filters-row" style="margin-bottom: 16px;">
+              <select class="styled-select" data-action="ml-change-subject">
+                <option value="all">All Subjects</option>
+                ${subjects.filter(s => s !== "all").map(s => `<option value="${s}" ${state.mistakesLog.filterSubject === s ? 'selected' : ''}>${SUBJECTS[s] || s}</option>`).join("")}
+              </select>
+              <select class="styled-select" data-action="ml-change-domain">
+                <option value="all">All Domains</option>
+                ${domains.filter(d => d !== "all").map(d => {
+                  const fallback = DOMAIN_FALLBACKS[state.mistakesLog.filterSubject]?.find(f => f.code === d);
+                  const label = fallback ? fallback.label : d;
+                  return `<option value="${d}" ${state.mistakesLog.filterDomain === d ? 'selected' : ''}>${label}</option>`;
+                }).join("")}
+              </select>
+              <select class="styled-select" data-action="ml-change-type">
+                <option value="all" ${state.mistakesLog.filterType === 'all' || !state.mistakesLog.filterType ? 'selected' : ''}>Mix (All)</option>
+                <option value="incorrect" ${state.mistakesLog.filterType === 'incorrect' ? 'selected' : ''}>Incorrect Only</option>
+                <option value="omitted" ${state.mistakesLog.filterType === 'omitted' ? 'selected' : ''}>Omitted Only</option>
+              </select>
+            </div>
+            <div class="shadcn-filters-row">
+              ${Array.from(allUsedTags).map(tag => `
+                <button type="button" data-action="ml-filter-tag" data-tag="${tag}" class="tag-badge ${state.mistakesLog.filterTags.has(tag) ? 'active' : ''}">
+                  ${tag}
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="shadcn-card">
+        <div class="shadcn-card-content" style="padding-top: 1.5rem;">
+          <div class="shadcn-accordion">
+            ${validMistakes.length === 0 ? `
+              <div class="empty-state" style="padding: 2rem 0; text-align: center;">
+                <p class="shadcn-card-description">No mistakes found matching your filters.</p>
+              </div>
+            ` : validMistakes.map(r => {
+              const q = questionsMap.get(r.questionId);
+              const isExpanded = state.mistakesLog.expanded.has(r.id);
+              const dateStr = r.answeredAt ? new Date(r.answeredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Unknown date";
+              
+              const titleTextParts = [];
+              if (state.mistakesLog.filterSubject === "all") titleTextParts.push(SUBJECTS[r.subject] || r.subject);
+              if (state.mistakesLog.filterDomain === "all") titleTextParts.push(r.domain);
+              let titleText = titleTextParts.join(" • ");
+              if (!titleText) titleText = "Question " + (q.number || q.id.slice(0, 5));
+
+              const headerHtml = `
+                <button type="button" class="shadcn-accordion-trigger" data-action="ml-toggle-card" data-id="${r.id}" aria-expanded="${isExpanded}">
+                  <span style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;">
+                    <span style="font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      ${titleText}
+                      ${(() => {
+                        if (!q.difficulty || q.difficulty === "Unspecified") return "";
+                        let bg = "var(--surface-2)"; let color = "inherit"; let border = "1px solid var(--line)";
+                        const dLow = q.difficulty.toLowerCase();
+                        if (dLow === "easy") { bg = "var(--green)"; color = "#fff"; border = "none"; }
+                        else if (dLow === "medium") { bg = "var(--amber)"; color = "#fff"; border = "none"; }
+                        else if (dLow === "hard") { bg = "var(--red)"; color = "#fff"; border = "none"; }
+                        return `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px; font-weight: normal; text-transform: capitalize; background: ${bg}; color: ${color}; border: ${border};">${q.difficulty}</span>`;
+                      })()}
+                      ${r.isAnswered === false ? `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px; font-weight: normal; background: var(--ink-secondary); color: #fff; border: none;">Omitted</span>` : ""}
+                    </span>
+                    <span style="font-size: 0.8em; color: var(--ink-muted); font-weight: 400;">${dateStr}</span>
+                    ${(!isExpanded && r.tags && r.tags.length > 0) ? `
+                      <span style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;">
+                        ${r.tags.map(t => `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px;">${t}</span>`).join("")}
+                      </span>
+                    ` : ""}
+                    ${(!isExpanded && r.notes) ? `
+                      <span style="margin-top: 8px; font-size: 0.85em; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
+                        <strong style="color: var(--ink);">Note:</strong> ${escapeHtml(r.notes)}
+                      </span>
+                    ` : ""}
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+              `;
+
+              let expandedHtml = "";
+              if (isExpanded) {
+                expandedHtml = `
+                  <div class="shadcn-accordion-content">
+                    <div class="shadcn-accordion-content-inner">
+                      <div class="question-content" style="margin-bottom: 16px; margin-top: 0;">
+                        ${q.stimulus ? sanitizeHtml(q.stimulus) + '<br><br>' : ''}
+                        ${sanitizeHtml(q.prompt)}
+                      </div>
+                      ${renderAnswerArea(q, r.answer, r)}
+                      ${renderImmediateExplanation(q, r)}
+                      
+                      <div class="ml-notes-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                          <h4 style="font-size: 0.9em; font-weight: 600; margin: 0;">Personal Notes & Tags</h4>
+                        </div>
+                        <div class="shadcn-filters-row" style="margin-bottom: 12px;">
+                          ${Array.from(allUsedTags).map(tag => `
+                            <button type="button" data-action="ml-toggle-tag" data-id="${r.id}" data-tag="${tag}" class="tag-badge ${(r.tags || []).includes(tag) ? 'active' : ''}" ${r.notes ? "disabled" : ""}>
+                              ${tag}
+                            </button>
+                          `).join("")}
+                          <button type="button" data-action="ml-add-custom-tag" data-id="${r.id}" class="tag-badge" style="border-style: dashed; background: transparent;" ${r.notes ? "disabled" : ""}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add Tag
+                          </button>
+                        </div>
+                        <textarea class="ml-note-input" data-id="${r.id}" placeholder="Why did you get this wrong? What will you do differently next time?" style="width: 100%; min-height: 80px; padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-family: inherit; resize: vertical; margin-bottom: 12px; transition: opacity 0.2s, background 0.2s;" ${r.notes ? "disabled" : ""}>${r.notes || ""}</textarea>
+                        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px;">
+                          <span class="ml-error-msg" id="ml-error-${r.id}" style="color: var(--red); font-size: 0.85em; display: none;">Please select at least one tag.</span>
+                          <button type="button" class="primary-btn" data-action="ml-save-notes" data-id="${r.id}">${r.notes ? "Edit Note" : "Save Note"}</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+
+              return `<div class="shadcn-accordion-item">${headerHtml}${expandedHtml}</div>`;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+      </div>
+    `;
+  }
+
   /* ---- Dashboard Sub-Components ---- */
 
   function renderMetric(label, value, caption, valueStyle = "") {
@@ -2607,7 +2803,11 @@ function renderTestReview() {
 
   function bindHomeEvents() {
     for (const btn of app.querySelectorAll("[data-action]")) {
-      btn.addEventListener("click", handleHomeAction);
+      if (btn.tagName === "SELECT" || btn.tagName === "INPUT") {
+        btn.addEventListener("change", handleHomeAction);
+      } else {
+        btn.addEventListener("click", handleHomeAction);
+      }
     }
     const form = app.querySelector("#configForm");
     if (form) {
@@ -2946,6 +3146,125 @@ function renderTestReview() {
       state.view = "mistakes";
       state.notice = null;
       renderHome();
+    }
+    if (action === "mistakes-log") {
+      state.view = "mistakes-log";
+      state.notice = null;
+      renderHome();
+    }
+    if (action === "ml-change-subject") {
+      const newVal = event.currentTarget.value || event.target.value;
+      if (state.mistakesLog.filterSubject !== newVal) {
+        state.mistakesLog.filterSubject = newVal;
+        state.mistakesLog.filterDomain = "all";
+        updateMistakesLogUI();
+      }
+    }
+    if (action === "ml-change-domain") {
+      state.mistakesLog.filterDomain = event.currentTarget.value || event.target.value;
+      updateMistakesLogUI();
+    }
+    if (action === "ml-change-type") {
+      state.mistakesLog.filterType = event.currentTarget.value || event.target.value;
+      updateMistakesLogUI();
+    }
+    if (action === "ml-filter-tag") {
+      const tag = event.currentTarget.dataset.tag || event.target.dataset.tag;
+      if (state.mistakesLog.filterTags.has(tag)) state.mistakesLog.filterTags.delete(tag);
+      else state.mistakesLog.filterTags.add(tag);
+      updateMistakesLogUI();
+    }
+    if (action === "ml-toggle-card") {
+      const id = event.currentTarget.closest("[data-id]").dataset.id;
+      const wasExpanded = state.mistakesLog.expanded.has(id);
+      if (wasExpanded) {
+        state.mistakesLog.expanded.delete(id);
+      } else {
+        state.mistakesLog.expanded.add(id);
+      }
+      updateMistakesLogUI();
+      if (!wasExpanded) {
+        setTimeout(() => {
+          const card = document.querySelector(`.shadcn-accordion-trigger[data-id="${id}"]`);
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+    }
+    if (action === "ml-toggle-tag") {
+      const target = event.currentTarget || event.target;
+      const id = target.dataset.id;
+      const tag = target.dataset.tag;
+      const r = state.responses.find(res => res.id === id);
+      if (r) {
+        r.tags = r.tags || [];
+        if (r.tags.includes(tag)) {
+          r.tags = r.tags.filter(t => t !== tag);
+        } else {
+          r.tags.push(tag);
+        }
+        r.updatedAt = Date.now();
+        DB.put("responses", r).catch(console.error);
+        target.classList.toggle("active");
+      }
+    }
+    if (action === "ml-add-custom-tag") {
+      const target = event.currentTarget || event.target;
+      const id = target.dataset.id;
+      const r = state.responses.find(res => res.id === id);
+      if (r) {
+        const tag = prompt("Enter a custom tag (max 20 chars):");
+        if (tag && tag.trim().length > 0) {
+          r.tags = r.tags || [];
+          if (!r.tags.includes(tag.trim())) r.tags.push(tag.trim());
+          
+          const textarea = document.querySelector(`textarea.ml-note-input[data-id="${id}"]`);
+          if (textarea && !textarea.disabled) {
+            r.notes = textarea.value;
+          }
+          
+          r.updatedAt = Date.now();
+          DB.put("responses", r).catch(console.error);
+          updateMistakesLogUI();
+        }
+      }
+    }
+    if (action === "ml-save-notes") {
+      const target = event.currentTarget || event.target;
+      const id = target.dataset.id;
+      const r = state.responses.find(res => res.id === id);
+      if (r) {
+        const textarea = document.querySelector(`textarea.ml-note-input[data-id="${id}"]`);
+        const buttons = document.querySelectorAll(`button[data-action="ml-toggle-tag"][data-id="${id}"], button[data-action="ml-add-custom-tag"][data-id="${id}"]`);
+        const errorMsg = document.getElementById(`ml-error-${id}`);
+        
+        if (textarea) {
+          if (textarea.disabled) {
+            textarea.disabled = false;
+            buttons.forEach(b => b.disabled = false);
+            target.textContent = "Save Note";
+            textarea.focus();
+            return;
+          }
+          
+          if (!r.tags || r.tags.length === 0) {
+            if (errorMsg) {
+              errorMsg.style.display = "block";
+              setTimeout(() => errorMsg.style.display = "none", 3000);
+            }
+            return;
+          }
+          
+          if (errorMsg) errorMsg.style.display = "none";
+          r.notes = textarea.value;
+          r.updatedAt = Date.now();
+          DB.put("responses", r).then(() => {
+            textarea.disabled = true;
+            buttons.forEach(b => b.disabled = true);
+            target.textContent = "Edit Note";
+            updateMistakesLogUI();
+          }).catch(console.error);
+        }
+      }
     }
     if (action === "retry-mistakes") {
       state.mistakesSessionId = null;
@@ -3570,8 +3889,30 @@ function renderTestReview() {
           test: SUBJECTS[subject] || "",
           domainCode, domain: domainLabel,
           skillCode: "", skill: "",
-          difficultyCode: "", difficulty: "Unspecified",
-          scoreBand: null, type,
+          difficultyCode: (() => {
+            const rawD = String(q.difficultyCode || q.difficultyLevel || q.difficulty_level || q.metadata?.difficultyLevel || q.metadata?.difficulty_level || q.metadata?.DIFFICULTY_LEVEL || q.metadata?.DIFFICULTY || q.metadata?.difficulty || q.detail?.difficulty || q.questionDifficulty || q.question_difficulty || q.difficulty || "");
+            if (rawD.length > 0) {
+              const first = rawD.charAt(0).toUpperCase();
+              if (["E", "M", "H"].includes(first)) return first;
+              if (rawD === "1") return "E";
+              if (rawD === "2") return "M";
+              if (rawD === "3") return "H";
+            }
+            return "";
+          })(),
+          difficulty: (() => {
+            const rawD = String(q.difficultyCode || q.difficultyLevel || q.difficulty_level || q.metadata?.difficultyLevel || q.metadata?.difficulty_level || q.metadata?.DIFFICULTY_LEVEL || q.metadata?.DIFFICULTY || q.metadata?.difficulty || q.detail?.difficulty || q.questionDifficulty || q.question_difficulty || q.difficulty || "");
+            let dCode = "";
+            if (rawD.length > 0) {
+              const first = rawD.charAt(0).toUpperCase();
+              if (["E", "M", "H"].includes(first)) dCode = first;
+              else if (rawD === "1") dCode = "E";
+              else if (rawD === "2") dCode = "M";
+              else if (rawD === "3") dCode = "H";
+            }
+            return (q.difficulty && q.difficulty !== "Unspecified" ? q.difficulty : null) || DIFFICULTIES[dCode] || (rawD ? rawD : "Unspecified");
+          })(),
+          scoreBand: q.scoreBand || q.score_band_range_cd || q.metadata?.score_band_range_cd || q.metadata?.SCORE_BAND_RANGE_CD || null, type,
           stimulus: sanitizeHtml(q.passage || ""),
           prompt: sanitizeHtml(q.prompt || ""),
           answerOptions, correctAnswers,
@@ -3932,6 +4273,11 @@ function renderTestReview() {
           <label for="sprAnswer">Enter your answer</label>
           <input id="sprAnswer" type="text" inputmode="decimal" autocomplete="off" value="${escapeAttr(answer)}" data-answer-input ${isSubmitted ? "disabled" : ""}>
           <small>Student-produced response — scored by exact match.</small>
+          ${(isSubmitted && !response.isCorrect && question.correctAnswers && question.correctAnswers.length > 0) ? `
+            <div style="margin-top: 8px; color: var(--green); font-weight: 500; font-size: 0.9em;">
+              Correct Answer: ${escapeHtml(question.correctAnswers.join(' or '))}
+            </div>
+          ` : ""}
         </div>
       `;
     }
@@ -3970,14 +4316,13 @@ function renderTestReview() {
 
   function renderImmediateExplanation(question, response) {
     return `
-      <div class="explanation-card" style="margin-top: 24px; animation: slide-up-fade 0.2s ease-out forwards;">
-        ${state.showRationale ? `
-          <strong>Explanation</strong>
-          <div class="html-content rationale" style="margin-top: 12px;">${sanitizeHtml(question.rationale || "No explanation included in this export.")}</div>
-        ` : `
-          <button class="ghost-btn" type="button" data-test-action="show-rationale">Show Explanation</button>
-        `}
-      </div>
+      <details class="explanation-card" style="margin-top: 24px; animation: slide-up-fade 0.2s ease-out forwards;">
+        <summary>
+          <strong class="show-text">Show Explanation</strong>
+          <strong class="hide-text">Hide Explanation</strong>
+        </summary>
+        <div class="html-content rationale" style="margin-top: 12px;">${sanitizeHtml(question.rationale || "No explanation included in this export.")}</div>
+      </details>
     `;
   }
 
@@ -4216,6 +4561,23 @@ function renderTestReview() {
     if (action === "show-shortcuts") { state.showShortcuts = true; renderActiveTest(); }
     if (action === "close-shortcuts") { state.showShortcuts = false; renderActiveTest(); }
     if (action === "show-rationale") { state.showRationale = true; renderActiveTest(); }
+  }
+
+  function updateMistakesLogUI() {
+    const container = document.getElementById("mistakes-log-container");
+    if (container) {
+      const textareas = container.querySelectorAll('textarea.ml-note-input');
+      textareas.forEach(ta => {
+        const id = ta.dataset.id;
+        const r = state.responses.find(res => res.id === id);
+        if (r && ta.value !== (r.notes || "")) {
+           r.notes = ta.value;
+           r.updatedAt = Date.now();
+        }
+      });
+      container.outerHTML = renderMistakesLog();
+      bindHomeEvents();
+    }
   }
 
   function setCurrentAnswer(value, shouldRender) {

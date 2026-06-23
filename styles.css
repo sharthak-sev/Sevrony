@@ -3288,3 +3288,142 @@ html[data-transition="drill"]::view-transition-new(root) {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* ---- Mistakes Log ---- */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.85em;
+  font-weight: 500;
+  background: var(--surface-hover);
+  color: var(--ink-main);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.tag-badge:hover {
+  background: var(--line);
+}
+.tag-badge.active {
+  background: var(--bb-blue);
+  color: #ffffff;
+  border-color: var(--bb-blue);
+}
+
+/* ---- Shadcn UI Polyfills ---- */
+.shadcn-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  background-color: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+.shadcn-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 1.5rem;
+}
+.shadcn-card-title {
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  font-size: 1.25rem;
+}
+.shadcn-card-description {
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+.shadcn-card-content {
+  padding: 1.5rem;
+  padding-top: 0;
+}
+
+.shadcn-accordion-item {
+  border-bottom: 1px solid var(--line);
+}
+.shadcn-accordion-item:last-child {
+  border-bottom: none;
+}
+.shadcn-accordion-trigger {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.shadcn-accordion-trigger:hover {
+  text-decoration: underline;
+}
+.shadcn-accordion-trigger svg {
+  height: 1rem;
+  width: 1rem;
+  flex-shrink: 0;
+  color: var(--ink-muted);
+  transition: transform 0.2s;
+}
+.shadcn-accordion-trigger[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.shadcn-accordion-content {
+  overflow: hidden;
+  font-size: 0.875rem;
+  animation: shadcn-accordion-down 0.2s ease-out;
+}
+.shadcn-accordion-content-inner {
+  padding-bottom: 1rem;
+  padding-top: 0;
+}
+@keyframes shadcn-accordion-down {
+  from { height: 0; opacity: 0; }
+  to { height: auto; opacity: 1; }
+}
+
+.shadcn-filters-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.styled-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 32px 8px 12px;
+  font-size: 0.875rem;
+  color: var(--ink);
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.styled-select:focus {
+  border-color: var(--bb-blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.explanation-card[open] > summary .show-text { display: none; }
+.explanation-card:not([open]) > summary .hide-text { display: none; }
+
+.ml-note-input:disabled {
+  background: var(--surface-2) !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
