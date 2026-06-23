@@ -163,6 +163,7 @@
     config: {
       subject: "math",
       domainCodes: [],
+      skillCodes: [],
       difficulties: ["E", "M", "H"],
       excludeAnswered: true,
       limit: 20
@@ -176,6 +177,8 @@
     showRefSheet: false,
     showShortcuts: false,
     showSupport: false,
+    showAdvancedDomains: false,
+    showAdvancedMistakeSkills: false,
     busy: null,
     tutorial: {
       active: false,
@@ -1778,10 +1781,13 @@
   function renderTestConfig() {
     const availableDomains = getAvailableDomains(state.config.subject);
     const selectedDomains = new Set(state.config.domainCodes.length ? state.config.domainCodes : availableDomains.map(d => d.code));
+    const allSkills = availableDomains.flatMap(d => d.skills);
+    const selectedSkills = new Set(state.config.skillCodes?.length ? state.config.skillCodes : allSkills);
     const selectedDifficulties = new Set(state.config.difficulties.length ? state.config.difficulties : ["E", "M", "H"]);
     const availableCount = countFilteredQuestions({
       ...state.config,
       domainCodes: [...selectedDomains],
+      skillCodes: [...selectedSkills],
       difficulties: [...selectedDifficulties]
     });
 
@@ -1808,17 +1814,32 @@
         </section>
 
         <section class="panel">
-          <div class="panel-heading">
-            <p class="eyebrow">Filters</p>
-            <h2>Domains</h2>
+          <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <p class="eyebrow">Filters</p>
+              <h2>Domains</h2>
+            </div>
+            ${state.config.subject !== "both" ? `<button type="button" class="ghost-btn" data-action="toggle-advanced-domains" style="font-size: 13px; padding: 4px 8px;">Advanced</button>` : ""}
           </div>
           <div class="check-grid">
             ${availableDomains.map(domain => `
-              <label class="check-card">
-                <input type="checkbox" name="domain" value="${escapeAttr(domain.code)}" ${selectedDomains.has(domain.code) ? "checked" : ""}>
-                <span>${escapeHtml(domain.label)}</span>
-                <small>${escapeHtml(domain.code)}</small>
-              </label>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <label class="check-card" style="height:auto; min-height:76px; margin-bottom:0;">
+                  <input type="checkbox" name="domain" value="${escapeAttr(domain.code)}" ${selectedDomains.has(domain.code) ? "checked" : ""}>
+                  <span>${escapeHtml(domain.label)}</span>
+                  <small>${escapeHtml(domain.code)}</small>
+                </label>
+                ${state.config.subject !== "both" && state.showAdvancedDomains && domain.skills && domain.skills.length > 0 ? `
+                  <div style="display:flex; flex-direction:column; gap:6px; margin-left:12px; margin-top:4px; border-left:2px solid var(--line); padding-left:12px;">
+                    ${domain.skills.map(skill => `
+                      <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer;">
+                        <input type="checkbox" name="skill" value="${escapeAttr(skill)}" ${selectedSkills.has(skill) ? "checked" : ""}>
+                        <span>${escapeHtml(skill)}</span>
+                      </label>
+                    `).join("")}
+                  </div>
+                ` : ""}
+              </div>
             `).join("") || `<p class="muted">Import questions to see domains.</p>`}
           </div>
         </section>
@@ -2365,9 +2386,14 @@ function renderTestReview() {
       if (subjects[sub]) {
         subjects[sub].wrong++;
         if (!subjects[sub].domains[q.domain]) {
-          subjects[sub].domains[q.domain] = { wrong: 0, skipped: 0, code: q.domainCode };
+          subjects[sub].domains[q.domain] = { wrong: 0, skipped: 0, code: q.domainCode, skills: {} };
         }
         subjects[sub].domains[q.domain].wrong++;
+        const skKey = q.skill || "Unspecified";
+        if (!subjects[sub].domains[q.domain].skills[skKey]) {
+          subjects[sub].domains[q.domain].skills[skKey] = { wrong: 0, skipped: 0 };
+        }
+        subjects[sub].domains[q.domain].skills[skKey].wrong++;
       }
     }
 
@@ -2376,9 +2402,14 @@ function renderTestReview() {
       if (subjects[sub]) {
         subjects[sub].skipped++;
         if (!subjects[sub].domains[q.domain]) {
-          subjects[sub].domains[q.domain] = { wrong: 0, skipped: 0, code: q.domainCode };
+          subjects[sub].domains[q.domain] = { wrong: 0, skipped: 0, code: q.domainCode, skills: {} };
         }
         subjects[sub].domains[q.domain].skipped++;
+        const skKey = q.skill || "Unspecified";
+        if (!subjects[sub].domains[q.domain].skills[skKey]) {
+          subjects[sub].domains[q.domain].skills[skKey] = { wrong: 0, skipped: 0 };
+        }
+        subjects[sub].domains[q.domain].skills[skKey].skipped++;
       }
     }
 
@@ -2391,6 +2422,17 @@ function renderTestReview() {
       }
       state.selectedMistakeDomains = allDomains;
     }
+    if (!state.selectedMistakeSkills) {
+      const allSkills = new Set();
+      for (const sub of Object.values(subjects)) {
+        for (const domData of Object.values(sub.domains)) {
+          for (const sk of Object.keys(domData.skills)) {
+            allSkills.add(sk);
+          }
+        }
+      }
+      state.selectedMistakeSkills = allSkills;
+    }
     if (!state.selectedMistakeTypes) {
       state.selectedMistakeTypes = new Set(["wrong", "skipped"]);
     }
@@ -2398,10 +2440,10 @@ function renderTestReview() {
     // Calculate selected count
     let selectedCount = 0;
     if (state.selectedMistakeTypes.has("wrong")) {
-      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain)).length;
+      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
     }
     if (state.selectedMistakeTypes.has("skipped")) {
-      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain)).length;
+      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
     }
 
     return `
@@ -2442,23 +2484,36 @@ function renderTestReview() {
 
           return `
             <section class="panel">
-              <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+              <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                  <p class="eyebrow">${escapeHtml(sub.label)}</p>
-                  <h2>${totalWrong + totalSkipped} total errors (${totalWrong} wrong · ${totalSkipped} omitted)</h2>
+                  <h2>Filter by Domain</h2>
+                  <p class="eyebrow" style="margin-top:4px;">Select domains to practice</p>
                 </div>
-                <div style="display:flex; gap:8px;">
-                  <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>
-                  <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="none" style="font-size:12px; padding:4px 10px; min-height:28px;">Clear</button>
-                </div>
+                <button type="button" class="ghost-btn" data-action="toggle-advanced-mistakes" style="font-size: 13px; padding: 4px 8px;">Advanced</button>
+              </div>
+              <div style="display:flex; gap:8px; margin-bottom:16px;">
+                <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>
+                <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="none" style="font-size:12px; padding:4px 10px; min-height:28px;">Clear</button>
               </div>
               <div class="check-grid">
                 ${domEntries.map(([domName, data]) => `
-                  <label class="check-card" style="height:auto; min-height:92px;">
-                    <input type="checkbox" data-action="toggle-mistake-domain" data-domain="${escapeAttr(domName)}" ${state.selectedMistakeDomains.has(domName) ? "checked" : ""}>
-                    <span>${escapeHtml(domName)}</span>
-                    <small>${data.wrong} wrong · ${data.skipped} omitted</small>
-                  </label>
+                  <div style="display:flex; flex-direction:column; gap:4px;">
+                    <label class="check-card" style="height:auto; min-height:76px; margin-bottom: 0;">
+                      <input type="checkbox" data-action="toggle-mistake-domain" data-domain="${escapeAttr(domName)}" ${state.selectedMistakeDomains.has(domName) ? "checked" : ""}>
+                      <span>${escapeHtml(domName)}</span>
+                      <small>${data.wrong} wrong · ${data.skipped} omitted</small>
+                    </label>
+                    ${state.showAdvancedMistakeSkills && Object.keys(data.skills).length > 0 ? `
+                      <div style="display:flex; flex-direction:column; gap:6px; margin-left: 12px; margin-top: 4px; border-left: 2px solid var(--line); padding-left: 12px;">
+                        ${Object.entries(data.skills).map(([skillName, skData]) => `
+                          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer;">
+                            <input type="checkbox" data-action="toggle-mistake-skill" data-domain="${escapeAttr(domName)}" data-skill="${escapeAttr(skillName)}" ${state.selectedMistakeSkills.has(skillName) ? "checked" : ""}>
+                            <span>${escapeHtml(skillName)} <span class="muted" style="margin-left:4px;">(${skData.wrong}W / ${skData.skipped}S)</span></span>
+                          </label>
+                        `).join("")}
+                      </div>
+                    ` : ""}
+                  </div>
                 `).join("")}
               </div>
             </section>
@@ -2482,6 +2537,7 @@ function renderTestReview() {
       expanded: new Set(),
       filterSubject: "all",
       filterDomain: "all",
+      filterSkill: "all",
       filterTags: new Set(),
       filterType: "all"
     };
@@ -2500,6 +2556,9 @@ function renderTestReview() {
     if (state.mistakesLog.filterDomain !== "all") {
       validMistakes = validMistakes.filter(r => r.domainCode === state.mistakesLog.filterDomain);
     }
+    if (state.mistakesLog.filterSkill && state.mistakesLog.filterSkill !== "all") {
+      validMistakes = validMistakes.filter(r => r.skillCode === state.mistakesLog.filterSkill);
+    }
     if (state.mistakesLog.filterTags.size > 0) {
       validMistakes = validMistakes.filter(r => {
         if (!r.tags || r.tags.length === 0) return false;
@@ -2517,7 +2576,12 @@ function renderTestReview() {
     const domains = state.mistakesLog.filterSubject === "all"
       ? ["all", ...new Set(allMistakes.map(r => r.domainCode))]
       : ["all", ...new Set(allMistakes.filter(r => r.subject === state.mistakesLog.filterSubject).map(r => r.domainCode))];
-    
+      
+    let baseForSkills = allMistakes;
+    if (state.mistakesLog.filterSubject !== "all") baseForSkills = baseForSkills.filter(r => r.subject === state.mistakesLog.filterSubject);
+    if (state.mistakesLog.filterDomain !== "all") baseForSkills = baseForSkills.filter(r => r.domainCode === state.mistakesLog.filterDomain);
+    const skills = ["all", ...new Set(baseForSkills.map(r => r.skillCode).filter(Boolean))];
+
     let allUsedTags = new Set(MISTAKE_TAGS);
     allMistakes.forEach(r => {
        if(r.tags) r.tags.forEach(t => allUsedTags.add(t));
@@ -2536,6 +2600,7 @@ function renderTestReview() {
                 <option value="all">All Subjects</option>
                 ${subjects.filter(s => s !== "all").map(s => `<option value="${s}" ${state.mistakesLog.filterSubject === s ? 'selected' : ''}>${SUBJECTS[s] || s}</option>`).join("")}
               </select>
+              ${state.mistakesLog.filterSubject !== "all" ? `
               <select class="styled-select" data-action="ml-change-domain">
                 <option value="all">All Domains</option>
                 ${domains.filter(d => d !== "all").map(d => {
@@ -2544,6 +2609,16 @@ function renderTestReview() {
                   return `<option value="${d}" ${state.mistakesLog.filterDomain === d ? 'selected' : ''}>${label}</option>`;
                 }).join("")}
               </select>
+              ` : ''}
+              ${state.mistakesLog.filterSubject !== "all" && state.mistakesLog.filterDomain !== "all" ? `
+              <select class="styled-select" data-action="ml-change-skill">
+                <option value="all">All Sub-domains</option>
+                ${skills.filter(s => s !== "all").map(s => {
+                  const label = baseForSkills.find(r => r.skillCode === s)?.skill || s;
+                  return `<option value="${s}" ${state.mistakesLog.filterSkill === s ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+                }).join("")}
+              </select>
+              ` : ''}
               <select class="styled-select" data-action="ml-change-type">
                 <option value="all" ${state.mistakesLog.filterType === 'all' || !state.mistakesLog.filterType ? 'selected' : ''}>Mix (All)</option>
                 <option value="incorrect" ${state.mistakesLog.filterType === 'incorrect' ? 'selected' : ''}>Incorrect Only</option>
@@ -2575,6 +2650,7 @@ function renderTestReview() {
               const titleTextParts = [];
               if (state.mistakesLog.filterSubject === "all") titleTextParts.push(SUBJECTS[r.subject] || r.subject);
               if (state.mistakesLog.filterDomain === "all") titleTextParts.push(r.domain);
+              if (state.mistakesLog.filterSkill === "all" && q.skill) titleTextParts.push(q.skill);
               let titleText = titleTextParts.join(" • ");
               if (!titleText) titleText = "Question " + (q.number || q.id.slice(0, 5));
 
@@ -2841,10 +2917,10 @@ function renderTestReview() {
     const { wrongQuestions, skippedQuestions } = getMistakesData();
     let selectedCount = 0;
     if (state.selectedMistakeTypes.has("wrong")) {
-      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain)).length;
+      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
     }
     if (state.selectedMistakeTypes.has("skipped")) {
-      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain)).length;
+      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
     }
     
     const countEl = document.querySelector('.start-summary strong');
@@ -2862,6 +2938,10 @@ function renderTestReview() {
     const domainCheckboxes = document.querySelectorAll('input[data-action="toggle-mistake-domain"]');
     for (const cb of domainCheckboxes) {
       cb.checked = state.selectedMistakeDomains.has(cb.dataset.domain);
+    }
+    const skillCheckboxes = document.querySelectorAll('input[data-action="toggle-mistake-skill"]');
+    for (const cb of skillCheckboxes) {
+      cb.checked = state.selectedMistakeSkills.has(cb.dataset.skill);
     }
   }
 
@@ -2881,7 +2961,9 @@ function renderTestReview() {
       form.addEventListener("change", e => {
         state.config = readConfigFromForm(form);
         if (e.target.name === "subject") {
-          state.config.domainCodes = getAvailableDomains(state.config.subject).map(d => d.code);
+          const availableDomains = getAvailableDomains(state.config.subject);
+          state.config.domainCodes = availableDomains.map(d => d.code);
+          state.config.skillCodes = availableDomains.flatMap(d => d.skills);
           renderHome();
         } else {
           const newCount = countFilteredQuestions(state.config);
@@ -3223,11 +3305,17 @@ function renderTestReview() {
       if (state.mistakesLog.filterSubject !== newVal) {
         state.mistakesLog.filterSubject = newVal;
         state.mistakesLog.filterDomain = "all";
+        state.mistakesLog.filterSkill = "all";
         updateMistakesLogUI();
       }
     }
     if (action === "ml-change-domain") {
       state.mistakesLog.filterDomain = event.currentTarget.value || event.target.value;
+      state.mistakesLog.filterSkill = "all";
+      updateMistakesLogUI();
+    }
+    if (action === "ml-change-skill") {
+      state.mistakesLog.filterSkill = event.currentTarget.value || event.target.value;
       updateMistakesLogUI();
     }
     if (action === "ml-change-type") {
@@ -3389,6 +3477,15 @@ function renderTestReview() {
       }
       updateMistakesSummary();
     }
+    if (action === "toggle-mistake-skill") {
+      const skillName = event.currentTarget.dataset.skill;
+      if (event.currentTarget.checked) {
+        state.selectedMistakeSkills.add(skillName);
+      } else {
+        state.selectedMistakeSkills.delete(skillName);
+      }
+      updateMistakesSummary();
+    }
     if (action === "toggle-mistake-type") {
       const type = event.currentTarget.dataset.type;
       if (event.currentTarget.checked) {
@@ -3403,18 +3500,26 @@ function renderTestReview() {
       const selectValue = event.currentTarget.dataset.value;
       const { wrongQuestions, skippedQuestions } = getMistakesData();
       const subjectDomains = new Set();
+      const subjectSkills = new Set();
       for (const q of [...wrongQuestions, ...skippedQuestions]) {
         if (q.subject === subjectKey) {
           subjectDomains.add(q.domain);
+          subjectSkills.add(q.skill || "Unspecified");
         }
       }
       if (selectValue === "all") {
         for (const dom of subjectDomains) {
           state.selectedMistakeDomains.add(dom);
         }
+        for (const sk of subjectSkills) {
+          state.selectedMistakeSkills.add(sk);
+        }
       } else {
         for (const dom of subjectDomains) {
           state.selectedMistakeDomains.delete(dom);
+        }
+        for (const sk of subjectSkills) {
+          state.selectedMistakeSkills.delete(sk);
         }
       }
       updateMistakesSummary();
@@ -3424,14 +3529,14 @@ function renderTestReview() {
       const questionsToPractice = [];
       if (state.selectedMistakeTypes.has("wrong")) {
         for (const q of wrongQuestions) {
-          if (state.selectedMistakeDomains.has(q.domain)) {
+          if (state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")) {
             questionsToPractice.push(q);
           }
         }
       }
       if (state.selectedMistakeTypes.has("skipped")) {
         for (const q of skippedQuestions) {
-          if (state.selectedMistakeDomains.has(q.domain)) {
+          if (state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")) {
             questionsToPractice.push(q);
           }
         }
@@ -3481,6 +3586,16 @@ function renderTestReview() {
     }
     if (action === "import") { fileInput.click(); }
     if (action === "dismiss-notice") { state.notice = null; dismissNoticeUI(); }
+    if (action === "toggle-advanced-domains") {
+      state.showAdvancedDomains = !state.showAdvancedDomains;
+      renderHome();
+      return;
+    }
+    if (action === "toggle-advanced-mistakes") {
+      state.showAdvancedMistakeSkills = !state.showAdvancedMistakeSkills;
+      renderHome();
+      return;
+    }
     if (action === "wipe-all") {
       showConfirmModal("Are you sure you want to wipe ALL your data, including imported question banks? This cannot be undone.", "Wipe All Data", async () => {
         await DB.clearAll();
@@ -4157,16 +4272,25 @@ function renderTestReview() {
     const valid = new Set(domains.map(d => d.code));
     state.config.domainCodes = state.config.domainCodes.filter(c => valid.has(c));
     if (!state.config.domainCodes.length) state.config.domainCodes = domains.map(d => d.code);
+
+    const allSkills = domains.flatMap(d => d.skills);
+    const validSkills = new Set(allSkills);
+    if (!state.config.skillCodes) state.config.skillCodes = [];
+    state.config.skillCodes = state.config.skillCodes.filter(s => validSkills.has(s));
+    if (!state.config.skillCodes.length) state.config.skillCodes = [...allSkills];
   }
 
   function readConfigFromForm(form) {
     const data = new FormData(form);
     const subject = data.get("subject") || "math";
     const domains = data.getAll("domain");
+    const skills = data.getAll("skill");
     const difficulties = data.getAll("difficulty");
+    const availableDomains = getAvailableDomains(subject);
     return {
       subject,
-      domainCodes: domains.length ? domains : getAvailableDomains(subject).map(d => d.code),
+      domainCodes: domains.length ? domains : availableDomains.map(d => d.code),
+      skillCodes: skills.length ? skills : availableDomains.flatMap(d => d.skills),
       difficulties: difficulties.length ? difficulties : ["E", "M", "H"],
       excludeAnswered: data.get("excludeAnswered") === "on",
       immediateFeedback: data.get("immediateFeedback") === "on",
@@ -4338,7 +4462,7 @@ function renderTestReview() {
             <div class="question-header-row">
               <div>
                 <span class="question-number">Question ${ctx.index + 1}</span>
-                <small>${escapeHtml(question.domain)} · ${escapeHtml(question.difficulty || "")}</small>
+                <small>${escapeHtml(question.domain)}${question.skill ? ` · ${escapeHtml(question.skill)}` : ""} · ${escapeHtml(question.difficulty || "")}</small>
               </div>
             </div>
             <div class="question-content-layout ${fitColumns ? "fit-columns" : ""}">
@@ -5459,13 +5583,16 @@ function renderTestReview() {
 
   function getFilteredQuestions(config) {
     const subjects = config.subject === "both" ? ["math", "rw"] : [config.subject];
-    const domainCodes = new Set(config.domainCodes?.length ? config.domainCodes : getAvailableDomains(config.subject).map(d => d.code));
+    const availableDomains = getAvailableDomains(config.subject);
+    const domainCodes = new Set(config.domainCodes?.length ? config.domainCodes : availableDomains.map(d => d.code));
+    const skillCodes = new Set(config.skillCodes?.length ? config.skillCodes : availableDomains.flatMap(d => d.skills));
     const difficulties = new Set(config.difficulties?.length ? config.difficulties : ["E", "M", "H"]);
     const answered = config.excludeAnswered ? new Set(state.responses.filter(isAnsweredResponse).map(r => r.questionId)) : new Set();
 
     return state.questions.filter(q => {
       if (!subjects.includes(q.subject)) return false;
       if (domainCodes.size && !domainCodes.has(q.domainCode)) return false;
+      if (skillCodes.size && !skillCodes.has(q.skill || "Unspecified")) return false;
       if (difficulties.size && !difficulties.has(q.difficultyCode) && q.difficultyCode) return false;
       return !answered.has(q.id);
     });
@@ -5479,12 +5606,23 @@ function renderTestReview() {
     for (const q of state.questions) {
       if (!subjects.includes(q.subject)) continue;
       const key = `${q.subject}:${q.domainCode}`;
-      if (!seen.has(key)) seen.set(key, { subject: q.subject, code: q.domainCode, label: q.domain || findDomainLabel(q.subject, q.domainCode) || q.domainCode });
+      if (!seen.has(key)) {
+        seen.set(key, { subject: q.subject, code: q.domainCode, label: q.domain || findDomainLabel(q.subject, q.domainCode) || q.domainCode, skills: new Set() });
+      }
+      seen.get(key).skills.add(q.skill || "Unspecified");
     }
     if (!seen.size) {
-      for (const s of subjects) for (const d of DOMAIN_FALLBACKS[s] || []) seen.set(`${s}:${d.code}`, { subject: s, code: d.code, label: d.label });
+      for (const s of subjects) for (const d of DOMAIN_FALLBACKS[s] || []) seen.set(`${s}:${d.code}`, { subject: s, code: d.code, label: d.label, skills: new Set() });
     }
-    return [...seen.values()].sort((a, b) => String(a.subject).localeCompare(String(b.subject)) || String(a.label).localeCompare(String(b.label)));
+    const result = [...seen.values()].sort((a, b) => String(a.subject).localeCompare(String(b.subject)) || String(a.label).localeCompare(String(b.label)));
+    result.forEach(r => {
+      r.skills = [...r.skills].sort((a, b) => {
+        if (a === "Unspecified") return 1;
+        if (b === "Unspecified") return -1;
+        return String(a).localeCompare(String(b));
+      });
+    });
+    return result;
   }
 
   /* ===========================================================

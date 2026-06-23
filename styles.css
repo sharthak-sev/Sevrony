@@ -3428,6 +3428,10 @@ html[data-transition="drill"]::view-transition-new(root) {
   outline: none;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
+  width: 180px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .styled-select:hover {
   background-color: var(--surface-1);
