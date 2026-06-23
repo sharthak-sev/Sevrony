@@ -568,6 +568,7 @@ button, label, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .volume-bar-tooltip {
+  width: max-content;
   max-width: min(220px, calc(100vw - 48px));
   overflow-wrap: anywhere;
   white-space: normal !important;
