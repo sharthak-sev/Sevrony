@@ -2533,12 +2533,14 @@ function renderTestReview() {
   function renderMistakesLog() {
     state.mistakesLog = state.mistakesLog || {
       expanded: new Set(),
+      showAnswer: new Set(),
       filterSubject: "all",
       filterDomain: "all",
       filterSkill: "all",
       filterTags: new Set(),
       filterType: "all"
     };
+    if (!state.mistakesLog.showAnswer) state.mistakesLog.showAnswer = new Set();
 
     const MISTAKE_TAGS = ["Silly mistake", "Time crunch", "Conceptual error", "Misread question", "Calculation error", "Guessed"];
 
@@ -2686,15 +2688,21 @@ function renderTestReview() {
 
               let expandedHtml = "";
               if (isExpanded) {
+                const isAnswerShown = state.mistakesLog.showAnswer && state.mistakesLog.showAnswer.has(r.id);
                 expandedHtml = `
                   <div class="shadcn-accordion-content" ${state.mistakesLog.justToggled !== r.id ? 'style="animation: none;"' : ''}>
                     <div class="shadcn-accordion-content-inner">
+                      <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+                        <button type="button" class="ghost-btn" data-action="ml-toggle-answer" data-id="${r.id}" style="font-size: 0.85em; height: 32px; padding: 0 12px;">
+                          ${isAnswerShown ? "Hide Answer" : "Show Answer"}
+                        </button>
+                      </div>
                       <div class="question-content" style="margin-bottom: 16px; margin-top: 0;">
                         ${q.stimulus ? sanitizeHtml(q.stimulus) + '<br><br>' : ''}
                         ${sanitizeHtml(q.prompt)}
                       </div>
-                      ${renderAnswerArea(q, r.answer, r)}
-                      ${renderImmediateExplanation(q, r)}
+                      ${renderAnswerArea(q, r.answer, r, { hideAnswer: !isAnswerShown, isMistakesLog: true })}
+                      ${isAnswerShown ? renderImmediateExplanation(q, r) : ""}
                       
                       <div class="ml-notes-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -3343,6 +3351,15 @@ function renderTestReview() {
           if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }, 50);
       }
+    }
+    if (action === "ml-toggle-answer") {
+      const id = event.currentTarget.closest("[data-id]").dataset.id;
+      if (state.mistakesLog.showAnswer.has(id)) {
+        state.mistakesLog.showAnswer.delete(id);
+      } else {
+        state.mistakesLog.showAnswer.add(id);
+      }
+      updateMistakesLogUI();
     }
     if (action === "ml-edit-notes-toggle") {
       const target = event.currentTarget || event.target;
@@ -4497,13 +4514,18 @@ function renderTestReview() {
     `;
   }
 
-  function renderAnswerArea(question, answer, response) {
-    const isSubmitted = !!response;
+  function renderAnswerArea(question, answer, response, options = {}) {
+    const { hideAnswer = false, isMistakesLog = false } = options;
+    const isSubmitted = !!response && !hideAnswer;
+    
     if (question.type === "spr" || !question.answerOptions.length) {
+      if (hideAnswer && isMistakesLog) {
+        return "";
+      }
       return `
         <div class="spr-card ${isSubmitted ? (response.isCorrect ? "correct" : "incorrect") : ""}">
           <label for="sprAnswer">Enter your answer</label>
-          <input id="sprAnswer" type="text" inputmode="decimal" autocomplete="off" value="${escapeAttr(answer)}" data-answer-input ${isSubmitted ? "disabled" : ""}>
+          <input id="sprAnswer" type="text" inputmode="decimal" autocomplete="off" value="${hideAnswer ? "" : escapeAttr(answer)}" data-answer-input ${isSubmitted ? "disabled" : ""}>
           <small>Student-produced response — scored by exact match.</small>
           ${(isSubmitted && !response.isCorrect && question.correctAnswers && question.correctAnswers.length > 0) ? `
             <div style="margin-top: 8px; color: var(--green); font-weight: 500; font-size: 0.9em;">
@@ -4525,14 +4547,16 @@ function renderTestReview() {
             if (isCorrectAnswer) statusClass = "correct-choice";
             else if (isUserAnswer) statusClass = "incorrect-choice";
           }
+          const isSelected = !hideAnswer && answer === opt.letter;
+          const isEliminated = !hideAnswer && elim[opt.letter];
           return `
-          <div class="choice-row ${elim[opt.letter] ? "eliminated" : ""} ${statusClass}">
-            <button class="choice-button ${answer === opt.letter ? "selected" : ""} ${elim[opt.letter] ? "eliminated" : ""}"
-              type="button" data-test-action="${isSubmitted ? "noop" : "select-option"}" data-value="${escapeAttr(opt.letter)}" ${isSubmitted ? "disabled" : ""}>
+          <div class="choice-row ${isEliminated ? "eliminated" : ""} ${statusClass}">
+            <button class="choice-button ${isSelected ? "selected" : ""} ${isEliminated ? "eliminated" : ""}"
+              type="button" data-test-action="${isSubmitted || hideAnswer ? "noop" : "select-option"}" data-value="${escapeAttr(opt.letter)}" ${isSubmitted ? "disabled" : ""}>
               <span class="choice-letter">${escapeHtml(opt.letter)}</span>
               <span class="choice-content">${sanitizeHtml(opt.content)}</span>
             </button>
-            ${!isSubmitted ? `
+            ${(!isSubmitted && !hideAnswer) ? `
             <button class="choice-elim-btn ${elim[opt.letter] ? "active" : ""}" type="button"
               data-test-action="eliminate-option" data-value="${escapeAttr(opt.letter)}"
               title="${elim[opt.letter] ? "Undo cross-out" : "Cross out"}" aria-label="Eliminate option ${escapeAttr(opt.letter)}">
