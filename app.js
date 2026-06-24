@@ -358,7 +358,7 @@
 
       if (window.location.hash) {
         const hashView = window.location.hash.slice(1);
-        if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy"].includes(hashView)) {
+        if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup"].includes(hashView)) {
            state.view = hashView;
         }
       }
