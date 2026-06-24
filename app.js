@@ -1712,10 +1712,9 @@
                 <p class="muted" style="margin-bottom:8px; font-size:13px;">Last synced: ${escapeHtml(ago)}</p>
                 ${autoSyncActive
                   ? '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--green,#22c55e);">✓ Auto-sync active — changes sync across devices automatically</p>'
-                  : '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--yellow,#eab308);">Session expired — tap Sync Now to reconnect</p>'
+                  : '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--yellow,#eab308);">Session expired — tap the sync icon in the sidebar to reconnect</p>'
                 }
                 <div style="display: flex; gap: 8px;">
-                  <button class="secondary-btn" data-action="force-cloud-sync">Sync Now</button>
                   <button class="ghost-btn" data-action="unlink-cloud-sync">Unlink Account</button>
                 </div>
               `;
@@ -1746,8 +1745,7 @@
           </div>
           <p class="muted" style="margin-bottom:16px;">Link a backup folder to automatically save your progress after every test.</p>
           ${state.backupHandle 
-            ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"><div class="success-dot"></div><span>Backup folder linked</span><button class="ghost-btn" data-action="unlink-backup">Unlink</button></div>
-               <button class="ghost-btn" data-action="force-backup">Sync Now</button>`
+            ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"><div class="success-dot"></div><span>Backup folder linked</span><button class="ghost-btn" data-action="unlink-backup">Unlink</button></div>`
             : `<button class="secondary-btn" data-action="link-backup">Link Backup Folder</button>`}
           ${state.backupMessage ? `<p style="color:var(--${state.backupMessage.type === 'error' ? 'red' : 'bb-blue'}); font-size:13px; margin-top:8px;">${escapeHtml(state.backupMessage.text)}</p>` : ''}
         </div>
