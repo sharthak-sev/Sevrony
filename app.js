@@ -3382,20 +3382,31 @@ function renderTestReview() {
       const id = target.dataset.id;
       const r = state.responses.find(res => res.id === id);
       if (r) {
-        const tag = prompt("Enter a custom tag (max 20 chars):");
-        if (tag && tag.trim().length > 0) {
-          r.tags = r.tags || [];
-          if (!r.tags.includes(tag.trim())) r.tags.push(tag.trim());
-          
-          const textarea = document.querySelector(`textarea.ml-note-input[data-id="${id}"]`);
-          if (textarea && !textarea.disabled) {
-            r.notes = textarea.value;
+        showPromptModal("Enter a custom tag", "Add Tag", "Max 20 chars", (tag) => {
+          if (tag && tag.trim().length > 0) {
+            const cleanTag = tag.trim();
+            r.tags = r.tags || [];
+            if (!r.tags.includes(cleanTag)) {
+              r.tags.push(cleanTag);
+              r.updatedAt = Date.now();
+              DB.put("responses", r).catch(console.error);
+            }
+            
+            const container = target.parentElement;
+            let tagBtn = Array.from(container.querySelectorAll("button.tag-badge")).find(b => b.dataset.tag === cleanTag);
+            if (!tagBtn) {
+              tagBtn = document.createElement("button");
+              tagBtn.type = "button";
+              tagBtn.dataset.action = "ml-toggle-tag";
+              tagBtn.dataset.id = id;
+              tagBtn.dataset.tag = cleanTag;
+              tagBtn.className = "tag-badge";
+              tagBtn.textContent = cleanTag;
+              container.insertBefore(tagBtn, target);
+            }
+            tagBtn.classList.add("active");
           }
-          
-          r.updatedAt = Date.now();
-          DB.put("responses", r).catch(console.error);
-          updateMistakesLogUI();
-        }
+        });
       }
     }
     if (action === "ml-delete-notes") {
@@ -5680,6 +5691,60 @@ function renderTestReview() {
   /* ===========================================================
      HTML SANITIZATION & MODAL
      =========================================================== */
+  function showPromptModal(message, confirmText, placeholder, onConfirm, options = {}) {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "modal-content confirm-modal";
+    
+    modal.innerHTML = `
+      <style>.prompt-input:focus { border-color: var(--bb-blue) !important; }</style>
+      <p class="modal-message" style="margin-bottom: 12px;">${escapeHtml(message)}</p>
+      <input type="text" class="prompt-input" placeholder="${escapeHtml(placeholder)}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); outline: none; box-sizing: border-box; font-family: inherit; font-size: 14px; transition: border-color 0.2s;" maxlength="20" />
+      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+        <button class="ghost-btn cancel-btn">${escapeHtml(options.cancelText || "Cancel")}</button>
+        <button class="primary-btn confirm-btn">${escapeHtml(confirmText)}</button>
+      </div>
+    `;
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const input = modal.querySelector(".prompt-input");
+
+    requestAnimationFrame(() => {
+      overlay.classList.add("visible");
+      modal.classList.add("visible");
+      input.focus();
+    });
+
+    const close = () => {
+      overlay.classList.remove("visible");
+      modal.classList.remove("visible");
+      setTimeout(() => overlay.remove(), 250);
+    };
+
+    modal.querySelector(".cancel-btn").onclick = function() {
+      if (this.disabled) return;
+      this.disabled = true;
+      close();
+      if (typeof options.onCancel === "function") options.onCancel();
+    };
+    
+    const submit = function() {
+      if (modal.querySelector(".confirm-btn").disabled) return;
+      modal.querySelector(".confirm-btn").disabled = true;
+      const val = input.value;
+      close();
+      onConfirm(val);
+    };
+
+    modal.querySelector(".confirm-btn").onclick = submit;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submit();
+      if (e.key === "Escape") modal.querySelector(".cancel-btn").click();
+    });
+  }
 
   function showConfirmModal(message, confirmText, onConfirm, options = {}) {
     const overlay = document.createElement("div");
