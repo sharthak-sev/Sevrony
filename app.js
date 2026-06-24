@@ -1764,7 +1764,6 @@
 
       <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
         <div class="panel-heading">
-          <p class="eyebrow" style="color: var(--red);">Danger Zone</p>
           <h2 style="color: var(--red);">Data Controls</h2>
         </div>
         <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Resetting progress wipes your test history but keeps your question banks. Wiping all data deletes everything, including question banks.</p>
@@ -2524,7 +2523,7 @@ function renderTestReview() {
             <strong>${selectedCount}</strong>
             <span>selected questions</span>
           </div>
-          <button class="primary-btn large" type="button" data-action="start-retry-practice" ${selectedCount === 0 ? "disabled" : ""}>Start Retry</button>
+          <button class="primary-btn large" type="button" data-action="start-retry-practice" ${selectedCount === 0 ? "disabled" : ""}>Start</button>
         </section>
       </div>
     `;
