@@ -1423,13 +1423,19 @@
     document.body.appendChild(overlay);
 
     const close = () => {
+      overlay.classList.remove("visible");
       modal.classList.remove("visible");
-      setTimeout(() => { overlay.innerHTML = ""; overlay.className = ""; }, 250);
+      setTimeout(() => overlay.remove(), 250);
     };
 
-    setTimeout(() => {
+    requestAnimationFrame(() => {
+      overlay.classList.add("visible");
       modal.classList.add("visible");
-    }, 10);
+    });
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close();
+    };
 
     modal.querySelector(".cancel-btn").onclick = close;
 
