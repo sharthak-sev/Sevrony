@@ -1,12 +1,13 @@
-const CACHE_NAME = "sat-practice-cache-v2.1.1";
+const CACHE_NAME = "sat-practice-cache-v2.1.2";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
-  "./styles.css?v=2.1.1",
-  "./tailwind.css?v=2.1.1",
-  "./app.js?v=2.1.1",
-  "./db.js?v=2.1.1",
-  "./sync.js?v=2.1.1",
+  "./styles.css?v=2.1.2",
+  "./tailwind.css?v=2.1.2",
+  "./app.js?v=2.1.2",
+  "./db.js?v=2.1.2",
+  "./sync.js?v=2.1.2",
+  "./vocab.js?v=2.1.2",
   "./logo.svg"
 ];
 
