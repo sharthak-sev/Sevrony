@@ -1616,15 +1616,25 @@
   }
 
   function renderNotice(notice) {
+    if (!notice) return "";
+    const isError = notice.type === "error";
+    const iconColor = isError ? "var(--red)" : "var(--green)";
+    const iconSvg = isError 
+      ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+    
     return `
-      <section class="notice ${notice.type || "info"}">
-        <p>${escapeHtml(notice.text)}</p>
-        <button type="button" data-action="dismiss-notice" aria-label="Dismiss" style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0;">
-          <svg viewBox="0 0 24 24" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
-            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" opacity="0.2" />
-            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="62.83" stroke-dashoffset="0" style="animation: notice-countdown 5s linear forwards;" />
+      <section class="notice sonner-toast ${notice.type || "info"}">
+        <div style="display:flex;align-items:center;gap:12px;flex:1;">
+          ${iconSvg}
+          <p style="margin:0;font-weight:500;font-size:14px;color:var(--ink);">${escapeHtml(notice.text)}</p>
+        </div>
+        <button type="button" class="ghost-btn icon-btn" data-action="dismiss-notice" aria-label="Dismiss" style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;padding:0;background:none;border:none;color:var(--ink-muted);cursor:pointer;opacity:0.7;transition:opacity 0.2s;flex-shrink:0;">
+          <svg viewBox="0 0 24 24" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg);pointer-events:none;">
+            <circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.2" />
+            <circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="69.11" stroke-dashoffset="0" style="animation: notice-countdown 5s linear forwards;" />
           </svg>
-          <span style="position: relative; z-index: 1; font-size: 12px;">✕</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
       </section>
     `;
@@ -1810,15 +1820,19 @@
 
       <div style="display: flex; flex-direction: column; gap: 24px;">
         ${!window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
-        <section class="panel cloud-sync-banner" style="display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-color: var(--blue); border-left: 4px solid var(--blue); background: color-mix(in srgb, var(--blue) 5%, var(--card));">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-          <div style="flex: 1;">
-            <strong style="display: block; margin-bottom: 2px;">Your data isn't backed up to the cloud</strong>
-            <span class="muted" style="font-size: 13px;">Enable cloud sync to access your data across devices.</span>
+        <section class="panel cloud-sync-banner" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 12px; background: linear-gradient(145deg, var(--card) 0%, color-mix(in srgb, var(--line) 30%, transparent) 100%); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+          <div style="display: flex; align-items: center; gap: 16px; flex: 1; min-width: 250px;">
+            <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink);">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4-4 4 4"/></svg>
+            </div>
+            <div>
+              <strong style="display: block; font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px;">Secure Your Progress</strong>
+              <span class="muted" style="font-size: 13px;">Enable Google Drive sync to back up data and practice seamlessly across devices.</span>
+            </div>
           </div>
           <div class="cloud-sync-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
-            <button class="secondary-btn" data-action="setup-cloud-sync" style="padding: 6px 16px; font-size: 13px;">Set Up</button>
-            <button class="ghost-btn" data-action="dismiss-sync-banner" style="padding: 6px 12px; font-size: 13px;">Dismiss</button>
+            <button class="ghost-btn" data-action="dismiss-sync-banner" style="padding: 8px 16px; font-size: 13px; font-weight: 500;">Dismiss</button>
+            <button class="primary-btn" data-action="setup-cloud-sync" style="padding: 8px 16px; font-size: 13px; font-weight: 500;">Connect Drive</button>
           </div>
         </section>
         ` : ''}
@@ -3316,6 +3330,15 @@ function renderTestReview() {
 
   function renderTutorialStep() {
     const step = TUTORIAL_STEPS[state.tutorial.step];
+    
+    if (window.innerWidth <= 768) {
+      if (step.selector.includes('-nav') || step.selector.includes('sync')) {
+        app.classList.remove("sidebar-collapsed");
+      } else {
+        app.classList.add("sidebar-collapsed");
+      }
+    }
+
     const target = findTourTarget(step);
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     target.scrollIntoView({ block: "center", inline: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
@@ -3345,20 +3368,26 @@ function renderTestReview() {
     const isFirst = state.tutorial.step === 0;
     const isLast = state.tutorial.step === TUTORIAL_STEPS.length - 1;
     overlay.querySelector(".tour-card").innerHTML = `
-      <p class="tour-progress">Step ${state.tutorial.step + 1} of ${TUTORIAL_STEPS.length}</p>
-      <h2>${escapeHtml(step.title)}</h2>
-      <p>${escapeHtml(step.body)}</p>
-      <div class="tour-actions">
-        <button class="ghost-btn" type="button" data-tour-action="skip">Skip</button>
-        <div>
-          <button class="ghost-btn" type="button" data-tour-action="back" ${isFirst ? "disabled" : ""}>Back</button>
-          <button class="primary-btn" type="button" data-tour-action="${isLast ? "done" : "next"}">${isLast ? "Done" : "Next"}</button>
-        </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <p class="tour-progress" style="background: var(--ink); color: var(--panel); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; margin: 0; text-transform: uppercase;">Step ${state.tutorial.step + 1} of ${TUTORIAL_STEPS.length}</p>
+        <button type="button" class="icon-btn" data-tour-action="skip" style="color: var(--ink-muted); padding: 4px; border: none; background: transparent; cursor: pointer; border-radius: 50%; display: flex;" aria-label="Close tutorial">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <h2 style="font-size: 18px; font-weight: 600; margin: 0 0 6px; color: var(--ink); letter-spacing: -0.02em;">${escapeHtml(step.title)}</h2>
+      <p style="font-size: 14px; color: var(--ink-muted); line-height: 1.5; margin: 0 0 20px;">${escapeHtml(step.body)}</p>
+      <div class="tour-actions" style="display: flex; justify-content: flex-end; gap: 8px;">
+        ${!isFirst ? `<button class="secondary-btn" type="button" data-tour-action="back" style="padding: 8px 16px; border-radius: 999px;">Back</button>` : ''}
+        <button class="primary-btn" type="button" data-tour-action="${isLast ? "done" : "next"}" style="padding: 8px 16px; border-radius: 999px;">${isLast ? "Finish" : "Next"}</button>
       </div>
     `;
     requestAnimationFrame(() => {
       updateTutorialPosition();
       overlay.querySelector(isLast ? "[data-tour-action='done']" : "[data-tour-action='next']")?.focus();
+      
+      if (window.innerWidth <= 768) {
+        setTimeout(updateTutorialPosition, 350);
+      }
     });
   }
 
