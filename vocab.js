@@ -840,28 +840,42 @@
   }
 
   async function callBackend(word, meaning, sentence) {
-    const response = await fetch(vocabState.backendEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ word, meaning, sentence })
-    });
-    
-    if (!response.ok) {
-      let errorMessage = `Backend returned ${response.status}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage += ` - ${errorData.error}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
+
+    try {
+      const response = await fetch(vocabState.backendEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ word, meaning, sentence }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        let errorMessage = `Backend returned ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage += ` - ${errorData.error}`;
+          }
+        } catch (e) {
+          // Fallback if not JSON
         }
-      } catch (e) {
-        // Fallback if not JSON
+        throw new Error(errorMessage);
       }
-      throw new Error(errorMessage);
+      
+      return await response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('API Request timed out');
+      }
+      throw error;
     }
-    
-    return await response.json();
   }
 
   async function checkSentence() {
