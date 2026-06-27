@@ -52,7 +52,7 @@ export default {
         const message = formData.get("message");
         const email = formData.get("email") || "Not provided";
         const contextStr = formData.get("context") || "{}";
-        const file = formData.get("file");
+        const files = formData.getAll("file");
 
         if (!message) {
           return new Response(JSON.stringify({ error: "Message is required" }), {
@@ -90,8 +90,12 @@ export default {
 
         discordPayload.append("payload_json", JSON.stringify({ embeds: [embed] }));
 
-        if (file) {
-          discordPayload.append("file", file, file.name || "screenshot.png");
+        if (files && files.length > 0) {
+          files.slice(0, 5).forEach((file, index) => {
+            if (file && file.size > 0) {
+              discordPayload.append(`file${index}`, file, file.name || `screenshot_${index}.png`);
+            }
+          });
         }
 
         const discordRes = await fetch(discordWebhookUrl, {

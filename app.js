@@ -1354,13 +1354,13 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <span class="nav-label">Privacy</span>
             </button>
+            <button class="nav-item" type="button" data-action="open-feedback" title="Feedback">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              <span class="nav-label">Feedback</span>
+            </button>
             <button class="nav-item support-btn" type="button" data-action="open-support" title="Support the project">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
               <span class="nav-label">Support the project</span>
-            </button>
-            <button class="nav-item" type="button" data-action="open-feedback" title="Send Feedback">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-              <span class="nav-label">Send Feedback</span>
             </button>
           </div>
           
@@ -1374,49 +1374,85 @@
 
   function showFeedbackModal() {
     const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
+    overlay.className = "modal-overlay feedback-overlay";
     const modal = document.createElement("div");
-    modal.className = "modal-content panel";
+    modal.className = "feedback-dialog";
     
     // Auto-collect context
     const urlHash = window.location.hash || "#dashboard";
     const userAgent = navigator.userAgent;
     const viewport = `${window.innerWidth}x${window.innerHeight}`;
+    const userEmail = (window.SevSync && window.SevSync.getStatus) ? window.SevSync.getStatus()?.email : "";
     
     modal.innerHTML = `
-      <div class="modal-header">
-        <h3 style="margin:0;font-size:18px;font-weight:600;">Send Feedback</h3>
-        <button class="close-btn cancel-btn" type="button" aria-label="Close" style="background:none;border:none;cursor:pointer;color:var(--ink-muted);">
+      <div class="feedback-header">
+        <div class="feedback-icon-wrapper">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </div>
+        <div class="feedback-title-group">
+          <h3>Send Feedback</h3>
+          <p>We'd love to hear your thoughts or bug reports.</p>
+        </div>
+        <button class="close-btn cancel-btn" type="button" aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <div class="feedback-body" style="display:flex; flex-direction:column; gap:16px; margin-top:20px;">
-        <div>
-          <label style="display:block; margin-bottom:6px; font-weight:500; font-size:14px;">Feedback Type</label>
-          <select id="fb-type" class="styled-select" style="width:100%;">
-            <option value="Bug">Bug Report</option>
-            <option value="Feature">Feature Request</option>
-            <option value="General">General Feedback</option>
-          </select>
+      
+      <div class="feedback-body">
+        <div class="feedback-form-group">
+          <label>Feedback Type</label>
+          <div class="feedback-type-selector">
+            <label class="fb-radio-card">
+              <input type="radio" name="fb-type" value="Bug" checked>
+              <div class="fb-radio-content">Bug</div>
+            </label>
+            <label class="fb-radio-card">
+              <input type="radio" name="fb-type" value="Feature">
+              <div class="fb-radio-content">Feature</div>
+            </label>
+            <label class="fb-radio-card">
+              <input type="radio" name="fb-type" value="General">
+              <div class="fb-radio-content">General</div>
+            </label>
+          </div>
         </div>
-        <div>
-          <label style="display:block; margin-bottom:6px; font-weight:500; font-size:14px;">Message</label>
-          <textarea id="fb-msg" class="styled-input" rows="4" placeholder="What's on your mind?" style="width:100%; resize:vertical; padding:8px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--ink-main); font-family:inherit;"></textarea>
+
+        <div class="feedback-form-group">
+          <label>Message</label>
+          <textarea id="fb-msg" class="feedback-textarea" rows="4" placeholder="Tell us what you think..."></textarea>
         </div>
-        <div>
-          <label style="display:block; margin-bottom:6px; font-weight:500; font-size:14px;">Email (Optional)</label>
-          <input type="email" id="fb-email" class="styled-input" placeholder="For follow-ups" style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--ink-main); font-family:inherit;">
+
+        <div class="feedback-form-row">
+          ${userEmail ? '' : `
+          <div class="feedback-form-group" style="flex:1; min-width: 0;">
+            <label>Email <span class="muted">(Optional)</span></label>
+            <input type="email" id="fb-email" class="feedback-input" placeholder="For follow-ups">
+          </div>
+          `}
+          <div class="feedback-form-group" style="flex:1; min-width: 0;">
+            <label>Screenshot <span class="muted">(Optional)</span></label>
+            <div class="file-upload-wrapper">
+              <input type="file" id="fb-file" accept="image/*" multiple class="file-upload-input">
+              <div class="file-upload-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                <span id="fb-file-name">Attach Image</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div>
-          <label style="display:block; margin-bottom:6px; font-weight:500; font-size:14px;">Screenshot (Optional)</label>
-          <input type="file" id="fb-file" accept="image/*" style="font-size:14px; color:var(--ink-muted);">
-        </div>
-        <button id="fb-submit" class="btn btn-primary" style="margin-top:8px;">Submit Feedback</button>
+        
+        <button id="fb-submit" class="feedback-submit-btn">
+          <span class="btn-text">Send Feedback</span>
+          <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
       </div>
-      <div class="feedback-status" style="display:none; text-align:center; padding:32px 0;">
-        <svg id="fb-status-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 16px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-        <h4 id="fb-status-title" style="margin:0 0 8px; font-size:18px;">Sent!</h4>
-        <p id="fb-status-msg" class="muted" style="margin:0;">Thank you for your feedback.</p>
+
+      <div class="feedback-status" style="display:none;">
+        <div class="status-icon-wrapper">
+          <svg id="fb-status-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        </div>
+        <h4 id="fb-status-title">Sent successfully!</h4>
+        <p id="fb-status-msg" class="muted">Thank you for helping us improve.</p>
       </div>
     `;
     overlay.appendChild(modal);
@@ -1425,7 +1461,7 @@
     const close = () => {
       overlay.classList.remove("visible");
       modal.classList.remove("visible");
-      setTimeout(() => overlay.remove(), 250);
+      setTimeout(() => overlay.remove(), 300);
     };
 
     requestAnimationFrame(() => {
@@ -1439,20 +1475,43 @@
 
     modal.querySelector(".cancel-btn").onclick = close;
 
-    modal.querySelector("#fb-submit").onclick = async () => {
-      const type = modal.querySelector("#fb-type").value;
-      const msg = modal.querySelector("#fb-msg").value.trim();
-      const email = modal.querySelector("#fb-email").value.trim();
-      const fileInput = modal.querySelector("#fb-file");
-      
-      if (!msg) {
-        alert("Please enter a message.");
+    const fileInput = modal.querySelector("#fb-file");
+    const fileNameDisplay = modal.querySelector("#fb-file-name");
+    fileInput.onchange = (e) => {
+      if (e.target.files.length > 5) {
+        alert("You can only attach up to 5 images.");
+        fileInput.value = "";
+        fileNameDisplay.innerText = "Attach Image";
         return;
       }
+
+      if (e.target.files.length > 1) {
+        fileNameDisplay.innerText = `${e.target.files.length} images attached`;
+      } else if (e.target.files.length === 1) {
+        fileNameDisplay.innerText = e.target.files[0].name;
+      } else {
+        fileNameDisplay.innerText = "Attach Image";
+      }
+    };
+
+    modal.querySelector("#fb-submit").onclick = async () => {
+      const type = modal.querySelector('input[name="fb-type"]:checked').value;
+      const msg = modal.querySelector("#fb-msg").value.trim();
+      const emailField = modal.querySelector("#fb-email");
+      const email = emailField ? emailField.value.trim() : userEmail;
+      
+      if (!msg) {
+        modal.querySelector("#fb-msg").focus();
+        modal.querySelector("#fb-msg").style.borderColor = "var(--red)";
+        return;
+      }
+      modal.querySelector("#fb-msg").style.borderColor = "";
       
       const submitBtn = modal.querySelector("#fb-submit");
-      const originalText = submitBtn.innerText;
-      submitBtn.innerText = "Sending...";
+      const btnText = submitBtn.querySelector(".btn-text");
+      const btnIcon = submitBtn.querySelector(".btn-icon");
+      btnText.innerText = "Sending...";
+      btnIcon.outerHTML = '<svg class="btn-icon" style="animation: spin 1s linear infinite;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
       submitBtn.disabled = true;
 
       const formData = new FormData();
@@ -1462,7 +1521,9 @@
       formData.append("context", JSON.stringify({ urlHash, userAgent, viewport, version: typeof APP_VERSION !== "undefined" ? APP_VERSION : "unknown" }));
       
       if (fileInput.files.length > 0) {
-        formData.append("file", fileInput.files[0]);
+        for (let i = 0; i < fileInput.files.length; i++) {
+          formData.append("file", fileInput.files[i]);
+        }
       }
 
       try {
@@ -1475,16 +1536,18 @@
         
         modal.querySelector(".feedback-body").style.display = "none";
         const statusDiv = modal.querySelector(".feedback-status");
-        statusDiv.style.display = "block";
+        statusDiv.style.display = "flex";
         
-        setTimeout(close, 3000);
+        setTimeout(close, 2500);
       } catch (err) {
         console.error("Feedback error", err);
         modal.querySelector(".feedback-body").style.display = "none";
         const statusDiv = modal.querySelector(".feedback-status");
-        statusDiv.style.display = "block";
+        statusDiv.style.display = "flex";
+        const iconWrap = modal.querySelector(".status-icon-wrapper");
+        iconWrap.style.background = "rgba(239, 68, 68, 0.1)";
+        iconWrap.style.color = "var(--red)";
         modal.querySelector("#fb-status-icon").innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>';
-        modal.querySelector("#fb-status-icon").style.color = "var(--red-500, #ef4444)";
         modal.querySelector("#fb-status-title").innerText = "Failed to send";
         modal.querySelector("#fb-status-msg").innerText = "Please try again later or check your connection.";
         setTimeout(close, 4000);
