@@ -3538,19 +3538,6 @@ html[data-transition="drill"]::view-transition-new(root) {
   .vocab-match-btn.text-small {
     font-size: 13px;
   }
-  .vocab-sentence-card {
-    flex-direction: column;
-    border-radius: var(--radius-xl);
-    gap: 8px;
-    padding: 12px;
-  }
-  .vocab-sentence-input {
-    padding: 12px;
-  }
-  .vocab-sentence-card button#vocab-check-btn {
-    width: 100% !important;
-    border-radius: var(--radius-lg) !important;
-  }
 }
 
 /* MCQ Adjustments for Vocab */
@@ -3707,6 +3694,24 @@ html[data-transition="drill"]::view-transition-new(root) {
   background: var(--red-bg);
   border: 1px solid var(--red-border);
   color: #b91c1c;
+}
+
+@media (max-width: 600px) {
+  .vocab-sentence-card {
+    flex-direction: column;
+    border-radius: var(--radius-xl);
+    gap: 8px;
+    padding: 12px;
+  }
+  .vocab-sentence-input {
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .vocab-sentence-card button#vocab-check-btn {
+    width: 100% !important;
+    border-radius: var(--radius-lg) !important;
+  }
 }
 
 @keyframes shake {

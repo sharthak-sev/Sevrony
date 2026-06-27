@@ -525,10 +525,6 @@
       progress = Math.min(((vocabState.phasesPassed || 0) / 80) * 100, 100);
     }
 
-    const phaseLabel = vocabState.mode === 'learn'
-      ? `<span style="font-size: 12px; padding: 2px 10px; border-radius: 12px; font-weight: 600; ${getPhaseStyle(vocabState.phase)}">${getPhaseName(vocabState.phase)}</span>`
-      : '';
-
     return `
       <div class="vocab-session">
         <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;">
@@ -539,7 +535,6 @@
             <div style="height: 100%; width: ${progress}%; background: var(--bb-blue); transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 4px;"></div>
           </div>
           <span class="muted" style="font-size: 14px; white-space: nowrap; font-weight: 600;">${completedItems} / ${totalItems}</span>
-          ${phaseLabel}
         </div>
         
         <div style="max-width: 800px; margin: 0 auto;">
@@ -547,26 +542,6 @@
         </div>
       </div>
     `;
-  }
-
-  function getPhaseName(phase) {
-    switch (phase) {
-      case 'flashcard': return 'Flashcards';
-      case 'mcq': return 'Multiple Choice';
-      case 'match': return 'Match';
-      case 'sentence': return 'Use in a Sentence';
-      default: return '';
-    }
-  }
-
-  function getPhaseStyle(phase) {
-    switch (phase) {
-      case 'flashcard': return 'background: #dbeafe; color: #1d4ed8;';
-      case 'mcq': return 'background: #dcfce7; color: #15803d;';
-      case 'match': return 'background: #ede9fe; color: #6d28d9;';
-      case 'sentence': return 'background: #fef3c7; color: #b45309;';
-      default: return '';
-    }
   }
 
   function renderFlashcard(wordObj) {
@@ -749,7 +724,12 @@
 
     function matchSelect(side, id) {
     vocabState.matchWrong = null;
-    vocabState.matchSelected[side] = id;
+    
+    if (vocabState.matchSelected[side] === id) {
+      vocabState.matchSelected[side] = null;
+    } else {
+      vocabState.matchSelected[side] = id;
+    }
 
     if (vocabState.matchSelected.left && vocabState.matchSelected.right) {
       if (vocabState.matchSelected.left === vocabState.matchSelected.right) {
