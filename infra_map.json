@@ -1,0 +1,179 @@
+{
+  "nodes": [
+    {
+      "id": "app.js",
+      "under_the_hood": "The app.js file acts as the primary orchestrator, implementing a custom 7-band Item Response Theory (IRT) model using a Newton-Raphson method and route-aware score ceilings to accurately simulate adaptive scores. It manages a responsive sidebar architecture (handling collapsible states via localStorage and DOM class toggling, alongside a dynamic off-canvas overlay and .mobile-header for mobile devices, while strictly suppressing sidebar visibility when a vocab session is active to prevent UI flickering). It renders data-dense visualizations using native DOM/CSS elements without external charting libraries, including a premium gamified Streak Widget and a completely redesigned Sessions Overview page. This overview features dashboard-style summary cards (Total Sessions, Overall Accuracy, Accuracy by Subject) and color-coded accuracy progress bars (Math and R&W) built with a fluid grid layout. It handles parsing and normalization of .sat-test format and College Board Bluebook JSON exports (including comprehensive fallback scanning for difficulty tags across metadata to patch 'Unspecified' legacy records, and extracting precise sub-domains/skills to display in the question UI). It orchestrates user onboarding sequences, integrating closely with sync.js for Drive account linking and seamless session renewal, natively routing the cloud sync indicator (now utilizing a sleek Shadcn-style badge with inline Lucide outline SVGs) and session-expired bubble into both the desktop sidebar and the mobile header dynamically with context-aware color tinting via specific DOM classes. Redundant manual 'Sync Now' buttons have been removed from the Data & Backup tab, and the 'Retry Mistakes' button has been removed from the dashboard hero to streamline actions. A built-in tutorial system guides new users via spotlit UI elements. It handles UI updates via vanilla DOM replacement and View Transitions, and mathematical rendering through a custom MathML-to-LaTeX bridge before passing to KaTeX. The Desmos calculator's persistent DOM node (#persistent-desmos) is actively toggled via CSS display properties upon test exit to guarantee it never lingers over non-test views. It includes a custom HTML sanitizer that is heavily memoized to speed up rendering. It lazy-loads analytics platforms like PostHog and Sentry. It relies on performant IndexedDB queries and features a heavily debounced structured clone persistence mechanism to prevent main-thread stuttering. It utilizes robust indeterminate and determinate loading overlays, intelligently tracking progress for large cross-store operations like backup restorations. It also powers advanced native CSS analytics charts (including animated pie charts with intelligent empty-state handling and fully visible tooltipped volume bar charts) using pure DOM elements. It employs highly targeted DOM updates (e.g. selectively rendering inner panel contents on tab switches) to prevent layout thrashing and unintended CSS animation re-triggers on parent container nodes. It also includes an interactive Mistakes Log journal with chronological feeds, custom tagging, and personal notes for missed or omitted questions, built using a dynamic UI with cross-session filtering and a Shadcn UI-inspired Accordion interface. The Mistakes Log actively triggers SevSync.sync() upon note/tag updates to provide immediate visual feedback via the sync indicator. The Mistakes Log notes feature a minimalist, monochrome Shadcn-inspired Card aesthetic, completely separating the read-only view from the interactive edit mode to maintain a clean interface. It implements custom Shadcn-style UI modals for confirmation dialogs and text prompts (e.g., adding custom tags smoothly via direct DOM injection without triggering unintended full UI re-renders). For questions without notes or tags, the UI defaults to an ultra-minimal 'Add Note' empty state, hiding the editing clutter until the user explicitly toggles the form. The app utilizes a global interaction tracker (monitoring `mousedown` and `keydown` events) to aggressively blur native `<select>` dropdowns after interactions, overriding Chrome's default behavior where select elements retain sticky `:focus-visible` outlines. It tracks newly toggled accordion items via `state.mistakesLog.justToggled` to selectively bypass CSS animations during re-renders, preventing visual flashing. It enforces mandatory tag selection before saving notes, properly renders the user's incorrect choices and submitted SPR answers, shows visual color-coded badges for difficulty levels and 'Omitted' skipped questions, includes status filters (Incorrect/Omitted/Mix), and includes full question stimuli (passages/data) alongside prompts. The application features granular sub-domain filtering across the Mistakes Log, Retry Mistakes, and Create New Test dashboards. Users can drill down beyond broad domains into specific sub-domains via dynamically generated dropdowns and nested checkboxes. To maintain a clean interface, these granular sub-domain checkboxes in Create New Test and Retry Mistakes are hidden by default and are revealed via an 'Advanced' toggle, while in the Mistakes Log, the domain and sub-domain filter dropdowns conditionally appear only after their parent categories are selected. For Full Tests, this Advanced toggle and the sub-domain checkboxes are completely hidden to maintain flow. `updateMistakesLogUI` and `renderHome` handle broader filter-driven layout updates with robust event delegation. It includes a Show/Hide Answer toggle in the Mistakes Log that renders fresh options and hides SPR input boxes when answers are hidden, seamlessly updating the DOM without triggering layout glitches or redundant accordion animations. A unified, animated 'scroll to top' floating action button is now globally supported and actively rendered within both the Review Answers and Mistakes Log views to improve navigation for long question lists. It also gracefully catches and suppresses 'already_syncing' errors from SevSync to prevent annoying error popups when manual syncs overlap with background auto-syncs. It includes a Vocabulary Dashboard accessible via the sidebar, providing an interactive dashboard and integrating with vocab.js to launch Spaced Repetition System (SRS) vocabulary sessions. It explicitly exports `renderHome` onto the window object (`window.renderHome`) to provide a cross-module re-render bridge, enabling vocab.js (which runs in its own IIFE scope) to trigger full DOM re-renders after session state changes like starting sessions, advancing questions, and ending sessions. It explicitly handles `#vocab` and `#vocab-mastered` hash routing to preserve vocabulary dashboard state on page refreshes, and includes a global `hashchange` event listener alongside `popstate` to ensure manual hash changes via internal links properly trigger SPA navigation, seamlessly injecting `window.Vocab.renderMastered()` into the main DOM."
+    },
+    {
+      "id": "db.js",
+      "under_the_hood": "The db.js script encapsulates IndexedDB operations within a global Promise-based API called window.SatPracticeDB. It initializes the database schema, creating essential object stores such as questionBanks, questions, sessions, responses, appConfig, and vocabWords with specific indexes like subject and domainCode. The data flow heavily involves app.js invoking DB.getAll() for state hydration and DB.put() for saving imported test data. It includes an optimized getAllByIndex() method for performant querying of indexed properties (like sessionId on responses) without loading entire object stores into memory. Modifications to the database version without appropriate upgrade paths could lead to significant data loss or dropped indexes, fundamentally breaking application filters."
+    },
+    {
+      "id": "sw.js",
+      "under_the_hood": "The sw.js file configures the Service Worker to provide an offline-first Progressive Web App experience. During the installation phase, it caches core application assets (index.html, styles.css, app.js, db.js, logo.svg) into a versioned cache store (sat-practice-cache-v2.1.1) and calls skipWaiting() for immediate activation. It actively bypasses the browser's HTTP cache during install by appending dynamic timestamps. For fetch events, it employs a Network-First strategy with a Cache Fallback mechanism for GET requests only, explicitly using `cache: 'no-cache'` for same-origin requests to prevent mobile disk caches from serving stale UI, dynamically updating the cache with successful 200 responses of type 'basic'."
+    },
+    {
+      "id": "index.html",
+      "under_the_hood": "The index.html file serves as the main application entry point and registers the Service Worker for offline capabilities. It is stripped of all marketing SEO metadata and contains a <meta name='robots' content='noindex'> tag to prevent keyword cannibalization with the root repository's (sharthak-sev.github.io) marketing landing page. It retains essential PWA metadata including the manifest link, theme color, strict viewport scaling locks (user-scalable=no, maximum-scale=1.0) to prevent UI breakage during rapid tap interactions, and basic device icons (logo.svg, apple-touch-icon.png, favicon.ico) required for the app experience. The initial boot screen leverages a structured modern centered layout containing an indeterminate progress bar designed to mimic Shadcn UI components. It loads external dependencies: securely version-pinned KaTeX (v0.16.21) and its auto-render extension via jsDelivr CDN for mathematical typography, and Google Fonts (Inter, JetBrains Mono, Plus Jakarta Sans). Stylesheets are split between styles.css (hand-authored) and tailwind.css (pre-compiled Tailwind build). Asset links include explicit cache-busting query strings (e.g., ?v=2.1.1) to force browsers to fetch the latest UI files. Scripts are loaded in dependency order: db.js, sync.js, vocab.js, then app.js, all deferred. It also integrates the `@lottiefiles/dotlottie-wc` Web Component player, which MUST be used via `<dotlottie-wc>` tags whenever smooth, high-performance Lottie animations are needed for engaging UI feedback (e.g., success states, loaders, empty states) across Sevrony."
+    },
+    {
+      "id": "styles.css",
+      "under_the_hood": "The styles.css file provides comprehensive styling for the application interface, encompassing layout rules, View Transitions, and color variables defined as CSS custom properties. It implements layout logic for a collapsible, left-aligned responsive sidebar with native UI scaling and dynamic state management, utilizing strict CSS scoping (e.g. .sidebar-collapsed .sidebar) to prevent layout rules from unintentionally bleeding into the independent sticky .mobile-header. It implements a fully functional dark mode theme using the data-theme attribute toggled programmatically by app.js. It features a heavily polished, ultra-clean minimal design system (a 'Pro Max' integration blending Zinc monochrome with Shadcn UI aesthetics), including crisp 1px borders, subtle drop shadows, 500-weight typography, native DOM chart styling with visible overflowing tooltips that avoid clipping boundaries (using width: max-content universally to prevent text wrapping artifacts across all device sizes), and interactive border and background color-mix tints on stateful elements like sync indicators. Global resets include max-width: 100% and height: auto on img and svg elements, and a scoped .html-content rule applies the same constraints to sanitized question HTML to prevent SVG chart overflow. It purposefully avoids slow pseudo-selectors like :has() on massive review lists to maintain performant rendering and interactions. It contains sophisticated CSS animations for dynamic loading states, including indeterminate smooth-scaling progress bars for file imports and boot screens, infinite-spin loaders for cloud syncing operations, hardware-accelerated 3D flips (`rotateY`, `preserve-3d`) for vocabulary flashcards, and keyframe `shake` animations for incorrect match interactions. It enforces strict mobile responsiveness via robust media queries, leveraging flex column stacking, grid re-templating, dynamic responsive shrinking for modals and busy/loading cards, and rigorous min-width constraints to entirely eliminate horizontal scrolling on small screens. It actively prevents mobile overscroll chaining and pull-to-refresh bounce elasticity by enforcing strict overscroll-behavior and touch-action constraints on the responsive sidebar. It also contains styling for interactive tag badges and CSS polyfills mimicking Shadcn UI components (Card and Accordion) used in the Mistakes Log, including a refined soft black hover state with a subtle drop-shadow that is selectively disabled when items are maximized to prevent visual noise. It strictly utilizes `:focus-visible` on `.styled-select` classes to prevent sticky mouse focus outlines, and enforces a fixed uniform width (with text ellipsis) on these dropdowns to prevent layout stretching from long sub-domain names, seamlessly integrating standard select inputs into the Shadcn aesthetic. It also incorporates dedicated mobile responsive overrides for the vocabulary interface (e.g., stacking .vocab-sentence-card into columns, scaling down .vocab-match-grid gaps, and enlarging tap targets) to prevent off-screen UI clipping, rigorously managing the CSS cascade order to ensure mobile media queries successfully override desktop base rules."
+    },
+    {
+      "id": "manifest.json",
+      "under_the_hood": "The manifest.json file defines the PWA install metadata. It declares the app name ('Sevrony'), a standalone display mode, dark background color (#0f172a), blue theme color (#3b82f6), and a single SVG icon (logo.svg) with purpose 'any maskable'. The start_url is set to ./index.html. This file is referenced by index.html via a <link rel='manifest'> tag and is consumed by the browser's PWA install prompt and by the Service Worker's caching logic."
+    },
+    {
+      "id": "robots.txt",
+      "under_the_hood": "The robots.txt file allows all crawlers unrestricted access and declares the sitemap location. IMPORTANT: Googlebot only reads robots.txt from the root of a domain (https://sharthak-sev.github.io/robots.txt), NOT from subdirectory paths. Because this app is hosted at /Sevrony/, this file is effectively invisible to Google's crawler. A separate robots.txt must exist in the root sharthak-sev.github.io repository to be recognized."
+    },
+    {
+      "id": "sitemap.xml",
+      "under_the_hood": "The sitemap.xml file declares the single indexable URL (https://sharthak-sev.github.io/Sevrony/) with a weekly change frequency and priority 1.0. The lastmod date should be updated whenever significant content or SEO metadata changes are deployed. Discovery by Googlebot depends on the root-domain robots.txt referencing this file's full URL."
+    },
+    {
+      "id": "logo.svg",
+      "under_the_hood": "The logo.svg file is a minimal vector icon: a black rounded rectangle (rx=24) with a white stylized 'S' stroke path. It serves as the primary favicon for modern browsers, the PWA icon via manifest.json, and the Open Graph/Twitter Card image. It has a corresponding rasterized derivative apple-touch-icon.png (180x180) for Apple devices and Google's favicon crawler."
+    },
+    {
+      "id": "apple-touch-icon.png",
+      "under_the_hood": "A 180x180 pixel PNG rasterization of logo.svg, generated via Inkscape. Required because Apple devices and Google's favicon crawler do not support SVG for apple-touch-icon. Referenced by index.html via <link rel='apple-touch-icon'>. Must be regenerated from logo.svg if the logo design ever changes."
+    },
+    {
+      "id": "googleb2760b38c149ad05.html",
+      "under_the_hood": "A Google Search Console site verification file. Contains a single line asserting domain ownership for the URL-prefix property https://sharthak-sev.github.io/Sevrony/. Deleting this file will revoke Google Search Console verification and break sitemap submission, indexing requests, and search performance reporting."
+    },
+    {
+      "id": "tailwind.css",
+      "under_the_hood": "A pre-compiled Tailwind CSS production build. Generated offline from input.css via the Tailwind CLI using tailwind.config.js, then committed as a static asset. This file is NOT generated at build time on GitHub Pages \u2014 it must be rebuilt locally whenever Tailwind utility classes change in app.js or index.html and re-committed. Loaded by index.html after styles.css."
+    },
+    {
+      "id": "sync.js",
+      "under_the_hood": "The sync.js module implements optional Google Drive cloud sync via Google Identity Services (GIS) OAuth 2.0. It lazy-loads the GIS client library, manages access tokens with cached token validation (utilizing login_hint and prompt: '' strictly for silent background token renewals, while the link() function explicitly omits prompt: '' to guarantee an interactive account picker for new account linkages), and reads/writes a single sevrony-sync.json file in the user's Drive appdata folder. The Drive file ID is cached in localStorage to eliminate redundant findSyncFile API calls. The merge strategy is bidirectional last-write-wins: local and remote records are read in parallel, then merged per-record using updatedAt timestamps. Records that exist only locally are pushed; records that exist only remotely are pulled. The merged set is written back to the cloud *only* if the local state contributed newer records (skipping redundant uploads), and remote-newer records are written to IndexedDB. Active tests ('__active_test__') are excluded. The public API exposes link(), unlink() (which preserves the Google OAuth grant to prevent repeated consent prompts on re-login), sync() (supporting options like forcePush to overwrite cloud state on progress resets), isLinked(), and getStatus(). Auto-sync is debounced by 3 seconds. The module also features robust background polling (every 15 seconds) and visibility-change triggers (throttled to 5s) to ensure cross-device consistency without flashing the UI unless new data is actively fetched. The sync() function contains a guard clause to immediately reject background syncs with an 'auth_expired' status if the token is invalid, preventing the system from entering an infinite 'syncing' UI loop. It also explicitly handles concurrent sync requests by returning an 'already_syncing' flag if a new sync triggers while a previous operation is still pending, protecting the data pipeline from race conditions. It now natively supports syncing the `vocabWords` store alongside tests, utilizing a dynamic `idField` parameter in `mergeRecordSets` to seamlessly handle non-standard primary keys like 'word'. It features a highly specialized `mergeVocabWords` function that enforces strict progress-based conflict resolution (`Mastered` > `Learning` > `New`) rather than naive timestamp comparisons, completely preventing devices from accidentally downgrading cloud progress if a user gets a previously mastered word wrong locally, while uniquely detecting and respecting intentional manual database resets. It also natively synchronizes the in-progress vocabulary session state (`sat_vocab_state` from `localStorage`) via timestamp-based conflict resolution, allowing seamless cross-device session resuming."
+    },
+    {
+      "id": "vocab.js",
+      "under_the_hood": "The vocab.js file encapsulates the Spaced Repetition System (SRS) logic and interactive vocabulary session engine. It manages a dynamic dashboard UI and orchestrates multiple practice modes (Flashcards, Multiple Choice, Match, and Use in a Sentence). The session engine processes a 20-word pool in a sophisticated 2-cycle 'Learn' mode: Cycle 1 exposes 10 words across all four phases, tracking granular mistakes per phase. Unmastered words seamlessly carry over to Cycle 2 and are backfilled with remaining new words to complete the batch. It actively updates the `vocabWords` IndexedDB store using an SM-2 spaced repetition algorithm to schedule future reviews and tracks 'Mastered' status. It features a completely randomized, shuffle-first word selection pipeline to break alphabetical ties. It handles the rendering of a dedicated 'Mastered Words' archive, which now houses the premium-styled 'Reset Vocab' button to wipe vocabulary mastery progress and instantly trigger feedback, alongside a redesigned 'Back to Vocab Dashboard' navigation button. The Match UI simultaneously displays all 10 words for cognitive load, with CSS transition optimizations allowing users to fluidly select new targets while correct-match animations are running without race conditions, and implements intuitive toggle deselection for active targets. It uses streamlined, localized phase badges within individual activity frames rather than redundant global progress labels. For the 'Use in a Sentence' activity, it securely delegates AI validation to a Cloudflare Worker backend."
+    },
+    {
+      "id": "dsat_vocabulary.json",
+      "under_the_hood": "A static JSON dataset containing ~345 high-frequency SAT vocabulary words, their meanings, and example sentences. It is fetched by vocab.js during initialization to seed the local IndexedDB vocabWords store."
+    },
+    {
+      "id": "cloudflare-worker.js",
+      "under_the_hood": "A serverless backend routing module deployed on Cloudflare Workers. It exposes an API for two primary routes. First, it validates user-generated sentences in the vocabulary module by passing them to the Gemini API and returning true/false. Second, it handles the `/api/feedback` route, which parses multipart/form-data containing user feedback, auto-collected diagnostics, and optional screenshots, and securely forwards them to a configured Discord Webhook. It also implements an IP-based rate limiting strategy to prevent abuse."
+    },
+    {
+      "id": "sevrony-shell",
+      "under_the_hood": "A Vite-powered, isolated multi-page development shell designed purely for UI/UX experimentation and theme testing without risking production stability. It mimics the main site's file structure (housing a marketing page at index.html and the main app at app/index.html). The app environment is populated with the complete production JavaScript engine (app.js, db.js, vocab.js, sync.js) alongside a custom seed_dummy_data.js script. This seed script forcefully injects comprehensive dummy data (fake sessions, math/rw questions, responses, and mistakes) into IndexedDB on initialization, fully activating all internal routes (Dashboard, Mistakes Log, Review Answers, Vocab) in a safe, interactive sandbox where CSS/Tailwind changes can be instantly hot-reloaded and evaluated."
+    }
+  ],
+  "edges": [
+    {
+      "source": "index.html",
+      "target": "app.js"
+    },
+    {
+      "source": "index.html",
+      "target": "db.js"
+    },
+    {
+      "source": "index.html",
+      "target": "styles.css"
+    },
+    {
+      "source": "index.html",
+      "target": "tailwind.css"
+    },
+    {
+      "source": "index.html",
+      "target": "sw.js"
+    },
+    {
+      "source": "index.html",
+      "target": "logo.svg"
+    },
+    {
+      "source": "index.html",
+      "target": "apple-touch-icon.png"
+    },
+    {
+      "source": "index.html",
+      "target": "manifest.json"
+    },
+    {
+      "source": "app.js",
+      "target": "db.js"
+    },
+    {
+      "source": "manifest.json",
+      "target": "logo.svg"
+    },
+    {
+      "source": "sw.js",
+      "target": "logo.svg"
+    },
+    {
+      "source": "sw.js",
+      "target": "sync.js"
+    },
+    {
+      "source": "index.html",
+      "target": "sync.js"
+    },
+    {
+      "source": "sync.js",
+      "target": "db.js"
+    },
+    {
+      "source": "app.js",
+      "target": "sync.js"
+    },
+    {
+      "source": "robots.txt",
+      "target": "sitemap.xml"
+    },
+    {
+      "source": "logo.svg",
+      "target": "apple-touch-icon.png",
+      "relationship": "source-derivative"
+    },
+    {
+      "source": "index.html",
+      "target": "vocab.js"
+    },
+    {
+      "source": "app.js",
+      "target": "vocab.js"
+    },
+    {
+      "source": "vocab.js",
+      "target": "db.js"
+    },
+    {
+      "source": "vocab.js",
+      "target": "dsat_vocabulary.json"
+    },
+    {
+      "source": "vocab.js",
+      "target": "app.js",
+      "relationship": "calls-window.renderHome"
+    },
+    {
+      "source": "vocab.js",
+      "target": "cloudflare-worker.js",
+      "relationship": "fetches backend validation"
+    },
+    {
+      "source": "sevrony-shell",
+      "target": "app.js",
+      "relationship": "imports production logic for UI shell testing"
+    },
+    {
+      "source": "app.js",
+      "target": "cloudflare-worker.js",
+      "relationship": "submits feedback payload to /api/feedback"
+    }
+  ]
+}
