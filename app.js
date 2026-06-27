@@ -1790,7 +1790,6 @@
         <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Resetting progress wipes your test history but keeps your question banks. Wiping all data deletes everything, including question banks.</p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
           <button class="danger-btn" type="button" data-action="reset">Reset Progress</button>
-          <button class="danger-btn" type="button" data-action="reset-vocab">Reset Vocab</button>
           <button class="danger-btn" type="button" data-action="wipe-all">Wipe All Data</button>
         </div>
       </section>

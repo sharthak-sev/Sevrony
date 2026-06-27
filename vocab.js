@@ -298,8 +298,21 @@
       <div style="margin-bottom: 48px; text-align: center; max-width: 600px; margin-left: auto; margin-right: auto; padding-top: 24px;">
         <h2 style="font-size: 32px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink); margin-bottom: 12px;">Vocabulary</h2>
         <p style="font-size: 16px; line-height: 1.6; color: var(--ink-secondary); text-wrap: balance; margin-bottom: 24px;">Master high-frequency SAT words with adaptive spaced repetition.</p>
-        <button class="secondary-btn" style="border-radius: var(--radius-pill); padding: 8px 24px; font-size: 14px;" onclick="window.location.hash='#vocab-mastered'">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; vertical-align: -3px;"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"></path></svg>
+        <button onclick="window.location.hash='#vocab-mastered'" style="
+          display: inline-flex; 
+          align-items: center; 
+          border-radius: 9999px; 
+          padding: 10px 28px; 
+          font-size: 14.5px; 
+          font-weight: 500;
+          background: var(--panel);
+          color: var(--ink);
+          border: 1px solid var(--line);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+        " onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0, 0, 0, 0.08)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.05)';">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; vertical-align: -3px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           View Mastered Words
         </button>
       </div>
@@ -1151,7 +1164,41 @@
       <div style="margin-bottom: 48px; text-align: center; max-width: 600px; margin-left: auto; margin-right: auto; padding-top: 24px;">
         <h2 style="font-size: 32px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink); margin-bottom: 12px;">Mastered Words</h2>
         <p style="font-size: 16px; line-height: 1.6; color: var(--ink-secondary); text-wrap: balance;">Words you've successfully learned.</p>
-        <button class="ghost-btn" style="margin-top: 16px;" onclick="window.location.hash='#vocab'">Back to Dashboard</button>
+        <div style="margin-top: 24px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+          <button onclick="window.location.hash='#vocab'" style="
+            display: inline-flex; 
+            align-items: center; 
+            border-radius: 9999px; 
+            padding: 10px 24px; 
+            font-size: 14.5px; 
+            font-weight: 500;
+            background: transparent;
+            color: var(--ink-secondary);
+            border: 1px solid var(--line);
+            transition: all 0.2s ease;
+            cursor: pointer;
+          " onmouseover="this.style.background='var(--panel)'; this.style.color='var(--ink)';" onmouseout="this.style.background='transparent'; this.style.color='var(--ink-secondary)';">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="m15 18-6-6 6-6"/></svg>
+            Back to Vocab Dashboard
+          </button>
+          
+          <button type="button" data-action="reset-vocab" style="
+            display: inline-flex; 
+            align-items: center; 
+            border-radius: 9999px; 
+            padding: 10px 24px; 
+            font-size: 14.5px; 
+            font-weight: 500;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            transition: all 0.2s ease;
+            cursor: pointer;
+          " onmouseover="this.style.background='rgba(239, 68, 68, 0.15)'; this.style.borderColor='rgba(239, 68, 68, 0.3)';" onmouseout="this.style.background='rgba(239, 68, 68, 0.1)'; this.style.borderColor='rgba(239, 68, 68, 0.2)';">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+            Reset Vocab
+          </button>
+        </div>
       </div>
       <div id="mastered-list" class="mastered-grid" style="text-align: center; color: var(--ink-muted);">Loading...</div>
     `;
