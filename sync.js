@@ -239,9 +239,9 @@
    * Merges two record sets using last-write-wins on timestamps.
    * Pure timestamp comparison — no JSON.stringify (that was killing perf).
    */
-  function mergeRecordSets(localRecords, remoteRecords) {
-    const localMap = new Map(localRecords.map(r => [r.id, r]));
-    const remoteMap = new Map((remoteRecords || []).map(r => [r.id, r]));
+  function mergeRecordSets(localRecords, remoteRecords, idField = "id") {
+    const localMap = new Map(localRecords.map(r => [r[idField], r]));
+    const remoteMap = new Map((remoteRecords || []).map(r => [r[idField], r]));
     const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
     const merged = [];
     const localUpdates = [];
@@ -285,23 +285,28 @@
    */
   async function bidirectionalSync(options = {}) {
     // Read local (IndexedDB — instant)
-    const [localBanks, localQuestions, localSessions, localResponses] = await Promise.all([
+    const [localBanks, localQuestions, localSessions, localResponses, localVocabWords] = await Promise.all([
       DB.getAll("questionBanks"),
       DB.getAll("questions"),
       DB.getAll("sessions"),
       DB.getAll("responses"),
+      DB.getAll("vocabWords"),
     ]);
 
     const filteredSessions = localSessions.filter(s => s.id !== "__active_test__");
 
     // If forcePush is enabled (e.g. from a backup restore), write local directly to cloud and skip merge
     if (options.forcePush) {
+      const localVocabStateStr = localStorage.getItem('sat_vocab_state');
+      const localVocabState = localVocabStateStr ? JSON.parse(localVocabStateStr) : null;
       await writeSyncFile({
         syncedAt: new Date().toISOString(),
         questionBanks: localBanks,
         questions: localQuestions,
         sessions: filteredSessions,
         responses: localResponses,
+        vocabWords: localVocabWords,
+        vocabState: localVocabState,
       });
       return false; // Local DB was not changed by this sync
     }
@@ -314,9 +319,32 @@
     const questions = mergeRecordSets(localQuestions, remote?.questions);
     const sessions = mergeRecordSets(filteredSessions, remote?.sessions);
     const responses = mergeRecordSets(localResponses, remote?.responses);
+    const vocabWords = mergeRecordSets(localVocabWords, remote?.vocabWords, "word");
 
-    const hasLocalUpdates = banks.localUpdates.length > 0 || questions.localUpdates.length > 0 || sessions.localUpdates.length > 0 || responses.localUpdates.length > 0;
-    const remoteNeedsUpdate = !remote || banks.remoteNeedsUpdate || questions.remoteNeedsUpdate || sessions.remoteNeedsUpdate || responses.remoteNeedsUpdate;
+    const localVocabStateStr = localStorage.getItem('sat_vocab_state');
+    const localVocabState = localVocabStateStr ? JSON.parse(localVocabStateStr) : null;
+    let mergedVocabState = localVocabState;
+    let vocabStateLocalChanged = false;
+    let vocabStateRemoteNeedsUpdate = false;
+
+    if (remote?.vocabState) {
+       const remoteTs = remote.vocabState.updatedAt || 0;
+       const localTs = localVocabState ? (localVocabState.updatedAt || 0) : 0;
+       if (remoteTs > localTs) {
+          mergedVocabState = remote.vocabState;
+          vocabStateLocalChanged = true;
+       } else if (localTs > remoteTs) {
+          mergedVocabState = localVocabState;
+          vocabStateRemoteNeedsUpdate = true;
+       } else {
+          mergedVocabState = remote.vocabState;
+       }
+    } else if (localVocabState) {
+       vocabStateRemoteNeedsUpdate = true;
+    }
+
+    const hasLocalUpdates = banks.localUpdates.length > 0 || questions.localUpdates.length > 0 || sessions.localUpdates.length > 0 || responses.localUpdates.length > 0 || vocabWords.localUpdates.length > 0 || vocabStateLocalChanged;
+    const remoteNeedsUpdate = !remote || banks.remoteNeedsUpdate || questions.remoteNeedsUpdate || sessions.remoteNeedsUpdate || responses.remoteNeedsUpdate || vocabWords.remoteNeedsUpdate || vocabStateRemoteNeedsUpdate;
 
     // If we're in a silent background sync but found new data to pull,
     // light up the UI indicator so the user sees it's actively pulling changes.
@@ -335,6 +363,8 @@
         questions: questions.merged,
         sessions: sessions.merged,
         responses: responses.merged,
+        vocabWords: vocabWords.merged,
+        vocabState: mergedVocabState,
       });
     }
 
@@ -344,6 +374,15 @@
     if (questions.localUpdates.length) { await DB.putMany("questions", questions.localUpdates); localChanged = true; }
     if (sessions.localUpdates.length) { await DB.putMany("sessions", sessions.localUpdates); localChanged = true; }
     if (responses.localUpdates.length) { await DB.putMany("responses", responses.localUpdates); localChanged = true; }
+    if (vocabWords.localUpdates.length) { await DB.putMany("vocabWords", vocabWords.localUpdates); localChanged = true; }
+
+    if (vocabStateLocalChanged && mergedVocabState) {
+        localStorage.setItem('sat_vocab_state', JSON.stringify(mergedVocabState));
+        if (window.Vocab && window.Vocab.reloadState) {
+            window.Vocab.reloadState();
+        }
+        localChanged = true;
+    }
 
     return localChanged;
   }

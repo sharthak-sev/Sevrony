@@ -37,14 +37,16 @@
     const saved = localStorage.getItem('sat_vocab_state');
     if (saved) {
       const parsed = JSON.parse(saved);
-      Object.assign(vocabState, parsed);
-      vocabState.completedWords = new Set(parsed.completedWords || []);
+      const { backendEndpoint, ...parsedState } = parsed;
+      Object.assign(vocabState, parsedState);
+      vocabState.completedWords = new Set(parsedState.completedWords || []);
     }
   } catch(e) {}
 
   function saveVocabState() {
-    const { allDbWords, ...stateToSave } = vocabState;
+    const { allDbWords, backendEndpoint, ...stateToSave } = vocabState;
     stateToSave.completedWords = Array.from(vocabState.completedWords || []);
+    stateToSave.updatedAt = Date.now();
     localStorage.setItem('sat_vocab_state', JSON.stringify(stateToSave));
   }
 
@@ -83,7 +85,9 @@
       dbWord.easeFactor = Math.max(1.3, dbWord.easeFactor - 0.2);
       dbWord.nextReviewDate = Date.now() + 12 * 60 * 60 * 1000; // 12 hours
     }
+    dbWord.updatedAt = Date.now();
     await window.SatPracticeDB.put("vocabWords", dbWord);
+    if (window.SevSync?.isLinked()) window.SevSync.sync();
   }
 
   function escapeHtml(str) {
@@ -145,10 +149,12 @@
             status: "New",
             easeFactor: 2.5,
             interval: 0,
-            nextReviewDate: Date.now()
+            nextReviewDate: Date.now(),
+            updatedAt: 0
           }));
           await window.SatPracticeDB.putMany("vocabWords", dbWords);
           console.log(`Seeded ${dbWords.length} vocabulary words.`);
+          if (window.SevSync?.isLinked()) window.SevSync.sync();
         } else {
           console.warn("dsat_vocabulary.json not found for seeding.");
         }
@@ -475,6 +481,14 @@
   }
 
   function renderSession() {
+    if (!vocabState.allDbWords || vocabState.allDbWords.length === 0) {
+       window.SatPracticeDB.getAll("vocabWords").then(words => {
+           vocabState.allDbWords = words;
+           if (window.renderHome) window.renderHome();
+       });
+       return `<div style="text-align: center; padding: 48px; color: var(--ink-muted);">Loading session data...</div>`;
+    }
+
     if (vocabState.currentIndex >= vocabState.currentBatch.length) {
       // Current phase complete — try to advance
       if (advancePhase()) {
@@ -1043,6 +1057,7 @@
     vocabState.mcqOptions = null;
     vocabState.lastSentenceSubmitted = null;
     saveVocabState();
+    if (window.SevSync && window.SevSync.isLinked()) window.SevSync.sync();
     if (window.renderHome) window.renderHome();
   }
 
@@ -1159,7 +1174,21 @@
     endSession();
   }
 
+  function reloadState() {
+    try {
+      const saved = localStorage.getItem('sat_vocab_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const { backendEndpoint, ...parsedState } = parsed;
+        Object.assign(vocabState, parsedState);
+        vocabState.completedWords = new Set(parsedState.completedWords || []);
+        if (window.renderHome) window.renderHome();
+      }
+    } catch(e) {}
+  }
+
   window.Vocab = {
+    reloadState,
     init: initVocab,
     renderDashboard,
     startSession,
