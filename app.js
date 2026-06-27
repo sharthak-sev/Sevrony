@@ -240,6 +240,18 @@
       }
     });
 
+    window.addEventListener("hashchange", () => {
+      if (window.location.hash) {
+        const hashView = window.location.hash.slice(1);
+        if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup", "vocab", "vocab-mastered"].includes(hashView)) {
+           if (state.view !== hashView) {
+               state.view = hashView;
+               if (!state.activeTest) renderHome(false);
+           }
+        }
+      }
+    });
+
     window.addEventListener("scroll", () => {
       const btn = document.querySelector(".scroll-top-btn");
       if (btn) {
@@ -359,7 +371,7 @@
 
       if (window.location.hash) {
         const hashView = window.location.hash.slice(1);
-        if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup"].includes(hashView)) {
+        if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup", "vocab", "vocab-mastered"].includes(hashView)) {
            state.view = hashView;
         }
       }
@@ -982,6 +994,7 @@
             ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
             ${state.view === "mistakes-log" ? renderMistakesLog() : ""}
             ${state.view === "vocab" ? window.Vocab.renderDashboard() : ""}
+            ${state.view === "vocab-mastered" ? window.Vocab.renderMastered() : ""}
             ${state.view === "backup" ? renderBackupView() : ""}
           </main>
         </div>
@@ -5817,11 +5830,12 @@ function renderTestReview() {
     modal.querySelector(".confirm-btn").onclick = function() {
       if (this.disabled) return;
       this.disabled = true;
-      this.textContent = "Deleting...";
+      if (options.processingText) this.textContent = options.processingText;
       close();
       onConfirm();
     };
   }
+  window.showConfirmModal = showConfirmModal;
   const _sanitizeCache = new Map();
 
   function sanitizeHtml(value) {

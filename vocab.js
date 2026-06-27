@@ -1,9 +1,12 @@
 (function () {
   "use strict";
 
-  let vocabState = {
+    let vocabState = {
     sessionActive: false,
-    words: [],
+    sessionWords: [], // total 20 words for the session
+    cycle: 1,
+    maxCycles: 2,
+    words: [], // words for the current cycle
     currentIndex: 0,
     currentBatch: [],
     batchSize: 10,
@@ -19,11 +22,31 @@
     matchCorrect: null,
     matchChunk: null,
     matchMeanings: null,
+    matchCompleteScheduled: false,
     // MCQ state
+    mcqSelected: null,
+    mcqCorrectValue: null,
+    mcqOptions: null,
+    lastSentenceSubmitted: null,
     // Backend API
     backendEndpoint: 'https://divine-silence-6016.sharthakjaiswal50.workers.dev/', // Replace this with your actual deployed Cloudflare Worker URL
     showSettings: false,
   };
+
+  try {
+    const saved = localStorage.getItem('sat_vocab_state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      Object.assign(vocabState, parsed);
+      vocabState.completedWords = new Set(parsed.completedWords || []);
+    }
+  } catch(e) {}
+
+  function saveVocabState() {
+    const { allDbWords, ...stateToSave } = vocabState;
+    stateToSave.completedWords = Array.from(vocabState.completedWords || []);
+    localStorage.setItem('sat_vocab_state', JSON.stringify(stateToSave));
+  }
 
   const PHASES_LEARN = ['flashcard', 'mcq', 'match', 'sentence'];
 
@@ -35,6 +58,32 @@
       [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
+  }
+
+  
+  async function updateWordDB(wordObj, mastered) {
+    const dbWords = await window.SatPracticeDB.getAll("vocabWords");
+    const dbWord = dbWords.find(w => w.word === wordObj.word);
+    if (!dbWord) return;
+
+    if (mastered) {
+      if (dbWord.status === "New") {
+        dbWord.status = "Learning";
+        dbWord.interval = 1;
+      } else {
+        if (dbWord.interval === 0) dbWord.interval = 1;
+        else if (dbWord.interval === 1) dbWord.interval = 6;
+        else dbWord.interval = Math.round(dbWord.interval * dbWord.easeFactor);
+      }
+      dbWord.status = "Mastered";
+      dbWord.nextReviewDate = Date.now() + dbWord.interval * 24 * 60 * 60 * 1000;
+    } else {
+      dbWord.status = "Learning";
+      dbWord.interval = 0;
+      dbWord.easeFactor = Math.max(1.3, dbWord.easeFactor - 0.2);
+      dbWord.nextReviewDate = Date.now() + 12 * 60 * 60 * 1000; // 12 hours
+    }
+    await window.SatPracticeDB.put("vocabWords", dbWord);
   }
 
   function escapeHtml(str) {
@@ -237,7 +286,11 @@
       
       <div style="margin-bottom: 48px; text-align: center; max-width: 600px; margin-left: auto; margin-right: auto; padding-top: 24px;">
         <h2 style="font-size: 32px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink); margin-bottom: 12px;">Vocabulary</h2>
-        <p style="font-size: 16px; line-height: 1.6; color: var(--ink-secondary); text-wrap: balance;">Master high-frequency SAT words with adaptive spaced repetition.</p>
+        <p style="font-size: 16px; line-height: 1.6; color: var(--ink-secondary); text-wrap: balance; margin-bottom: 24px;">Master high-frequency SAT words with adaptive spaced repetition.</p>
+        <button class="secondary-btn" style="border-radius: var(--radius-pill); padding: 8px 24px; font-size: 14px;" onclick="window.location.hash='#vocab-mastered'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; vertical-align: -3px;"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"></path></svg>
+          View Mastered Words
+        </button>
       </div>
       
       <div class="vocab-grid">
@@ -260,6 +313,8 @@
           </div>
         </div>
 
+
+
         <!-- Flashcard Mode -->
         <div class="vocab-card" onclick="window.Vocab.startSession('flashcard')">
           <div class="vocab-icon-wrapper">
@@ -279,69 +334,127 @@
     `;
   }
 
-  async function startSession(mode) {
+    async function startSession(mode) {
     const allWords = await window.SatPracticeDB.getAll("vocabWords");
     vocabState.allDbWords = allWords; // cache for distractors
 
-    // Sort by due date
-    allWords.sort((a, b) => a.nextReviewDate - b.nextReviewDate);
+    const shuffledAll = shuffle(allWords);
+    shuffledAll.sort((a, b) => a.nextReviewDate - b.nextReviewDate);
 
-    // Pick 10 words and SHUFFLE them (not alphabetical)
-    const sessionWords = shuffle(allWords.slice(0, 10));
+    if (mode === 'learn' && vocabState.mode === 'learn' && vocabState.sessionWords && vocabState.sessionWords.length > 0 && !vocabState.sessionComplete) {
+       vocabState.sessionActive = true;
+       saveVocabState();
+       if (window.renderHome) window.renderHome();
+       return;
+    }
 
     vocabState.sessionActive = true;
     vocabState.mode = mode;
-    vocabState.words = sessionWords;
     vocabState.currentIndex = 0;
+    vocabState.completedWords = new Set();
+    vocabState.phasesPassed = 0;
+    vocabState.sessionComplete = false;
 
     if (mode === 'flashcard') {
-      // Pure flashcard mode: 20 flashcards
-      vocabState.words = shuffle(allWords.slice(0, 20));
+      vocabState.words = shuffle(shuffledAll.slice(0, 20));
       vocabState.currentBatch = vocabState.words.map(w => ({
         ...w,
         activity: 'flashcard',
-        passed: false
+        passed: false,
+        mistakes: 0
       }));
       vocabState.phase = 'flashcard';
       vocabState.phaseIndex = 0;
     } else {
-      // Learn mode: 4 phases, 10 words each phase (same 10 words, different activities)
+      vocabState.sessionWords = shuffledAll.slice(0, 20); // up to 20 words due
+      vocabState.words = shuffle(vocabState.sessionWords.slice(0, 10)); // first 10 for cycle 1
+      vocabState.cycle = 1;
       vocabState.phase = PHASES_LEARN[0];
       vocabState.phaseIndex = 0;
-      vocabState.currentBatch = sessionWords.map(w => ({
+      vocabState.currentBatch = vocabState.words.map(w => ({
         ...w,
         activity: vocabState.phase,
-        passed: false
+        passed: false,
+        mistakes: 0
       }));
     }
 
-    // Re-render app
+    saveVocabState();
     if (window.renderHome) window.renderHome();
   }
 
-  function advancePhase() {
+    function advancePhase() {
     if (vocabState.mode === 'flashcard') {
-      // Flashcard mode has no phases, just finish
       return false;
     }
 
     vocabState.phaseIndex++;
     if (vocabState.phaseIndex >= PHASES_LEARN.length) {
-      return false; // All phases done
+      if (vocabState.cycle < vocabState.maxCycles) {
+        // End of Cycle 1
+        const unmastered = [];
+        vocabState.currentBatch.forEach(w => {
+          let orig = vocabState.words.find(x => x.word === w.word);
+          let mistakes = orig ? orig.mistakes : w.mistakes;
+          if (mistakes > 0) {
+            unmastered.push(w);
+            updateWordDB(w, false);
+          } else {
+            updateWordDB(w, true);
+          }
+        });
+        
+        // Prepare Cycle 2
+        const neededNew = 10 - unmastered.length;
+        const newWords = vocabState.sessionWords.slice(10, 10 + neededNew);
+        vocabState.words = shuffle([...unmastered, ...newWords]);
+        
+        vocabState.cycle++;
+        vocabState.phaseIndex = 0;
+        vocabState.phase = PHASES_LEARN[vocabState.phaseIndex];
+        vocabState.currentIndex = 0;
+        
+        vocabState.currentBatch = vocabState.words.map(w => ({
+          ...w,
+          activity: vocabState.phase,
+          passed: false,
+          mistakes: 0
+        }));
+        
+        saveVocabState();
+        return true;
+      } else {
+        // End of Cycle 2
+        vocabState.currentBatch.forEach(w => {
+          let orig = vocabState.words.find(x => x.word === w.word);
+          let mistakes = orig ? orig.mistakes : w.mistakes;
+          updateWordDB(w, mistakes === 0);
+        });
+        vocabState.sessionComplete = true;
+        saveVocabState();
+        return false;
+      }
     }
 
     vocabState.phase = PHASES_LEARN[vocabState.phaseIndex];
     vocabState.currentIndex = 0;
 
-    // Re-shuffle the same words for variety
     const reshuffled = shuffle(vocabState.words);
     vocabState.currentBatch = reshuffled.map(w => ({
       ...w,
       activity: vocabState.phase,
-      passed: false
+      passed: false,
+      mistakes: w.mistakes || 0
     }));
+    
+    // Copy over accumulated mistakes for currentBatch from the canonical vocabState.words
+    vocabState.currentBatch.forEach(w => {
+      const orig = vocabState.words.find(x => x.word === w.word);
+      if (orig) w.mistakes = orig.mistakes || 0;
+    });
 
-    // Reset match state for new match phase
+    saveVocabState();
+
     if (vocabState.phase === 'match') {
       vocabState.matchWords = [];
       vocabState.matchSelected = { left: null, right: null };
@@ -379,15 +492,16 @@
     }
 
     // Global progress across all phases
-    let totalItems, completedItems;
+    let totalItems, completedItems, progress;
     if (vocabState.mode === 'flashcard') {
-      totalItems = vocabState.currentBatch.length;
-      completedItems = vocabState.currentIndex;
-    } else {
       totalItems = vocabState.words.length;
-      completedItems = vocabState.phaseIndex === 3 ? vocabState.currentIndex : 0;
+      completedItems = vocabState.currentIndex;
+      progress = (vocabState.currentIndex / vocabState.currentBatch.length) * 100;
+    } else {
+      totalItems = 20;
+      completedItems = vocabState.completedWords ? vocabState.completedWords.size : 0;
+      progress = Math.min(((vocabState.phasesPassed || 0) / 80) * 100, 100);
     }
-    const progress = (completedItems / totalItems) * 100;
 
     const phaseLabel = vocabState.mode === 'learn'
       ? `<span style="font-size: 12px; padding: 2px 10px; border-radius: 12px; font-weight: 600; ${getPhaseStyle(vocabState.phase)}">${getPhaseName(vocabState.phase)}</span>`
@@ -396,13 +510,13 @@
     return `
       <div class="vocab-session">
         <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;">
-          <button class="ghost-btn icon-btn" onclick="window.Vocab.endSession()">
+          <button class="ghost-btn icon-btn" onclick="window.Vocab.showExitModal()">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
-          <div style="flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
-            <div style="height: 100%; width: ${progress}%; background: var(--primary); transition: width 0.3s ease;"></div>
+          <div style="flex: 1; height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; position: relative;">
+            <div style="height: 100%; width: ${progress}%; background: var(--bb-blue); transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 4px;"></div>
           </div>
-          <span class="muted" style="font-size: 14px;">${completedItems} / ${totalItems}</span>
+          <span class="muted" style="font-size: 14px; white-space: nowrap; font-weight: 600;">${completedItems} / ${totalItems}</span>
           ${phaseLabel}
         </div>
         
@@ -538,6 +652,7 @@
           setTimeout(() => {
             if (vocabState.phase === 'match') {
               vocabState.currentIndex = vocabState.currentBatch.length; // force phase advance
+              saveVocabState();
               if (window.renderHome) window.renderHome();
             }
           }, 800);
@@ -550,7 +665,7 @@
         `;
       }
       // Show up to 5 at a time for readability
-      vocabState.matchChunk = unpaired.slice(0, 5);
+      vocabState.matchChunk = unpaired;
       vocabState.matchMeanings = shuffle(vocabState.matchChunk.map(w => ({ meaning: stripPosTag(w.meaning), id: w.id })));
     }
 
@@ -609,16 +724,12 @@
     `;
   }
 
-  function matchSelect(side, id) {
-    if (vocabState.matchCorrect) return; // Prevent clicking while showing green correct animation
-    
+    function matchSelect(side, id) {
     vocabState.matchWrong = null;
     vocabState.matchSelected[side] = id;
 
-    // Check if both sides selected
     if (vocabState.matchSelected.left && vocabState.matchSelected.right) {
       if (vocabState.matchSelected.left === vocabState.matchSelected.right) {
-        // Correct match! Show green state temporarily
         vocabState.matchCorrect = { left: vocabState.matchSelected.left, right: vocabState.matchSelected.right };
         vocabState.matchPaired.push(vocabState.matchSelected.left);
         vocabState.matchSelected = { left: null, right: null };
@@ -629,9 +740,10 @@
           vocabState.matchCorrect = null;
           if (window.renderHome) window.renderHome();
         }, 600);
-        return; // Early return to avoid immediate render without correct state
       } else {
-        // Wrong match
+        let w = vocabState.words.find(x => x.word === vocabState.matchSelected.left);
+        if (w) w.mistakes = (w.mistakes || 0) + 1;
+        
         vocabState.matchWrong = true;
         setTimeout(() => {
           vocabState.matchWrong = null;
@@ -640,6 +752,7 @@
         }, 800);
       }
     }
+    saveVocabState();
     if (window.renderHome) window.renderHome();
   }
 
@@ -691,6 +804,7 @@
   function selectMCQ(opt) {
     if (vocabState.mcqSelected) return; // Prevent multiple selections
     vocabState.mcqSelected = opt;
+    saveVocabState();
     if (window.renderHome) window.renderHome();
   }
 
@@ -869,24 +983,48 @@
 
   function nextQuestion(passed) {
     vocabState.lastSentenceSubmitted = null;
+    const currentWord = vocabState.currentBatch[vocabState.currentIndex];
     if (passed) {
-      vocabState.currentBatch[vocabState.currentIndex].passed = true;
+      currentWord.passed = true;
+      if (vocabState.mode === 'learn') {
+        vocabState.phasesPassed = (vocabState.phasesPassed || 0) + 1;
+      }
     } else {
-      // Don't re-queue for match (it handles its own completion)
-      if (vocabState.phase !== 'match') {
-        vocabState.currentBatch.push(vocabState.currentBatch[vocabState.currentIndex]);
+      currentWord.mistakes = (currentWord.mistakes || 0) + 1;
+      let orig = vocabState.words.find(w => w.word === currentWord.word);
+      if (orig) orig.mistakes = (orig.mistakes || 0) + 1;
+      
+      if (vocabState.mode === 'flashcard') {
+        vocabState.currentBatch.push(currentWord);
       }
     }
+    
+    if (vocabState.mode === 'learn' && vocabState.phase === 'sentence' && passed) {
+        let orig = vocabState.words.find(w => w.word === currentWord.word);
+        if (orig && (orig.mistakes || 0) === 0) {
+            if (!vocabState.completedWords) vocabState.completedWords = new Set();
+            vocabState.completedWords.add(currentWord.word);
+            updateWordDB(currentWord, true);
+        }
+    }
+
     vocabState.currentIndex++;
+    saveVocabState();
     if (window.renderHome) window.renderHome();
   }
 
   function endSession() {
     vocabState.sessionActive = false;
-    vocabState.words = [];
-    vocabState.currentBatch = [];
-    vocabState.phase = null;
-    vocabState.phaseIndex = 0;
+    if (vocabState.mode === 'flashcard' || vocabState.sessionComplete) {
+      vocabState.words = [];
+      vocabState.sessionWords = [];
+      vocabState.currentBatch = [];
+      vocabState.phase = null;
+      vocabState.phaseIndex = 0;
+      vocabState.completedWords = new Set();
+      vocabState.sessionComplete = false;
+      vocabState.phasesPassed = 0;
+    }
     vocabState.matchWords = [];
     vocabState.matchPaired = [];
     vocabState.matchSelected = { left: null, right: null };
@@ -899,7 +1037,57 @@
     vocabState.mcqCorrectValue = null;
     vocabState.mcqOptions = null;
     vocabState.lastSentenceSubmitted = null;
+    saveVocabState();
     if (window.renderHome) window.renderHome();
+  }
+
+  function showExitModal() {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "modal-content confirm-modal";
+    modal.style.position = "relative";
+    
+    modal.innerHTML = `
+      <button class="ghost-btn icon-btn close-modal-btn" style="position: absolute; top: 12px; right: 12px; padding: 6px; z-index: 10;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <h3 style="margin-top: 0; font-size: 18px; font-weight: 700;">Exit Session</h3>
+      <p class="modal-message" style="margin-top: 8px;">Mastered words are already saved.</p>
+      <div class="modal-actions" style="display:flex; flex-direction: column; gap:12px; margin-top:24px;">
+        <button class="secondary-btn save-exit-btn" style="width: 100%; justify-content: center;">Save and Exit</button>
+        <button class="danger-btn finalize-btn" style="width: 100%; justify-content: center;">Finalize Session</button>
+      </div>
+    `;
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+      overlay.classList.add("visible");
+      modal.classList.add("visible");
+    });
+
+    const close = () => {
+      overlay.classList.remove("visible");
+      modal.classList.remove("visible");
+      setTimeout(() => overlay.remove(), 250);
+    };
+
+    modal.querySelector(".close-modal-btn").onclick = close;
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close();
+    };
+    
+    modal.querySelector(".save-exit-btn").onclick = () => {
+      close();
+      endSession();
+    };
+    
+    modal.querySelector(".finalize-btn").onclick = () => {
+      close();
+      finalizeSession();
+    };
   }
 
   function toggleSettings() {
@@ -907,18 +1095,73 @@
     if (window.renderHome) window.renderHome();
   }
 
+  
+  function renderMastered() {
+    setTimeout(() => {
+      if (window.renderMasteredList) window.renderMasteredList();
+    }, 0);
+    return `
+      <style>
+        .mastered-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+          gap: 16px;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        .mastered-card {
+          background: var(--panel);
+          border: 1px solid var(--line);
+          border-radius: var(--radius-md);
+          padding: 16px;
+        }
+      </style>
+      <div style="margin-bottom: 48px; text-align: center; max-width: 600px; margin-left: auto; margin-right: auto; padding-top: 24px;">
+        <h2 style="font-size: 32px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink); margin-bottom: 12px;">Mastered Words</h2>
+        <p style="font-size: 16px; line-height: 1.6; color: var(--ink-secondary); text-wrap: balance;">Words you've successfully learned.</p>
+        <button class="ghost-btn" style="margin-top: 16px;" onclick="window.location.hash='#vocab'">Back to Dashboard</button>
+      </div>
+      <div id="mastered-list" class="mastered-grid" style="text-align: center; color: var(--ink-muted);">Loading...</div>
+    `;
+  }
+  
+  window.renderMasteredList = async function() {
+    const allWords = await window.SatPracticeDB.getAll("vocabWords");
+    const mastered = allWords.filter(w => w.status === "Mastered");
+    const container = document.getElementById("mastered-list");
+    if (!container) return;
+    if (mastered.length === 0) {
+      container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--ink-muted);">You haven't mastered any words yet.</div>`;
+      return;
+    }
+    container.innerHTML = mastered.map(w => `
+      <div class="mastered-card" style="text-align: left;">
+        <h3 style="font-size: 18px; margin: 0 0 8px 0; font-weight: 700;">${w.word}</h3>
+        <p style="font-size: 14px; margin: 0; color: var(--ink-secondary);">${w.meaning}</p>
+      </div>
+    `).join('');
+  };
+
+  function finalizeSession() {
+    vocabState.sessionComplete = true;
+    endSession();
+  }
+
   window.Vocab = {
     init: initVocab,
     renderDashboard,
     startSession,
     endSession,
+    finalizeSession,
+    showExitModal,
     nextQuestion,
     checkMCQ,
     selectMCQ,
     nextMCQ,
     checkSentence,
     matchSelect,
-    toggleSettings
+    toggleSettings,
+    renderMastered
   };
 
 })();

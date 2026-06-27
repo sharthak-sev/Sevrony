@@ -75,7 +75,7 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: 0.45; }
 img, svg { max-width: 100%; height: auto; }
 
 /* ---- iOS Touch Fixes ---- */
-button, label, a { -webkit-tap-highlight-color: transparent; }
+button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice-button, .vocab-match-btn { -webkit-tap-highlight-color: transparent; }
 
 /* ---- Scrollbar styling ---- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -3598,15 +3598,11 @@ html[data-transition="drill"]::view-transition-new(root) {
 }
 .vocab-match-btn.selected {
   border-color: var(--blue);
-  background: #eff6ff;
-  color: #1e3a8a;
   transform: scale(1.02);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 .vocab-match-btn.selected-right {
   border-color: #8b5cf6;
-  background: #f5f3ff;
-  color: #4c1d95;
   transform: scale(1.02);
   box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
 }
