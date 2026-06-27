@@ -2,7 +2,7 @@
   "use strict";
 
   const DB_NAME = "sat-interactive-practice";
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
   let dbPromise = null;
 
   function open() {
@@ -44,6 +44,12 @@
 
         if (!db.objectStoreNames.contains("appConfig")) {
           db.createObjectStore("appConfig", { keyPath: "key" });
+        }
+
+        if (!db.objectStoreNames.contains("vocabWords")) {
+          const vocabWords = db.createObjectStore("vocabWords", { keyPath: "word" });
+          vocabWords.createIndex("status", "status", { unique: false });
+          vocabWords.createIndex("nextReviewDate", "nextReviewDate", { unique: false });
         }
       };
 
@@ -109,6 +115,7 @@
   }
 
   async function clearAll() {
+    await clear("vocabWords");
     await clear("responses");
     await clear("sessions");
     await clear("questions");

@@ -416,7 +416,7 @@
           })
           .catch(reject);
       });
-      tokenClient.requestAccessToken({ prompt: "" });
+      tokenClient.requestAccessToken();
     });
   }
 

@@ -253,6 +253,7 @@
 
     initPersistentDesmos();
     initTelemetryConsent();
+    if (window.Vocab) window.Vocab.init();
     fileInput.addEventListener("change", handleFileImport);
     document.addEventListener("keydown", handleKeyboard);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -452,7 +453,8 @@
 
     container.querySelector("[data-test-action='close-desmos']").addEventListener("click", () => {
       state.showDesmos = false;
-      renderActiveTest();
+      container.style.display = "none";
+      if (state.activeTest) renderActiveTest();
     });
 
     const script = document.createElement("script");
@@ -908,6 +910,10 @@
     if (state.activeTest) return;
     stopTicker();
 
+    state.showDesmos = false;
+    const pd = document.getElementById("persistent-desmos");
+    if (pd) pd.style.display = "none";
+
     if (state.busy) {
       app.className = "";
       app.innerHTML = renderBusyView(state.busy);
@@ -975,6 +981,7 @@
             ${state.view === "dashboard" ? renderDashboard() : ""}
             ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
             ${state.view === "mistakes-log" ? renderMistakesLog() : ""}
+            ${state.view === "vocab" ? window.Vocab.renderDashboard() : ""}
             ${state.view === "backup" ? renderBackupView() : ""}
           </main>
         </div>
@@ -982,6 +989,7 @@
       bindHomeEvents();
     });
   }
+  window.renderHome = renderHome;
 
   function renderPrivacy() {
     const consentLabel = state.telemetryConsent === TELEMETRY_ACCEPTED
@@ -1317,6 +1325,10 @@
               </svg>
               <span class="nav-label">Mistakes Log</span>
             </button>
+            <button class="nav-item ${state.view === 'vocab' ? 'active' : ''}" type="button" data-action="vocab" title="Vocabulary">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              <span class="nav-label">Vocabulary</span>
+            </button>
           </div>
 
           <div class="nav-section mt-auto">
@@ -1589,10 +1601,6 @@
           <p style="color: var(--ink-muted); font-size: 15px; margin: 0;">${state.banks.length} imported bank${state.banks.length === 1 ? "" : "s"} · ${state.questions.length} total questions</p>
         </div>
         <div class="top-actions" style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="ghost-btn" type="button" data-action="retry-mistakes" style="background:var(--paper); border-color:var(--line); padding: 8px 16px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-3px"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-            Retry Mistakes
-          </button>
           <button class="primary-btn" type="button" data-action="config" data-tour-target="create-test" style="padding: 8px 16px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-3px"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
             Create New Test
@@ -3006,7 +3014,7 @@ function renderTestReview() {
 
       if (!hideBusy) setBusy("Syncing cloud data", "Restoring questions, sessions, Bluebook imports, and dashboard metrics from Google Drive.", "sync");
       const result = await SevSync.sync(true);
-      if (!result.ok) throw new Error(result.reason || "sync_failed");
+      if (!result.ok && result.reason !== "already_syncing") throw new Error(result.reason || "sync_failed");
 
       await refreshLocalData();
       ensureConfigDefaults();
@@ -3249,6 +3257,7 @@ function renderTestReview() {
     if (action === "returning-sign-in") { await syncLinkedAccount({ returningUser: true }); return; }
     if (action === "import-bluebook") { fileInput.click(); return; }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
+    if (action === "vocab") { state.view = "vocab"; state.notice = null; renderHome(); }
     if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
     if (action === "privacy") { state.view = "privacy"; state.notice = null; renderHome(); }
     if (action === "reset-telemetry") {
@@ -4835,6 +4844,7 @@ function renderTestReview() {
       });
       container.outerHTML = renderMistakesLog();
       bindHomeEvents();
+      if (window.SevSync?.isLinked()) window.SevSync.sync();
     }
   }
 
