@@ -1373,6 +1373,7 @@
   }
 
   function showFeedbackModal() {
+    const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
     const modal = document.createElement("div");
     modal.className = "modal-content panel";
@@ -1419,6 +1420,7 @@
       </div>
     `;
     overlay.appendChild(modal);
+    document.body.appendChild(overlay);
 
     const close = () => {
       modal.classList.remove("visible");
