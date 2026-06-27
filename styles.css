@@ -3523,6 +3523,36 @@ html[data-transition="drill"]::view-transition-new(root) {
   font-weight: 500;
 }
 
+@media (max-width: 600px) {
+  .vocab-flashcard-front, .vocab-flashcard-back {
+    padding: 32px 20px;
+  }
+  .vocab-match-grid {
+    gap: 12px;
+  }
+  .vocab-match-btn {
+    padding: 12px 8px;
+    font-size: 14px;
+    min-height: 52px;
+  }
+  .vocab-match-btn.text-small {
+    font-size: 13px;
+  }
+  .vocab-sentence-card {
+    flex-direction: column;
+    border-radius: var(--radius-xl);
+    gap: 8px;
+    padding: 12px;
+  }
+  .vocab-sentence-input {
+    padding: 12px;
+  }
+  .vocab-sentence-card button#vocab-check-btn {
+    width: 100% !important;
+    border-radius: var(--radius-lg) !important;
+  }
+}
+
 /* MCQ Adjustments for Vocab */
 .choice-row.correct-choice .choice-button {
   background: var(--green-bg);

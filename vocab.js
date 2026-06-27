@@ -167,10 +167,15 @@
       <style>
         .vocab-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
           gap: 24px;
           max-width: 800px;
           margin: 0 auto;
+        }
+        @media (max-width: 600px) {
+          .vocab-grid {
+            grid-template-columns: 1fr;
+          }
         }
         
         .vocab-card {
@@ -552,12 +557,12 @@
       <div class="vocab-flashcard-container" onclick="this.classList.toggle('flipped')">
         <div class="vocab-flashcard-inner">
           <div class="vocab-flashcard-front">
-            <h2 style="font-size: 36px; margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em;">${wordObj.word}</h2>
+            <h2 style="font-size: 36px; margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; word-break: break-word; padding: 0 16px;">${wordObj.word}</h2>
             <p class="vocab-flashcard-hint muted">Click to flip</p>
           </div>
           <div class="vocab-flashcard-back">
-            <h2 style="font-size: 28px; margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; border-bottom: 1px solid var(--line); padding-bottom: 16px; width: 100%;">${wordObj.word}</h2>
-            <p style="font-size: 18px; margin-bottom: 16px; line-height: 1.5;"><strong>Meaning:</strong> ${wordObj.meaning}</p>
+            <h2 style="font-size: 28px; margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; border-bottom: 1px solid var(--line); padding-bottom: 16px; width: 100%; word-break: break-word;">${wordObj.word}</h2>
+            <p style="font-size: 18px; margin-bottom: 16px; line-height: 1.5; word-break: break-word;"><strong>Meaning:</strong> ${wordObj.meaning}</p>
             <p class="muted" style="font-style: italic; font-size: 16px; line-height: 1.5;">"${wordObj.example}"</p>
           </div>
         </div>
@@ -595,7 +600,7 @@
           Multiple Choice
         </span>
       </div>
-      <h2 style="font-size: 26px; margin-bottom: 32px; font-weight: 700; letter-spacing: -0.02em;">What does <strong style="color: var(--bb-blue); font-weight: 800;">${wordObj.word}</strong> mean?</h2>
+      <h2 style="font-size: 26px; margin-bottom: 32px; font-weight: 700; letter-spacing: -0.02em; word-break: break-word;">What does <strong style="color: var(--bb-blue); font-weight: 800;">${wordObj.word}</strong> mean?</h2>
       <div class="choice-list" style="max-width: 600px; margin: 0 auto;">
         ${options.map((opt, i) => {
           let extraClass = "";
@@ -1108,6 +1113,13 @@
           gap: 16px;
           max-width: 800px;
           margin: 0 auto;
+          padding: 0 20px 40px;
+        }
+        @media (max-width: 600px) {
+          .mastered-grid {
+            grid-template-columns: 1fr;
+            padding: 0 16px 40px;
+          }
         }
         .mastered-card {
           background: var(--panel);
@@ -1131,7 +1143,7 @@
     const container = document.getElementById("mastered-list");
     if (!container) return;
     if (mastered.length === 0) {
-      container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--ink-muted);">You haven't mastered any words yet.</div>`;
+      container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--ink-muted); padding: 0 16px; width: 100%; box-sizing: border-box;">You haven't mastered any words yet.</div>`;
       return;
     }
     container.innerHTML = mastered.map(w => `
