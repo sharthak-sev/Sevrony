@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.1.1";
+  const APP_VERSION = "v2.1.2";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -981,7 +981,7 @@
       }
       app.className = shellClass;
       app.innerHTML = `
-        ${renderSidebar()}
+        ${state.view === "vocab" && window.Vocab?.isSessionActive?.() ? '' : renderSidebar()}
         <div class="main-content-wrapper">
           ${state.notice ? renderNotice(state.notice) : ""}
           ${renderIosWarningBanner()}
@@ -1338,7 +1338,7 @@
               </svg>
               <span class="nav-label">Mistakes Log</span>
             </button>
-            <button class="nav-item ${state.view === 'vocab' ? 'active' : ''}" type="button" data-action="vocab" title="Vocabulary">
+            <button class="nav-item ${state.view === 'vocab' || state.view === 'vocab-mastered' ? 'active' : ''}" type="button" data-action="vocab" title="Vocabulary">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
               <span class="nav-label">Vocabulary</span>
             </button>
@@ -1790,6 +1790,7 @@
         <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Resetting progress wipes your test history but keeps your question banks. Wiping all data deletes everything, including question banks.</p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
           <button class="danger-btn" type="button" data-action="reset">Reset Progress</button>
+          <button class="danger-btn" type="button" data-action="reset-vocab">Reset Vocab</button>
           <button class="danger-btn" type="button" data-action="wipe-all">Wipe All Data</button>
         </div>
       </section>
@@ -3653,7 +3654,7 @@ function renderTestReview() {
         sessionStorage.removeItem('lastResultSessionId');
         
         if (window.SevSync?.isLinked()) {
-            window.SevSync.sync(true, { forcePush: true, silent: true }).catch(console.error);
+            window.SevSync.sync(true, { forcePush: true }).catch(console.error);
         }
 
         state.view = "dashboard";
@@ -3694,6 +3695,33 @@ function renderTestReview() {
         await refreshLocalData();
         showNotice("Progress reset successfully.", "info");
         renderHome();
+      });
+    }
+
+    if (action === "reset-vocab") {
+      showConfirmModal("Are you sure you want to reset all vocabulary progress? This will un-master all words.", "Reset Vocab", async () => {
+        const words = await DB.getAll("vocabWords");
+        const resetWords = words.map(w => ({
+          ...w,
+          status: "New",
+          interval: 0,
+          easeFactor: 2.5,
+          nextReviewDate: 0,
+          updatedAt: Date.now()
+        }));
+        await DB.putMany("vocabWords", resetWords);
+        
+        localStorage.removeItem("sat_vocab_state");
+        if (window.Vocab && window.Vocab.reloadState) {
+            window.Vocab.reloadState();
+        }
+
+        if (window.SevSync?.isLinked()) {
+            window.SevSync.sync(true, { forcePush: true }).catch(console.error);
+        }
+
+        showNotice("Vocab progress reset successfully.", "info");
+        renderHome(true, true);
       });
     }
 

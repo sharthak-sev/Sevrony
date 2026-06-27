@@ -352,11 +352,15 @@
     const shuffledAll = shuffle(allWords);
     shuffledAll.sort((a, b) => a.nextReviewDate - b.nextReviewDate);
 
-    if (mode === 'learn' && vocabState.mode === 'learn' && vocabState.sessionWords && vocabState.sessionWords.length > 0 && !vocabState.sessionComplete) {
+    if (mode === vocabState.mode && vocabState.sessionWords && vocabState.sessionWords.length > 0 && !vocabState.sessionComplete) {
        vocabState.sessionActive = true;
        saveVocabState();
        if (window.renderHome) window.renderHome();
        return;
+    }
+
+    if (!vocabState.sessionWords || vocabState.sessionWords.length === 0 || vocabState.sessionComplete) {
+      vocabState.sessionWords = shuffledAll.slice(0, 20); // up to 20 words due
     }
 
     vocabState.sessionActive = true;
@@ -367,7 +371,7 @@
     vocabState.sessionComplete = false;
 
     if (mode === 'flashcard') {
-      vocabState.words = shuffle(shuffledAll.slice(0, 20));
+      vocabState.words = shuffle([...vocabState.sessionWords]);
       vocabState.currentBatch = vocabState.words.map(w => ({
         ...w,
         activity: 'flashcard',
@@ -377,7 +381,6 @@
       vocabState.phase = 'flashcard';
       vocabState.phaseIndex = 0;
     } else {
-      vocabState.sessionWords = shuffledAll.slice(0, 20); // up to 20 words due
       vocabState.words = shuffle(vocabState.sessionWords.slice(0, 10)); // first 10 for cycle 1
       vocabState.cycle = 1;
       vocabState.phase = PHASES_LEARN[0];
@@ -599,6 +602,7 @@
         ...distractors.map(d => stripPosTag(d.meaning))
       ]);
       vocabState.mcqCorrectValue = stripPosTag(wordObj.meaning);
+      saveVocabState();
     }
     const options = vocabState.mcqOptions;
 
@@ -1025,6 +1029,13 @@
             vocabState.completedWords.add(currentWord.word);
             updateWordDB(currentWord, true);
         }
+    } else if (vocabState.mode === 'flashcard' && passed) {
+        let orig = vocabState.words.find(w => w.word === currentWord.word);
+        if (orig && (orig.mistakes || 0) === 0) {
+            if (!vocabState.completedWords) vocabState.completedWords = new Set();
+            vocabState.completedWords.add(currentWord.word);
+            updateWordDB(currentWord, true);
+        }
     }
 
     vocabState.currentIndex++;
@@ -1154,7 +1165,7 @@
   
   window.renderMasteredList = async function() {
     const allWords = await window.SatPracticeDB.getAll("vocabWords");
-    const mastered = allWords.filter(w => w.status === "Mastered");
+    const mastered = allWords.filter(w => w.status === "Mastered").sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const container = document.getElementById("mastered-list");
     if (!container) return;
     if (mastered.length === 0) {
@@ -1171,6 +1182,7 @@
 
   function finalizeSession() {
     vocabState.sessionComplete = true;
+    vocabState.sessionWords = [];
     endSession();
   }
 
@@ -1202,7 +1214,8 @@
     checkSentence,
     matchSelect,
     toggleSettings,
-    renderMastered
+    renderMastered,
+    isSessionActive: () => vocabState.sessionActive
   };
 
 })();

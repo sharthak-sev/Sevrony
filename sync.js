@@ -279,6 +279,69 @@
     return { merged, localUpdates, remoteNeedsUpdate };
   }
 
+  function mergeVocabWords(localRecords, remoteRecords) {
+    const localMap = new Map(localRecords.map(r => [r.word, r]));
+    const remoteMap = new Map((remoteRecords || []).map(r => [r.word, r]));
+    const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
+    const merged = [];
+    const localUpdates = [];
+    let remoteNeedsUpdate = false;
+
+    const progressValue = (status) => {
+      if (status === "Mastered") return 2;
+      if (status === "Learning") return 1;
+      return 0; // "New" or undefined
+    };
+
+    for (const id of allIds) {
+      const local = localMap.get(id);
+      const remote = remoteMap.get(id);
+
+      if (local && !remote) {
+        merged.push(local);
+        remoteNeedsUpdate = true;
+      } else if (!local && remote) {
+        merged.push(remote);
+        localUpdates.push(remote);
+      } else {
+        const localProg = progressValue(local.status);
+        const remoteProg = progressValue(remote.status);
+        
+        const localTs = getRecordTimestamp(local);
+        const remoteTs = getRecordTimestamp(remote);
+
+        if (remote.status === "New" && local.status !== "New" && remoteTs > localTs) {
+          // Explicit reset from remote
+          merged.push(remote);
+          localUpdates.push(remote);
+        } else if (local.status === "New" && remote.status !== "New" && localTs > remoteTs) {
+          // Explicit reset from local
+          merged.push(local);
+          remoteNeedsUpdate = true;
+        } else if (remoteProg > localProg) {
+          merged.push(remote);
+          localUpdates.push(remote);
+        } else if (localProg > remoteProg) {
+          merged.push(local);
+          remoteNeedsUpdate = true;
+        } else {
+          // Equal progress status, fall back to timestamp
+          if (remoteTs > localTs) {
+            merged.push(remote);
+            localUpdates.push(remote);
+          } else if (localTs > remoteTs) {
+            merged.push(local);
+            remoteNeedsUpdate = true;
+          } else {
+            merged.push(remote);
+          }
+        }
+      }
+    }
+
+    return { merged, localUpdates, remoteNeedsUpdate };
+  }
+
   /**
    * Core sync: read local + remote → merge → write cloud → update local.
    * Returns true if local DB was modified.
@@ -319,7 +382,7 @@
     const questions = mergeRecordSets(localQuestions, remote?.questions);
     const sessions = mergeRecordSets(filteredSessions, remote?.sessions);
     const responses = mergeRecordSets(localResponses, remote?.responses);
-    const vocabWords = mergeRecordSets(localVocabWords, remote?.vocabWords, "word");
+    const vocabWords = mergeVocabWords(localVocabWords, remote?.vocabWords);
 
     const localVocabStateStr = localStorage.getItem('sat_vocab_state');
     const localVocabState = localVocabStateStr ? JSON.parse(localVocabStateStr) : null;
