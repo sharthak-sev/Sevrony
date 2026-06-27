@@ -8,13 +8,13 @@ Sevrony is a browser-based SAT practice environment for imported `.sat-test` que
 
 ## What It Does
 
-- Import `.sat-test` files and keep the question bank in IndexedDB.
-- Run custom single-subject practice with optional immediate feedback.
-- Run a full adaptive-style test flow with Reading and Writing, break, and Math modules.
-- Review past tests, explanations, timing, skipped questions, and mistakes.
-- Retry questions you previously missed or skipped.
-- Back up and restore your local data with manual JSON exports or the File System Access API where supported.
-- Install as a PWA on supported browsers.
+- **Full SAT Simulation**: Import `.sat-test` files, store them locally via IndexedDB, and run adaptive-style test flows (Math and R&W) built on a custom 7-band Item Response Theory (IRT) model.
+- **Advanced Mistakes Log**: An interactive journal with custom tagging, personal notes, cross-session filtering, and Shadcn UI-inspired Accordion interface. Easily toggle answers or filter by granular sub-domains.
+- **Vocabulary Builder**: A built-in Spaced Repetition System (SRS) featuring Flashcards, Multiple Choice, Match, and AI-validated "Use in a Sentence" activities.
+- **Granular Analytics**: Dashboard with Sessions Overview, an animated gamified Streak Widget, and data-dense visualizations.
+- **Custom Practice & Retries**: Run single-subject practices or retry missed/skipped questions with extensive granular sub-domain filtering.
+- **Modern UI & Offline Access**: Installable as a Progressive Web App (PWA) with a responsive layout, seamless dark mode, integrated Desmos calculator, KaTeX math rendering, and fluid Lottie animations. 
+- **Seamless Data Backup**: Back up and restore your local data with manual JSON exports or the File System Access API where supported.
 
 ## Use The App
 
@@ -88,6 +88,7 @@ Sevrony offers optional cloud sync to keep your data in sync across devices:
 - Your data never passes through Sevrony's servers. It goes directly from your browser to your own Google Drive.
 - **Offline-First & Bidirectional Merge:** All changes (importing tests, answering questions) are saved to your local device *instantly*. If you close the tab before it syncs to the cloud, the data remains safe locally. When you reopen the app, it downloads the cloud state and performs a timestamp-based bidirectional merge, flawlessly combining unsynced local data with any new data pushed from other devices.
 - **Responsive Background Sync:** The app quietly polls for changes every 15 seconds in the background and instantly when you switch back to the tab. If you update a test on your laptop, it will automatically pop up on your phone moments later.
+- **Comprehensive Data Sync:** Synchronizes test history, mistakes, custom tags, and in-progress vocabulary sessions. Vocabulary sync features progress-based conflict resolution to prevent accidental loss of mastered words.
 - Unlinking your account stops sync and removes the stored credentials. Your local data is not deleted.
 - You can delete the sync data from your Google Drive at any time via Google's [app permissions page](https://myaccount.google.com/permissions).
 ## Support
