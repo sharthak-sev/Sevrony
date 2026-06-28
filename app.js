@@ -7,7 +7,7 @@
   const fileInput = document.querySelector("#fileInput");
   const TELEMETRY_CONSENT_KEY = "sevrony.telemetryConsent";
   const TELEMETRY_ACCEPTED = "accepted";
-  const TELEMETRY_DECLINED = "declined";
+
   const POSTHOG_TOKEN = "phc_sChR2EdGVdwA9yins4d7MeNqiHUqEiicXcTtM3DZ7cPn";
   const POSTHOG_API_HOST = "https://us.i.posthog.com";
   const SENTRY_LOADER_URL = "https://js.sentry-cdn.com/610da841a6875eae790cbc1fd6ea96b1.min.js";
@@ -228,7 +228,7 @@
       try {
         const loading = document.getElementById("initial-loading");
         if (loading) loading.style.display = "flex";
-        const res = await fetch("demo-state.json");
+        const res = await fetch("demo-state.json?t=" + Date.now());
         const demoState = await res.json();
         await window.SatPracticeDB.clearAll();
         if (demoState.questionBanks) await window.SatPracticeDB.putMany("questionBanks", demoState.questionBanks);
@@ -238,9 +238,16 @@
         if (demoState.vocabWords) await window.SatPracticeDB.putMany("vocabWords", demoState.vocabWords);
         if (demoState.appConfig) await window.SatPracticeDB.putMany("appConfig", demoState.appConfig);
         localStorage.setItem("sat_demo_mode", "true");
+        localStorage.removeItem("sevrony.tutorial.v1.done");
+        localStorage.removeItem("sat_vocab_state");
+        // Clear any leftover Google auth state for a clean sandbox
+        if (window.SevSync) {
+            try { await window.SevSync.unlink(); } catch (_) {}
+        }
         const url = new URL(window.location);
         url.searchParams.delete("demo");
-        window.history.replaceState({}, document.title, url);
+        window.history.replaceState({exit_demo: true}, document.title, url);
+        state._justEnteredDemo = true;
       } catch (e) {
         console.error("Failed to load demo state:", e);
       }
@@ -248,16 +255,28 @@
 
     if (localStorage.getItem("sat_demo_mode") === "true") {
         const banner = document.createElement("div");
-        banner.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(15, 23, 42, 0.85);backdrop-filter:blur(16px);border:1px solid var(--zinc-800);padding:12px 16px 12px 24px;border-radius:999px;z-index:9999;display:flex;align-items:center;gap:20px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5);width:max-content;max-width:90vw;";
+        banner.className = "demo-banner";
         banner.innerHTML = `
-            <span style="color:var(--zinc-200);font-weight:500;font-size:14px;white-space:nowrap;">You're exploring a demo sandbox. Ready for the real thing?</span>
-            <button id="exit-demo-btn" style="background:var(--blue);color:white;border:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;transition:background 0.2s;">Get Started</button>
+            <div class="demo-banner-content">
+                <div class="demo-indicator">
+                    <span class="pulse-dot"></span>
+                    <span class="demo-label">Demo Mode</span>
+                </div>
+                <span class="demo-text">Ready for the real thing?</span>
+            </div>
+            <button id="exit-demo-btn">Get Started</button>
         `;
         document.body.appendChild(banner);
         document.getElementById("exit-demo-btn").addEventListener("click", async () => {
             await window.SatPracticeDB.clearAll();
             localStorage.removeItem("sat_demo_mode");
-            window.location.reload();
+            localStorage.removeItem("sat_vocab_state");
+            localStorage.removeItem("sevrony.tutorial.v1.done");
+            // Clear Google auth state to prevent data leak
+            if (window.SevSync) {
+                try { await window.SevSync.unlink(); } catch (_) {}
+            }
+            window.location.replace(window.location.pathname);
         });
     }
 
@@ -266,24 +285,88 @@
     }
     window.scrollTo(0, 0);
 
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) {
+        window.location.reload();
+      }
+    });
+
     window.addEventListener("popstate", (e) => {
+      if (e.state && e.state.exit_demo) {
+        window.SatPracticeDB.clearAll().then(() => {
+          localStorage.removeItem("sat_demo_mode");
+          localStorage.removeItem("sat_vocab_state");
+          localStorage.removeItem("sevrony.tutorial.v1.done");
+          if (window.SevSync) window.SevSync.unlink();
+          window.history.back();
+          setTimeout(() => {
+            window.location.replace(window.location.pathname);
+          }, 100);
+        });
+        return;
+      }
+      if (state.tutorial.active) {
+        window.history.pushState({view: "dashboard"}, "", window.location.pathname);
+        return;
+      }
       if (e.state) {
         state.view = e.state.view || "dashboard";
+        
+        // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
+        if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && localStorage.getItem("sat_demo_mode") !== "true") {
+           if (state.view !== "marketing" && state.view !== "privacy") {
+               state.view = "dashboard";
+               window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+           }
+        }
+        
         state.reviewSessionId = e.state.reviewSessionId || null;
         state.historyTab = e.state.historyTab || "full";
         state.viewSubject = e.state.viewSubject || null;
         lastPushedStateStr = JSON.stringify(e.state);
+        
+        // Guard: data was wiped but user pressed back to a data-dependent view.
+        // Use pushState (not replaceState) to create a "wall" — each back-press
+        // pushes the user forward again, trapping them at the correct view.
+        const dataViews = ["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "vocab", "vocab-mastered"];
+        if (state.questions.length === 0 && dataViews.includes(state.view)) {
+            state.view = "onboarding";
+            window.history.pushState({view: "onboarding"}, "", window.location.pathname);
+            renderHome(true);
+            return;
+        }
+        
+        // Guard: data exists but stale entry says "onboarding" — user pressed
+        // back past the initial setup. Force them to dashboard.
+        if (state.questions.length > 0 && state.view === "onboarding") {
+            state.view = "dashboard";
+            window.history.pushState({view: "dashboard"}, "", "#dashboard");
+            renderHome(true);
+            return;
+        }
+        
         if (!state.activeTest) renderHome(true);
       }
     });
 
     window.addEventListener("hashchange", () => {
+      if (state.tutorial.active) return;
       if (window.location.hash) {
         const hashView = window.location.hash.slice(1);
         if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup", "vocab", "vocab-mastered"].includes(hashView)) {
-           if (state.view !== hashView) {
-               state.view = hashView;
-               if (!state.activeTest) renderHome(false);
+           let targetView = hashView;
+           
+           // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
+           if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && localStorage.getItem("sat_demo_mode") !== "true") {
+               if (targetView !== "marketing" && targetView !== "privacy") {
+                   targetView = "dashboard";
+                   window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+               }
+           }
+           
+           if (state.view !== targetView) {
+               state.view = targetView;
+               if (!state.activeTest) renderHome(true);
            }
         }
       }
@@ -305,6 +388,14 @@
       if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup", "vocab", "vocab-mastered"].includes(hashView)) {
          state.view = hashView;
       }
+    }
+    
+    // Enforce tutorial if incomplete on initial load (skip enforcement in demo mode — let users explore freely)
+    if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && localStorage.getItem("sat_demo_mode") !== "true") {
+        if (state.view !== "marketing" && state.view !== "privacy") {
+            state.view = "dashboard";
+            window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+        }
     }
 
     initPersistentDesmos();
@@ -425,7 +516,9 @@
       if (state.view === "results" && !state.lastResult) {
         state.view = "dashboard";
       }
-      renderHome(false, true);
+      renderHome(false, !state._justEnteredDemo);
+      delete state._justEnteredDemo;
+      maybeStartTutorial();
     }
   }
 
@@ -525,7 +618,7 @@
   function readTelemetryConsent() {
     try {
       const value = localStorage.getItem(TELEMETRY_CONSENT_KEY);
-      return value === TELEMETRY_ACCEPTED || value === TELEMETRY_DECLINED ? value : null;
+      return value === TELEMETRY_ACCEPTED ? value : null;
     } catch (_) {
       return null;
     }
@@ -536,7 +629,7 @@
   }
 
   function setTelemetryConsent(value) {
-    if (value !== TELEMETRY_ACCEPTED && value !== TELEMETRY_DECLINED) return;
+    if (value !== TELEMETRY_ACCEPTED) return;
     state.telemetryConsent = value;
     try {
       localStorage.setItem(TELEMETRY_CONSENT_KEY, value);
@@ -564,33 +657,29 @@
   function renderTelemetryBanner() {
     const existing = document.querySelector(".telemetry-banner");
     if (existing) existing.remove();
-    if (state.telemetryConsent || state.view === "privacy") return;
+    if (state.telemetryConsent || state.view === "privacy" || localStorage.getItem("sat_demo_mode") === "true") return;
 
     const banner = document.createElement("section");
     banner.className = "telemetry-banner";
-    banner.setAttribute("aria-label", "Telemetry consent");
+    banner.setAttribute("aria-label", "Privacy Consent");
     banner.innerHTML = `
-      <div>
-        <strong>Privacy choice</strong>
-        <p>Sevrony stores study data locally. With your consent, the hosted app loads PostHog and Sentry for usage stats and issue reports.</p>
-      </div>
-      <div class="telemetry-actions">
-        <button type="button" class="ghost-btn" data-telemetry-action="details">Details</button>
-        <button type="button" class="ghost-btn" data-telemetry-action="decline">Decline</button>
-        <button type="button" class="primary-btn" data-telemetry-action="accept">Accept</button>
+      <div class="telemetry-content">
+        <div>
+          <strong>Privacy & Terms</strong>
+          <p>By using Sevrony, you agree to our Privacy Policy.</p>
+        </div>
+        <div class="telemetry-actions">
+          <button type="button" class="ghost-btn" data-telemetry-action="details">Read Policy</button>
+          <button type="button" class="primary-btn" data-telemetry-action="accept">Accept & Continue</button>
+        </div>
       </div>
     `;
     banner.querySelector("[data-telemetry-action='accept']").addEventListener("click", () => {
       setTelemetryConsent(TELEMETRY_ACCEPTED);
       captureTelemetry("Telemetry Consent Accepted");
     });
-    banner.querySelector("[data-telemetry-action='decline']").addEventListener("click", () => {
-      setTelemetryConsent(TELEMETRY_DECLINED);
-    });
     banner.querySelector("[data-telemetry-action='details']").addEventListener("click", () => {
-      state.view = "privacy";
-      state.notice = null;
-      renderHome();
+      window.location.hash = "privacy";
     });
     document.body.appendChild(banner);
   }
@@ -1046,9 +1135,7 @@
   function renderPrivacy() {
     const consentLabel = state.telemetryConsent === TELEMETRY_ACCEPTED
       ? "Accepted"
-      : state.telemetryConsent === TELEMETRY_DECLINED
-        ? "Declined"
-        : "Not chosen";
+      : "Not chosen";
     return `
       <main class="page-container" style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
         <div style="margin-bottom: 32px; display: flex; align-items: center; gap: 16px;">
@@ -3561,7 +3648,7 @@ function renderTestReview() {
       if (state.questions.length === 0) {
         window.history.back();
       } else {
-        state.view = "dashboard"; state.notice = null; renderHome();
+        window.location.hash = "dashboard";
       }
       return;
     }
@@ -3950,15 +4037,20 @@ function renderTestReview() {
         await DB.clearAll();
         state.lastResult = null;
         sessionStorage.removeItem('lastResultSessionId');
+        localStorage.removeItem(TUTORIAL_DONE_KEY);
+        localStorage.removeItem('sat_vocab_state');
         
+        // Unlink Google account and clear auth state
         if (window.SevSync?.isLinked()) {
-            window.SevSync.sync(true, { forcePush: true }).catch(console.error);
+            try { await window.SevSync.unlink(); } catch (_) {}
         }
 
         state.view = "dashboard";
         await refreshLocalData();
         showNotice("All data wiped successfully.", "info");
-        renderHome();
+        // Replace current history entry so back button can't return to stale state
+        window.history.replaceState({view: "onboarding"}, "", window.location.pathname);
+        renderHome(true);
       });
     }
 
@@ -4030,10 +4122,14 @@ function renderTestReview() {
         await DB.clearAll();
         state.lastResult = null;
         sessionStorage.removeItem('lastResultSessionId');
+        localStorage.removeItem(TUTORIAL_DONE_KEY);
+        localStorage.removeItem('sat_vocab_state');
         state.view = "dashboard";
         await refreshLocalData();
         showNotice("Logged out successfully.", "info");
-        renderHome();
+        // Replace current history entry so back button can't return to stale state
+        window.history.replaceState({view: "onboarding"}, "", window.location.pathname);
+        renderHome(true);
       });
     }
     if (action === "delete-session") {
