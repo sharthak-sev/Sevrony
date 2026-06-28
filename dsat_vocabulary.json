@@ -1,0 +1,1827 @@
+[
+  {
+    "word": "abundance",
+    "meaning": "noun. A large quantity of something.",
+    "example": "The farmer was pleased with the abundance of crops this season."
+  },
+  {
+    "word": "acclaim",
+    "meaning": "verb. To praise enthusiastically.",
+    "example": "The critic acclaimed the novel as a masterpiece."
+  },
+  {
+    "word": "accolade",
+    "meaning": "noun. An award or special recognition.",
+    "example": "She received an accolade for her outstanding performance."
+  },
+  {
+    "word": "acoustic",
+    "meaning": "adj. Relating to sound or hearing.",
+    "example": "The concert hall has excellent acoustic properties."
+  },
+  {
+    "word": "acquiesce",
+    "meaning": "verb. To accept or comply without protest.",
+    "example": "She acquiesced to her supervisor’s request."
+  },
+  {
+    "word": "acquired",
+    "meaning": "verb. To gain or obtain.",
+    "example": "He acquired a new skill through practice."
+  },
+  {
+    "word": "adapt to",
+    "meaning": "verb. To adjust to new conditions.",
+    "example": "He adapted quickly to the colder climate."
+  },
+  {
+    "word": "adversity",
+    "meaning": "noun. Difficulties or misfortune.",
+    "example": "Despite adversity, she remained determined to succeed."
+  },
+  {
+    "word": "allocate",
+    "meaning": "verb. To distribute resources for a particular purpose.",
+    "example": "The government allocated funds for education."
+  },
+  {
+    "word": "alludes",
+    "meaning": "verb. To refer to something indirectly.",
+    "example": "The book alludes to historical events."
+  },
+  {
+    "word": "ambiguity",
+    "meaning": "noun. Uncertainty or lack of clarity.",
+    "example": "The ambiguity of the statement caused confusion."
+  },
+  {
+    "word": "ambiguous",
+    "meaning": "adj. Open to multiple interpretations.",
+    "example": "Her response was ambiguous and left room for doubt."
+  },
+  {
+    "word": "ambivalence",
+    "meaning": "noun. Mixed feelings or contradictory attitudes.",
+    "example": "His ambivalence about moving was evident."
+  },
+  {
+    "word": "amorphous",
+    "meaning": "adj. Lacking a clear structure or form.",
+    "example": "The painting had an amorphous quality."
+  },
+  {
+    "word": "anachronistic",
+    "meaning": "adj. Belonging to a different historical period.",
+    "example": "The film’s costumes were anachronistic."
+  },
+  {
+    "word": "analogous",
+    "meaning": "adj. Similar in some way.",
+    "example": "The relationship between the two species is analogous to that of wolves and dogs."
+  },
+  {
+    "word": "anecdotal",
+    "meaning": "adj. Based on personal accounts rather than facts or research.",
+    "example": "The evidence was largely anecdotal, making it difficult to draw firm conclusions."
+  },
+  {
+    "word": "anomalous",
+    "meaning": "adj. Deviating from the norm or expectations.",
+    "example": "The scientist noted an anomalous result in the experiment."
+  },
+  {
+    "word": "approximation",
+    "meaning": "noun. A rough estimate or near calculation.",
+    "example": "The approximation of the building’s height was around 50 feet."
+  },
+  {
+    "word": "archbishop",
+    "meaning": "noun. A high-ranking bishop in charge of a large region.",
+    "example": "The archbishop led the religious ceremony with great solemnity."
+  },
+  {
+    "word": "arduous",
+    "meaning": "adj. Requiring great effort or endurance.",
+    "example": "The hikers faced an arduous climb up the steep mountain."
+  },
+  {
+    "word": "artifice",
+    "meaning": "noun. Clever or deceitful trickery.",
+    "example": "His artifice allowed him to escape the difficult situation unscathed."
+  },
+  {
+    "word": "aspirations",
+    "meaning": "noun. Strong desires or ambitions.",
+    "example": "Her aspirations to become a doctor motivated her to study diligently."
+  },
+  {
+    "word": "assert",
+    "meaning": "verb. To state or declare something forcefully.",
+    "example": "He asserted his right to speak during the meeting."
+  },
+  {
+    "word": "assess",
+    "meaning": "verb. To evaluate or analyze something.",
+    "example": "The teacher assessed the students’ essays carefully."
+  },
+  {
+    "word": "assiduous",
+    "meaning": "adj. Showing great care and perseverance.",
+    "example": "Her assiduous work ethic earned her a promotion at the company."
+  },
+  {
+    "word": "assumption",
+    "meaning": "noun. A belief accepted as true without proof.",
+    "example": "The assumption that it would not rain led them to leave their umbrellas at home."
+  },
+  {
+    "word": "attest",
+    "meaning": "verb. To serve as proof or evidence of something.",
+    "example": "The ancient ruins attest to the civilization’s advanced architectural skills."
+  },
+  {
+    "word": "attribute",
+    "meaning": "verb. To regard something as being caused by a particular source.",
+    "example": "He attributed his success to years of hard work and dedication."
+  },
+  {
+    "word": "augment",
+    "meaning": "verb. To increase or add to.",
+    "example": "The company plans to augment its workforce by hiring more employees."
+  },
+  {
+    "word": "auspicious",
+    "meaning": "adj. Indicating a favorable outcome or success.",
+    "example": "The clear skies were an auspicious sign for the outdoor wedding."
+  },
+  {
+    "word": "austere",
+    "meaning": "adj. Severe or strict in manner; lacking luxury.",
+    "example": "The monastery had an austere lifestyle with minimal comforts."
+  },
+  {
+    "word": "basaltic",
+    "meaning": "adj. Related to volcanic rock or lava.",
+    "example": "The island was covered in basaltic formations created by ancient lava flows."
+  },
+  {
+    "word": "bellicose",
+    "meaning": "adj. Demonstrating aggression or a willingness to fight.",
+    "example": "His bellicose remarks escalated the argument."
+  },
+  {
+    "word": "beneficially",
+    "meaning": "adv. In a way that produces good results.",
+    "example": "The changes were implemented beneficially for all employees."
+  },
+  {
+    "word": "benevolent",
+    "meaning": "adj. Well-meaning and kindly.",
+    "example": "The benevolent organization provided food and shelter for the needy."
+  },
+  {
+    "word": "bilateral symmetry",
+    "meaning": "noun. A body structure that is symmetrical on both sides.",
+    "example": "Humans and most animals exhibit bilateral symmetry in their anatomy."
+  },
+  {
+    "word": "biome",
+    "meaning": "noun. A large ecological region characterized by distinct plant and animal life.",
+    "example": "The Amazon rainforest is one of the most diverse biomes on Earth."
+  },
+  {
+    "word": "bolster",
+    "meaning": "verb. To support or strengthen something.",
+    "example": "The government provided funds to bolster the struggling economy."
+  },
+  {
+    "word": "candid",
+    "meaning": "adj. Honest and straightforward.",
+    "example": "She gave a candid response about her feelings."
+  },
+  {
+    "word": "capacious",
+    "meaning": "adj. Having a lot of space; roomy.",
+    "example": "The capacious backpack easily fit all of his belongings."
+  },
+  {
+    "word": "capricious",
+    "meaning": "adj. Given to sudden changes in mood or behavior.",
+    "example": "His capricious nature made it difficult to predict his decisions."
+  },
+  {
+    "word": "catalyst",
+    "meaning": "noun. Something that speeds up a reaction or change.",
+    "example": "The invention of the internet was a catalyst for global communication."
+  },
+  {
+    "word": "celestial",
+    "meaning": "adj. Related to the sky or outer space.",
+    "example": "The telescope revealed celestial bodies never seen before."
+  },
+  {
+    "word": "coalesce",
+    "meaning": "verb. To come together to form one whole.",
+    "example": "The two companies decided to coalesce into a single organization."
+  },
+  {
+    "word": "cogent",
+    "meaning": "adj. Convincing and logical.",
+    "example": "Her cogent argument persuaded the jury."
+  },
+  {
+    "word": "coherent",
+    "meaning": "adj. Clear and logical in thought or speech.",
+    "example": "His speech was well-structured and coherent."
+  },
+  {
+    "word": "coiled",
+    "meaning": "adj. Wound into a series of loops or spirals.",
+    "example": "The rope was coiled neatly on the dock."
+  },
+  {
+    "word": "coincide",
+    "meaning": "verb. To occur at the same time or to be in agreement.",
+    "example": "The holiday coincided with her birthday this year."
+  },
+  {
+    "word": "commensurate",
+    "meaning": "adj. Corresponding in size, amount, or degree.",
+    "example": "The salary was commensurate with her experience."
+  },
+  {
+    "word": "compelling",
+    "meaning": "adj. Evoking interest or attention; convincing.",
+    "example": "The lawyer presented a compelling case."
+  },
+  {
+    "word": "compensation",
+    "meaning": "noun. Something given to make up for a loss or effort.",
+    "example": "She received financial compensation for her work."
+  },
+  {
+    "word": "complacent",
+    "meaning": "adj. Satisfied with oneself to a fault.",
+    "example": "He became complacent after winning several competitions."
+  },
+  {
+    "word": "composition",
+    "meaning": "noun. The makeup or structure of something.",
+    "example": "The chemical composition of the substance was analyzed."
+  },
+  {
+    "word": "concede",
+    "meaning": "verb. To admit or acknowledge reluctantly.",
+    "example": "He conceded that he had made a mistake."
+  },
+  {
+    "word": "conclusive",
+    "meaning": "adj. Providing a final decision or result.",
+    "example": "The DNA evidence was conclusive in solving the case."
+  },
+  {
+    "word": "conducive",
+    "meaning": "adj. Making a certain outcome likely or possible.",
+    "example": "A quiet environment is conducive to studying."
+  },
+  {
+    "word": "conflated with",
+    "meaning": "verb. Combined or confused with something else.",
+    "example": "The two concepts are often conflated with each other."
+  },
+  {
+    "word": "confluence",
+    "meaning": "noun. A meeting or coming together of things.",
+    "example": "The confluence of two rivers formed a wider body of water."
+  },
+  {
+    "word": "conformity",
+    "meaning": "noun. Compliance with standards or social norms.",
+    "example": "His conformity to tradition was evident in his behavior."
+  },
+  {
+    "word": "conjecture",
+    "meaning": "noun. A guess or speculation without complete evidence.",
+    "example": "His theory was based on conjecture rather than facts."
+  },
+  {
+    "word": "connotation",
+    "meaning": "noun. The implied or associated meaning of a word.",
+    "example": "The word ‘home’ has a warm connotation."
+  },
+  {
+    "word": "consequential",
+    "meaning": "adj. Significant or important.",
+    "example": "His actions had consequential effects on the company."
+  },
+  {
+    "word": "conservationists",
+    "meaning": "noun. People who work to protect the environment.",
+    "example": "Conservationists fought to save the rainforest."
+  },
+  {
+    "word": "consolidated",
+    "meaning": "adj. Combined or made stronger.",
+    "example": "The company consolidated its branches into one headquarters."
+  },
+  {
+    "word": "conspicuous",
+    "meaning": "adj. Easily noticeable or attracting attention.",
+    "example": "Her bright red dress was conspicuous in the crowd."
+  },
+  {
+    "word": "constrain",
+    "meaning": "verb. To limit or restrict.",
+    "example": "Time constraints forced them to work faster."
+  },
+  {
+    "word": "contend",
+    "meaning": "verb. To argue or compete.",
+    "example": "She contended that the new policy was unfair."
+  },
+  {
+    "word": "contention",
+    "meaning": "noun. A disagreement or argument.",
+    "example": "The main point of contention was the budget proposal."
+  },
+  {
+    "word": "contextualize",
+    "meaning": "verb. To provide background or context.",
+    "example": "The professor contextualized the historical event for the students."
+  },
+  {
+    "word": "contingent on",
+    "meaning": "adj. Dependent on certain conditions.",
+    "example": "Her promotion was contingent on her performance."
+  },
+  {
+    "word": "contradict",
+    "meaning": "verb. To go against or oppose.",
+    "example": "His statement contradicted the facts."
+  },
+  {
+    "word": "controversial",
+    "meaning": "adj. Causing disagreement or debate.",
+    "example": "The new law was highly controversial."
+  },
+  {
+    "word": "conventional",
+    "meaning": "adj. Based on tradition or what is generally accepted.",
+    "example": "He prefers conventional methods of teaching."
+  },
+  {
+    "word": "conveyance",
+    "meaning": "noun. The act of transporting something.",
+    "example": "The conveyance of goods by ship was delayed."
+  },
+  {
+    "word": "conveyed",
+    "meaning": "verb. Expressed or communicated.",
+    "example": "Her tone conveyed her disappointment."
+  },
+  {
+    "word": "convoluted",
+    "meaning": "adj. Complicated and difficult to understand.",
+    "example": "The professor’s explanation was too convoluted."
+  },
+  {
+    "word": "copious",
+    "meaning": "adj. Abundant or plentiful.",
+    "example": "She took copious notes during the lecture."
+  },
+  {
+    "word": "correlation",
+    "meaning": "noun. A connection or relationship between two things.",
+    "example": "There is a correlation between diet and health."
+  },
+  {
+    "word": "corroborate",
+    "meaning": "verb. To confirm or support with evidence.",
+    "example": "The witness corroborated the suspect’s alibi."
+  },
+  {
+    "word": "corrugated",
+    "meaning": "adj. Shaped into alternating ridges and grooves.",
+    "example": "The corrugated metal roof was rusted."
+  },
+  {
+    "word": "culminate",
+    "meaning": "verb. To reach a peak or final point.",
+    "example": "The project culminated in a successful presentation."
+  },
+  {
+    "word": "cumulative",
+    "meaning": "adj. Increasing or growing over time.",
+    "example": "The cumulative effects of stress can impact health."
+  },
+  {
+    "word": "debacle",
+    "meaning": "noun. A sudden and disastrous failure.",
+    "example": "The event was a complete debacle due to poor planning."
+  },
+  {
+    "word": "debilitate",
+    "meaning": "verb. To weaken or impair.",
+    "example": "The illness debilitated him, making it hard to work."
+  },
+  {
+    "word": "decisive",
+    "meaning": "adj. Determining an outcome or showing firmness.",
+    "example": "Her decisive leadership helped the team succeed."
+  },
+  {
+    "word": "deduce",
+    "meaning": "verb. To reach a conclusion through reasoning.",
+    "example": "From the evidence, detectives deduced the suspect’s identity."
+  },
+  {
+    "word": "defer",
+    "meaning": "verb. To postpone or delay.",
+    "example": "They decided to defer the meeting until next week."
+  },
+  {
+    "word": "deleterious",
+    "meaning": "adj. Harmful or damaging.",
+    "example": "Smoking has deleterious effects on health."
+  },
+  {
+    "word": "delineate",
+    "meaning": "verb. To describe or outline precisely.",
+    "example": "The artist delineated the details of the portrait carefully."
+  },
+  {
+    "word": "demarcated from",
+    "meaning": "verb. Set apart or distinguished from something else.",
+    "example": "The two regions are clearly demarcated from each other by a river."
+  },
+  {
+    "word": "demographic",
+    "meaning": "noun. A specific group within a population.",
+    "example": "The company targeted a younger demographic with its ads."
+  },
+  {
+    "word": "depicts",
+    "meaning": "verb. To represent or illustrate.",
+    "example": "The painting depicts a serene countryside scene."
+  },
+  {
+    "word": "depreciating",
+    "meaning": "verb. Losing value over time.",
+    "example": "The car’s value has been depreciating rapidly."
+  },
+  {
+    "word": "deprivation",
+    "meaning": "noun. The lack or denial of something necessary.",
+    "example": "Sleep deprivation can affect concentration."
+  },
+  {
+    "word": "desultory",
+    "meaning": "adj. Lacking a clear plan or purpose.",
+    "example": "His desultory speech confused the audience."
+  },
+  {
+    "word": "detrimental",
+    "meaning": "adj. Causing harm or damage.",
+    "example": "Excessive screen time can be detrimental to eye health."
+  },
+  {
+    "word": "dichotomy",
+    "meaning": "noun. A division between two opposing things.",
+    "example": "The novel explores the dichotomy between good and evil."
+  },
+  {
+    "word": "diffuse",
+    "meaning": "verb. To spread out or scatter.",
+    "example": "The scent of flowers diffused through the room."
+  },
+  {
+    "word": "diminish",
+    "meaning": "verb. To reduce in size or importance.",
+    "example": "His influence in the company began to diminish."
+  },
+  {
+    "word": "discernible",
+    "meaning": "adj. Noticeable or able to be perceived.",
+    "example": "There was a discernible improvement in his work."
+  },
+  {
+    "word": "discordant",
+    "meaning": "adj. Lacking harmony or agreement.",
+    "example": "Their discordant opinions led to heated arguments."
+  },
+  {
+    "word": "discrepancy",
+    "meaning": "noun. A difference or inconsistency.",
+    "example": "There was a discrepancy between the two reports."
+  },
+  {
+    "word": "discretion",
+    "meaning": "noun. The ability to make responsible decisions or keep something confidential.",
+    "example": "Use discretion when discussing sensitive matters."
+  },
+  {
+    "word": "dislodge",
+    "meaning": "verb. To remove or force out from a position.",
+    "example": "The earthquake dislodged several rocks from the cliff."
+  },
+  {
+    "word": "disparage",
+    "meaning": "verb. To belittle or criticize.",
+    "example": "She disparaged his efforts despite his hard work."
+  },
+  {
+    "word": "disseminate",
+    "meaning": "verb. To spread widely.",
+    "example": "The internet helps disseminate information quickly."
+  },
+  {
+    "word": "dissimilar",
+    "meaning": "adj. Not alike; different.",
+    "example": "Their viewpoints are completely dissimilar."
+  },
+  {
+    "word": "distinctive",
+    "meaning": "adj. Having a unique or distinguishing quality.",
+    "example": "His distinctive voice made him a recognizable singer."
+  },
+  {
+    "word": "divergence",
+    "meaning": "noun. The act of moving apart or differing.",
+    "example": "There was a divergence of opinions in the debate."
+  },
+  {
+    "word": "divergent",
+    "meaning": "adj. Developing in different directions.",
+    "example": "Their career paths became increasingly divergent."
+  },
+  {
+    "word": "dormant",
+    "meaning": "adj. Inactive or temporarily not in use.",
+    "example": "The volcano has been dormant for centuries."
+  },
+  {
+    "word": "dubious",
+    "meaning": "adj. Doubtful or questionable.",
+    "example": "His dubious claims were met with skepticism."
+  },
+  {
+    "word": "earnest",
+    "meaning": "adj. Showing sincere and intense conviction.",
+    "example": "She gave an earnest apology for her mistake."
+  },
+  {
+    "word": "efficacy",
+    "meaning": "noun. The ability to produce a desired effect.",
+    "example": "The efficacy of the new drug was proven in trials."
+  },
+  {
+    "word": "elicit",
+    "meaning": "verb. To draw out a response or reaction.",
+    "example": "The teacher’s question elicited an interesting discussion."
+  },
+  {
+    "word": "eloquent",
+    "meaning": "adj. Fluent and persuasive in speech or writing.",
+    "example": "The senator gave an eloquent speech about equality."
+  },
+  {
+    "word": "elucidate",
+    "meaning": "verb. To explain or clarify.",
+    "example": "The professor elucidated a difficult concept in simple terms."
+  },
+  {
+    "word": "eminent",
+    "meaning": "adj. Famous and respected in a field.",
+    "example": "She is an eminent scientist in the field of genetics."
+  },
+  {
+    "word": "emissivity",
+    "meaning": "noun. The ability of a material to emit energy as radiation.",
+    "example": "The spacecraft’s heat shield has high emissivity."
+  },
+  {
+    "word": "emphasize",
+    "meaning": "verb. To give special importance or stress to something.",
+    "example": "The teacher emphasized the importance of critical thinking."
+  },
+  {
+    "word": "empirical",
+    "meaning": "adj. Based on observation or experience rather than theory.",
+    "example": "Empirical data is crucial for scientific research."
+  },
+  {
+    "word": "encompass",
+    "meaning": "verb. To include or surround.",
+    "example": "The park encompasses several hiking trails and lakes."
+  },
+  {
+    "word": "endeavor",
+    "meaning": "noun. A serious attempt or effort.",
+    "example": "She embarked on an endeavor to write a novel."
+  },
+  {
+    "word": "enhance",
+    "meaning": "verb. To improve or make better.",
+    "example": "This software enhances image quality."
+  },
+  {
+    "word": "ephemeral",
+    "meaning": "adj. Lasting for a very short time.",
+    "example": "The beauty of a sunset is ephemeral."
+  },
+  {
+    "word": "equivalent",
+    "meaning": "adj. Equal in value, function, or meaning.",
+    "example": "One euro is roughly equivalent to one dollar."
+  },
+  {
+    "word": "equivocate",
+    "meaning": "verb. To use unclear language to avoid commitment.",
+    "example": "The politician equivocated when asked about taxes."
+  },
+  {
+    "word": "erratic",
+    "meaning": "adj. Unpredictable or inconsistent.",
+    "example": "His erratic driving made the passengers nervous."
+  },
+  {
+    "word": "erudite",
+    "meaning": "adj. Having great knowledge or learning.",
+    "example": "The professor’s lecture was erudite and insightful."
+  },
+  {
+    "word": "esoteric",
+    "meaning": "adj. Intended for or understood by only a small group.",
+    "example": "Quantum physics is an esoteric subject for many people."
+  },
+  {
+    "word": "esteem",
+    "meaning": "noun. High regard or respect.",
+    "example": "She is held in high esteem by her colleagues."
+  },
+  {
+    "word": "ethnographers",
+    "meaning": "noun. Researchers who study cultures and societies.",
+    "example": "Ethnographers spent years documenting indigenous traditions."
+  },
+  {
+    "word": "exacerbate",
+    "meaning": "verb. To make a problem worse.",
+    "example": "His rude remarks exacerbated the tension in the room."
+  },
+  {
+    "word": "exceed",
+    "meaning": "verb. To go beyond a limit or expectation.",
+    "example": "Her performance exceeded all expectations."
+  },
+  {
+    "word": "exemplifies",
+    "meaning": "verb. To serve as an example of something.",
+    "example": "His dedication exemplifies true leadership."
+  },
+  {
+    "word": "exorbitant",
+    "meaning": "adj. Unreasonably high or excessive.",
+    "example": "The hotel charged an exorbitant fee for parking."
+  },
+  {
+    "word": "expedite",
+    "meaning": "verb. To speed up a process.",
+    "example": "We need to expedite shipping for urgent orders."
+  },
+  {
+    "word": "extensive",
+    "meaning": "adj. Covering a large area or amount.",
+    "example": "The library has an extensive collection of rare books."
+  },
+  {
+    "word": "extrapolate",
+    "meaning": "verb. To infer or estimate based on known data.",
+    "example": "Scientists extrapolate climate trends from past data."
+  },
+  {
+    "word": "facilitate",
+    "meaning": "verb. To make an action or process easier.",
+    "example": "The new software facilitates communication between remote teams."
+  },
+  {
+    "word": "fastidious",
+    "meaning": "adj. Very attentive to detail and accuracy.",
+    "example": "She was fastidious about organizing her books by genre and author."
+  },
+  {
+    "word": "fluctuate",
+    "meaning": "verb. To change or vary irregularly.",
+    "example": "Stock prices tend to fluctuate throughout the day."
+  },
+  {
+    "word": "fortuitous",
+    "meaning": "adj. Happening by chance, often in a lucky way.",
+    "example": "A fortuitous discovery of an ancient artifact changed the course of the excavation."
+  },
+  {
+    "word": "foster",
+    "meaning": "verb. To encourage or promote the development of something.",
+    "example": "The teacher fostered a love of reading in her students."
+  },
+  {
+    "word": "fruition",
+    "meaning": "noun. The point at which a plan or project is realized.",
+    "example": "After years of hard work, his dream of opening a bakery finally came to fruition."
+  },
+  {
+    "word": "galvanize",
+    "meaning": "verb. To shock or excite someone into taking action.",
+    "example": "The speech galvanized the audience into supporting the cause."
+  },
+  {
+    "word": "gregarious",
+    "meaning": "adj. Sociable and enjoying the company of others.",
+    "example": "He was a gregarious person who made friends easily."
+  },
+  {
+    "word": "hemisphere",
+    "meaning": "noun. Half of a sphere, often referring to the Earth’s divisions.",
+    "example": "The Northern Hemisphere experiences winter while the Southern Hemisphere has summer."
+  },
+  {
+    "word": "heuristic",
+    "meaning": "adj. Enabling a person to discover or learn something for themselves.",
+    "example": "The teacher used a heuristic approach to problem-solving."
+  },
+  {
+    "word": "homogeneous",
+    "meaning": "adj. Consisting of parts that are all of the same kind.",
+    "example": "The town had a relatively homogeneous population with shared cultural traditions."
+  },
+  {
+    "word": "hubris",
+    "meaning": "noun. Excessive pride or self-confidence.",
+    "example": "The general’s hubris led to a disastrous defeat."
+  },
+  {
+    "word": "hypothesis",
+    "meaning": "noun. A proposed explanation for a phenomenon.",
+    "example": "The scientist tested her hypothesis through a series of experiments."
+  },
+  {
+    "word": "idiosyncratic",
+    "meaning": "adj. Peculiar or individual in nature.",
+    "example": "His idiosyncratic way of speaking made him stand out in meetings."
+  },
+  {
+    "word": "illuminate",
+    "meaning": "verb. To light up or clarify.",
+    "example": "The professor illuminated the complex theory with a simple analogy."
+  },
+  {
+    "word": "immense",
+    "meaning": "adj. Extremely large or great.",
+    "example": "The ocean’s immense depth makes it difficult to explore."
+  },
+  {
+    "word": "immutable",
+    "meaning": "adj. Unchanging over time or unable to be changed.",
+    "example": "The laws of physics are considered immutable."
+  },
+  {
+    "word": "impart",
+    "meaning": "verb. To communicate or make known.",
+    "example": "The mentor imparted valuable wisdom to his students."
+  },
+  {
+    "word": "impenetrable",
+    "meaning": "adj. Impossible to pass through or understand.",
+    "example": "The dense forest was nearly impenetrable."
+  },
+  {
+    "word": "imperative",
+    "meaning": "adj. Of vital importance; crucial.",
+    "example": "It is imperative that we address climate change immediately."
+  },
+  {
+    "word": "imperceptible",
+    "meaning": "adj. Impossible to perceive.",
+    "example": "The difference in weight was imperceptible to the touch."
+  },
+  {
+    "word": "impetuous",
+    "meaning": "adj. Acting quickly without thought or care.",
+    "example": "His impetuous decision to quit his job surprised everyone."
+  },
+  {
+    "word": "implication",
+    "meaning": "noun. A conclusion that can be drawn from something, though not explicitly stated.",
+    "example": "The implication of his statement was clear—he wanted a promotion."
+  },
+  {
+    "word": "imprecise",
+    "meaning": "adj. Not exact or accurate.",
+    "example": "His instructions were too imprecise to be useful."
+  },
+  {
+    "word": "inadvertent",
+    "meaning": "adj. Not resulting from deliberate planning; unintentional.",
+    "example": "His inadvertent mistake cost the company thousands."
+  },
+  {
+    "word": "inadvertently",
+    "meaning": "adv. Without intention; accidentally.",
+    "example": "She inadvertently deleted an important file from her computer."
+  },
+  {
+    "word": "incentive",
+    "meaning": "noun. A thing that motivates or encourages someone to do something.",
+    "example": "The company offered bonuses as an incentive for employees to work overtime."
+  },
+  {
+    "word": "inconclusive",
+    "meaning": "adj. Not leading to a firm conclusion.",
+    "example": "The test results were inconclusive and required further analysis."
+  },
+  {
+    "word": "incongruity",
+    "meaning": "noun. A state of being out of place or inconsistent.",
+    "example": "The incongruity of his casual outfit at the formal event was noticeable."
+  },
+  {
+    "word": "incongruous",
+    "meaning": "adj. Not in harmony or keeping with the surroundings.",
+    "example": "His bright red shoes were incongruous with his otherwise formal attire."
+  },
+  {
+    "word": "inconspicuousness",
+    "meaning": "noun. The state of not being easily seen or noticed.",
+    "example": "The spy relied on his inconspicuousness to blend into the crowd."
+  },
+  {
+    "word": "indecipherable",
+    "meaning": "adj. Impossible to read or understand.",
+    "example": "The ancient script was indecipherable without the help of linguists."
+  },
+  {
+    "word": "indelible",
+    "meaning": "adj. Impossible to remove, forget, or erase.",
+    "example": "The tragic event left an indelible mark on her memory."
+  },
+  {
+    "word": "indeterminate",
+    "meaning": "adj. Not exactly known, established, or defined.",
+    "example": "The cause of the explosion remains indeterminate."
+  },
+  {
+    "word": "induce",
+    "meaning": "verb. To bring about or cause something to happen.",
+    "example": "The doctor used medication to induce sleep."
+  },
+  {
+    "word": "ineffable",
+    "meaning": "adj. Too great or extreme to be expressed in words.",
+    "example": "The beauty of the sunset was ineffable."
+  },
+  {
+    "word": "ineffectual",
+    "meaning": "adj. Not producing the desired effect.",
+    "example": "The negotiations were ineffectual, leading to a continued stalemate."
+  },
+  {
+    "word": "inevitable",
+    "meaning": "adj. Certain to happen; unavoidable.",
+    "example": "With the rising costs, price increases seemed inevitable."
+  },
+  {
+    "word": "inexorable",
+    "meaning": "adj. Impossible to stop or prevent.",
+    "example": "The passage of time is inexorable."
+  },
+  {
+    "word": "infers",
+    "meaning": "verb. To deduce or conclude from evidence and reasoning.",
+    "example": "From her tone, he infers that she was upset."
+  },
+  {
+    "word": "inherent",
+    "meaning": "adj. Existing as a natural or essential characteristic.",
+    "example": "The risks of surgery are inherent to the procedure."
+  },
+  {
+    "word": "inhibitory",
+    "meaning": "adj. Serving to slow down or restrain a process.",
+    "example": "The drug has an inhibitory effect on nerve signals."
+  },
+  {
+    "word": "insatiable",
+    "meaning": "adj. Impossible to satisfy.",
+    "example": "His insatiable curiosity led him to read every book in the library."
+  },
+  {
+    "word": "insightful",
+    "meaning": "adj. Having deep understanding or perception.",
+    "example": "Her insightful comments added depth to the discussion."
+  },
+  {
+    "word": "insipid",
+    "meaning": "adj. Lacking flavor, interest, or vigor.",
+    "example": "The lecture was insipid, putting the students to sleep."
+  },
+  {
+    "word": "inspired",
+    "meaning": "adj. Filled with creativity or motivation.",
+    "example": "His inspired speech moved the audience."
+  },
+  {
+    "word": "insular",
+    "meaning": "adj. Isolated or having a narrow viewpoint.",
+    "example": "The small town had an insular culture, resistant to change."
+  },
+  {
+    "word": "integral",
+    "meaning": "adj. Essential or necessary for completeness.",
+    "example": "A good education is integral to success."
+  },
+  {
+    "word": "interpretation",
+    "meaning": "noun. An explanation or understanding of something.",
+    "example": "His interpretation of the poem differed from hers."
+  },
+  {
+    "word": "intertwined",
+    "meaning": "adj. Closely connected or twisted together.",
+    "example": "Their lives became intertwined after years of friendship."
+  },
+  {
+    "word": "intransigent",
+    "meaning": "adj. Unwilling to change one’s views or agree.",
+    "example": "The two sides remained intransigent during negotiations."
+  },
+  {
+    "word": "intricate",
+    "meaning": "adj. Very detailed and complicated.",
+    "example": "The artist’s intricate designs took months to complete."
+  },
+  {
+    "word": "intrinsic",
+    "meaning": "adj. Belonging naturally; essential.",
+    "example": "The intrinsic value of gold makes it a desirable asset."
+  },
+  {
+    "word": "inventive",
+    "meaning": "adj. Creative and original.",
+    "example": "The scientist was known for his inventive problem-solving skills."
+  },
+  {
+    "word": "invokes",
+    "meaning": "verb. To call upon or refer to something.",
+    "example": "The speech invokes themes of justice and equality."
+  },
+  {
+    "word": "involuntarily",
+    "meaning": "adv. Without conscious control.",
+    "example": "She involuntarily gasped at the shocking news."
+  },
+  {
+    "word": "juxtapose",
+    "meaning": "verb. To place side by side for contrast.",
+    "example": "The artist juxtaposed dark colors with bright ones to create contrast."
+  },
+  {
+    "word": "juxtaposition",
+    "meaning": "noun. The act of placing things next to each other for contrast.",
+    "example": "The juxtaposition of poverty and wealth in the city was striking."
+  },
+  {
+    "word": "lacking",
+    "meaning": "adj. Missing or deficient in some way.",
+    "example": "His argument was lacking evidence to support his claim."
+  },
+  {
+    "word": "lament",
+    "meaning": "verb. To express sorrow or regret.",
+    "example": "She lamented the loss of her childhood home."
+  },
+  {
+    "word": "latent",
+    "meaning": "adj. Existing but not yet developed or visible.",
+    "example": "His latent talent for painting emerged later in life."
+  },
+  {
+    "word": "legitimate",
+    "meaning": "adj. Conforming to laws, rules, or accepted standards.",
+    "example": "The business had a legitimate claim to the property."
+  },
+  {
+    "word": "lucid",
+    "meaning": "adj. Clear and easy to understand.",
+    "example": "Her explanation was so lucid that even a beginner could grasp the concept."
+  },
+  {
+    "word": "luminescence",
+    "meaning": "noun. The emission of light by a substance not resulting from heat.",
+    "example": "The jellyfish glowed with an eerie luminescence in the dark waters."
+  },
+  {
+    "word": "magnanimous",
+    "meaning": "adj. Generous, forgiving, or noble in spirit.",
+    "example": "Despite their rivalry, she was magnanimous in victory."
+  },
+  {
+    "word": "malleable",
+    "meaning": "adj. Easily shaped, influenced, or adaptable.",
+    "example": "Gold is highly malleable and can be hammered into thin sheets."
+  },
+  {
+    "word": "manifestation",
+    "meaning": "noun. An outward or visible expression of something.",
+    "example": "The rising tensions were a manifestation of deeper social issues."
+  },
+  {
+    "word": "mellifluous",
+    "meaning": "adj. Pleasantly smooth and musical to hear.",
+    "example": "The singer’s mellifluous voice captivated the audience."
+  },
+  {
+    "word": "mercurial",
+    "meaning": "adj. Subject to sudden or unpredictable changes.",
+    "example": "His mercurial temperament made him difficult to work with."
+  },
+  {
+    "word": "meticulous",
+    "meaning": "adj. Extremely careful and precise.",
+    "example": "She was meticulous in organizing her research notes."
+  },
+  {
+    "word": "misanthropic",
+    "meaning": "adj. Disliking or avoiding human society.",
+    "example": "The misanthropic old man rarely spoke to his neighbors."
+  },
+  {
+    "word": "mitigate",
+    "meaning": "verb. To make less severe or serious.",
+    "example": "The government took measures to mitigate the effects of the crisis."
+  },
+  {
+    "word": "modulate",
+    "meaning": "verb. To adjust or regulate to a certain level or standard.",
+    "example": "He modulated his voice to sound more authoritative."
+  },
+  {
+    "word": "monumental",
+    "meaning": "adj. Extremely large, significant, or important.",
+    "example": "The discovery was a monumental achievement in the field of medicine."
+  },
+  {
+    "word": "morphological",
+    "meaning": "adj. Related to the form or structure of things.",
+    "example": "The morphological differences between species help scientists classify them."
+  },
+  {
+    "word": "multifaceted",
+    "meaning": "adj. Having many aspects or dimensions.",
+    "example": "Her research took a multifaceted approach to solving the problem."
+  },
+  {
+    "word": "mundane",
+    "meaning": "adj. Ordinary, lacking excitement, or routine.",
+    "example": "He found his office job mundane and uninspiring."
+  },
+  {
+    "word": "munificent",
+    "meaning": "adj. Very generous.",
+    "example": "The munificent donor contributed millions to the university."
+  },
+  {
+    "word": "nascent",
+    "meaning": "adj. Just beginning to develop.",
+    "example": "The nascent technology showed great promise."
+  },
+  {
+    "word": "nebulous",
+    "meaning": "adj. Vague, unclear, or ill-defined.",
+    "example": "His explanation was too nebulous to be understood."
+  },
+  {
+    "word": "nominal",
+    "meaning": "adj. Existing in name only, or very small in amount.",
+    "example": "He was the nominal leader, but the real power lay elsewhere."
+  },
+  {
+    "word": "novel",
+    "meaning": "adj. New, original, or different from anything seen before.",
+    "example": "Her novel approach to the problem impressed her colleagues."
+  },
+  {
+    "word": "novelty",
+    "meaning": "noun. The quality of being new, original, or unusual.",
+    "example": "The novelty of the invention attracted a lot of attention."
+  },
+  {
+    "word": "nuanced",
+    "meaning": "adj. Characterized by subtle distinctions or variations.",
+    "example": "Her argument was well-structured and highly nuanced."
+  },
+  {
+    "word": "obdurate",
+    "meaning": "adj. Stubbornly refusing to change one’s opinion or course of action.",
+    "example": "Despite the evidence, he remained obdurate in his stance."
+  },
+  {
+    "word": "obfuscate",
+    "meaning": "verb. To make something unclear or difficult to understand.",
+    "example": "The lawyer tried to obfuscate the details of the case."
+  },
+  {
+    "word": "oblique",
+    "meaning": "adj. Indirect or not straightforward.",
+    "example": "His oblique answer made it hard to determine his true intentions."
+  },
+  {
+    "word": "obscure",
+    "meaning": "adj. Not well known or difficult to understand.",
+    "example": "The professor referenced an obscure 18th-century philosopher."
+  },
+  {
+    "word": "obsequious",
+    "meaning": "adj. Excessively submissive or eager to please.",
+    "example": "The obsequious assistant praised her boss at every opportunity."
+  },
+  {
+    "word": "obsolete",
+    "meaning": "adj. No longer in use or out of date.",
+    "example": "VCRs have become obsolete with the rise of streaming services."
+  },
+  {
+    "word": "obstinate",
+    "meaning": "adj. Stubbornly refusing to change one’s mind.",
+    "example": "The child was obstinate about not eating his vegetables."
+  },
+  {
+    "word": "obtrusive",
+    "meaning": "adj. Noticeable in an unwelcome or intrusive way.",
+    "example": "His loud behavior was obtrusive in the quiet library."
+  },
+  {
+    "word": "oddity",
+    "meaning": "noun. Something unusual or strange.",
+    "example": "The sculpture was an oddity that puzzled many visitors."
+  },
+  {
+    "word": "onerous",
+    "meaning": "adj. Burdensome or involving great effort.",
+    "example": "The new regulations placed onerous demands on small businesses."
+  },
+  {
+    "word": "opaque",
+    "meaning": "adj. Not transparent or difficult to understand.",
+    "example": "The explanation was so opaque that few people grasped the concept."
+  },
+  {
+    "word": "operative",
+    "meaning": "adj. Functioning or having an effect.",
+    "example": "Only the last clause of the contract is operative."
+  },
+  {
+    "word": "opulent",
+    "meaning": "adj. Rich and luxurious.",
+    "example": "The palace was decorated in an opulent style."
+  },
+  {
+    "word": "ostensible",
+    "meaning": "adj. Stated or appearing to be true, but not necessarily so.",
+    "example": "His ostensible purpose was to help, but he had ulterior motives."
+  },
+  {
+    "word": "ostensibly",
+    "meaning": "adv. Apparently or supposedly.",
+    "example": "She was ostensibly on a business trip, but she was actually on vacation."
+  },
+  {
+    "word": "ostentatious",
+    "meaning": "adj. Showy or designed to impress.",
+    "example": "The millionaire’s ostentatious display of wealth included gold-plated furniture."
+  },
+  {
+    "word": "overarching",
+    "meaning": "adj. Comprehensive or all-encompassing.",
+    "example": "The overarching theme of the novel was redemption."
+  },
+  {
+    "word": "palimpsest",
+    "meaning": "noun. A document or object that has been reused or altered but still retains traces of its original form.",
+    "example": "The ancient manuscript was a palimpsest, with faint traces of earlier writings."
+  },
+  {
+    "word": "paradigm",
+    "meaning": "noun. A typical example or model of something.",
+    "example": "The scientific paradigm shifted with the discovery of quantum mechanics."
+  },
+  {
+    "word": "paradox",
+    "meaning": "noun. A statement or situation that seems contradictory but may be true.",
+    "example": "His deep shyness and charisma created a paradox."
+  },
+  {
+    "word": "penchant",
+    "meaning": "noun. A strong inclination or liking.",
+    "example": "She has a penchant for collecting rare books."
+  },
+  {
+    "word": "perceptible",
+    "meaning": "adj. Able to be noticed or felt.",
+    "example": "There was a perceptible change in his attitude."
+  },
+  {
+    "word": "peripheral",
+    "meaning": "adj. Relating to or situated on the edge; not central.",
+    "example": "The details were peripheral to the main argument."
+  },
+  {
+    "word": "perpetuate",
+    "meaning": "verb. To make something continue indefinitely.",
+    "example": "The media can sometimes perpetuate harmful stereotypes."
+  },
+  {
+    "word": "perspicacious",
+    "meaning": "adj. Having keen insight or understanding.",
+    "example": "The detective was perspicacious, noticing clues that others missed."
+  },
+  {
+    "word": "pervasive",
+    "meaning": "adj. Spreading widely throughout an area or group.",
+    "example": "The smell of fresh bread was pervasive in the bakery."
+  },
+  {
+    "word": "placate",
+    "meaning": "verb. To calm or pacify.",
+    "example": "He tried to placate his angry boss with an apology."
+  },
+  {
+    "word": "plausible",
+    "meaning": "adj. Seeming reasonable or likely.",
+    "example": "Her excuse for being late was plausible."
+  },
+  {
+    "word": "pragmatic",
+    "meaning": "adj. Dealing with things sensibly and realistically.",
+    "example": "She took a pragmatic approach to solving the problem."
+  },
+  {
+    "word": "precarious",
+    "meaning": "adj. Not secure; risky or unstable.",
+    "example": "His financial situation was precarious after losing his job."
+  },
+  {
+    "word": "precedence",
+    "meaning": "noun. The condition of being more important than something else.",
+    "example": "In emergencies, safety takes precedence over convenience."
+  },
+  {
+    "word": "precipitous",
+    "meaning": "adj. Dangerously high or steep; sudden and dramatic.",
+    "example": "The company’s precipitous decline worried investors."
+  },
+  {
+    "word": "preclude",
+    "meaning": "verb. To prevent from happening.",
+    "example": "His injury precluded him from playing in the final game."
+  },
+  {
+    "word": "precocious",
+    "meaning": "adj. Having developed certain abilities at an earlier age than usual.",
+    "example": "The precocious child could read at age three."
+  },
+  {
+    "word": "preconceived",
+    "meaning": "adj. Formed before having full knowledge or experience.",
+    "example": "She entered the debate with a preconceived notion of who was right."
+  },
+  {
+    "word": "precursor",
+    "meaning": "noun. A person or thing that comes before another.",
+    "example": "The pager was a precursor to the modern smartphone."
+  },
+  {
+    "word": "predetermined",
+    "meaning": "adj. Decided or set in advance.",
+    "example": "The outcome of the competition seemed predetermined."
+  },
+  {
+    "word": "predictive",
+    "meaning": "adj. Relating to the ability to predict future events.",
+    "example": "The scientist used predictive models to forecast climate changes."
+  },
+  {
+    "word": "predispose",
+    "meaning": "verb. To make someone more likely to behave in a certain way.",
+    "example": "Genetics can predispose individuals to certain diseases."
+  },
+  {
+    "word": "prescient",
+    "meaning": "adj. Having foresight or knowing something before it happens.",
+    "example": "Her prescient advice helped us avoid financial trouble."
+  },
+  {
+    "word": "presumptive",
+    "meaning": "adj. Based on probability or assumption.",
+    "example": "His presumptive diagnosis was confirmed after further tests."
+  },
+  {
+    "word": "prevalence",
+    "meaning": "noun. The commonness or frequency of something.",
+    "example": "The prevalence of online shopping has increased in recent years."
+  },
+  {
+    "word": "prevalent",
+    "meaning": "adj. Widespread or commonly occurring.",
+    "example": "Influenza is particularly prevalent in winter."
+  },
+  {
+    "word": "pristine",
+    "meaning": "adj. In its original, untouched condition.",
+    "example": "The pristine beach had not been disturbed by tourists."
+  },
+  {
+    "word": "prodigious",
+    "meaning": "adj. Remarkably large or impressive.",
+    "example": "She displayed prodigious talent at a young age."
+  },
+  {
+    "word": "profound",
+    "meaning": "adj. Deep, insightful, or intense.",
+    "example": "The professor’s lecture left a profound impact on the students."
+  },
+  {
+    "word": "proliferation",
+    "meaning": "noun. Rapid increase or spread.",
+    "example": "The proliferation of smartphones has changed communication worldwide."
+  },
+  {
+    "word": "prolific",
+    "meaning": "adj. Producing a large amount of something.",
+    "example": "The author was prolific, publishing multiple novels each year."
+  },
+  {
+    "word": "propensity",
+    "meaning": "noun. A natural inclination or tendency.",
+    "example": "He has a propensity to speak before thinking."
+  },
+  {
+    "word": "proponent",
+    "meaning": "noun. Someone who advocates for a cause or idea.",
+    "example": "She is a strong proponent of renewable energy."
+  },
+  {
+    "word": "proposes",
+    "meaning": "verb. To suggest a plan or idea for consideration.",
+    "example": "The senator proposes new legislation on healthcare."
+  },
+  {
+    "word": "provisional",
+    "meaning": "adj. Temporary or conditional.",
+    "example": "His license was provisional until he passed the final test."
+  },
+  {
+    "word": "qualitative",
+    "meaning": "adj. Relating to the characteristics or qualities of something.",
+    "example": "The research focused on qualitative data rather than numerical statistics."
+  },
+  {
+    "word": "quandary",
+    "meaning": "noun. A state of uncertainty or confusion.",
+    "example": "She was in a quandary about which college to choose."
+  },
+  {
+    "word": "quantifiable",
+    "meaning": "adj. Able to be measured or counted.",
+    "example": "The economic benefits of the project are easily quantifiable."
+  },
+  {
+    "word": "quintessential",
+    "meaning": "adj. Representing the most typical or ideal example.",
+    "example": "Shakespeare is considered the quintessential English playwright."
+  },
+  {
+    "word": "quixotic",
+    "meaning": "adj. Unrealistically idealistic.",
+    "example": "His quixotic plan to end world hunger lacked practical solutions."
+  },
+  {
+    "word": "radial symmetry",
+    "meaning": "noun. A body structure in which parts radiate outward from a central point.",
+    "example": "Starfish exhibit radial symmetry."
+  },
+  {
+    "word": "reaffirm",
+    "meaning": "verb. To confirm or assert again.",
+    "example": "The president reaffirmed his commitment to the policy."
+  },
+  {
+    "word": "rebuttal",
+    "meaning": "noun. A response that contradicts or refutes an argument.",
+    "example": "His rebuttal effectively countered the opposing viewpoint."
+  },
+  {
+    "word": "recalcitrant",
+    "meaning": "adj. Resistant to authority or control.",
+    "example": "The recalcitrant student refused to follow the teacher’s instructions."
+  },
+  {
+    "word": "reciprocal",
+    "meaning": "adj. Given, felt, or done in return.",
+    "example": "Their relationship was built on reciprocal trust and respect."
+  },
+  {
+    "word": "reciprocity",
+    "meaning": "noun. Mutual exchange of benefits or privileges.",
+    "example": "The trade agreement was based on reciprocity between the two nations."
+  },
+  {
+    "word": "rectify",
+    "meaning": "verb. To correct or make something right.",
+    "example": "The company took steps to rectify its mistake."
+  },
+  {
+    "word": "refinement",
+    "meaning": "noun. The process of improving something.",
+    "example": "The software underwent refinement before its release."
+  },
+  {
+    "word": "refutation",
+    "meaning": "noun. The act of proving a statement or argument to be false.",
+    "example": "His refutation of the claim was backed by strong evidence."
+  },
+  {
+    "word": "reinforce",
+    "meaning": "verb. To strengthen or support.",
+    "example": "The bridge was reinforced to withstand strong winds."
+  },
+  {
+    "word": "reiterate",
+    "meaning": "verb. To repeat for emphasis or clarity.",
+    "example": "The coach reiterated the importance of teamwork."
+  },
+  {
+    "word": "relegate",
+    "meaning": "verb. To assign to a lower position or rank.",
+    "example": "The player was relegated to the bench after poor performance."
+  },
+  {
+    "word": "remedial",
+    "meaning": "adj. Intended to correct or improve something.",
+    "example": "He enrolled in remedial classes to improve his reading skills."
+  },
+  {
+    "word": "repertoire",
+    "meaning": "noun. A collection of skills or works that a person can perform.",
+    "example": "The pianist’s repertoire included both classical and modern pieces."
+  },
+  {
+    "word": "reprieve",
+    "meaning": "noun. A temporary relief from something unpleasant.",
+    "example": "The judge granted a reprieve, delaying the execution."
+  },
+  {
+    "word": "repudiate",
+    "meaning": "verb. To reject or disown something.",
+    "example": "She repudiated the false accusations made against her."
+  },
+  {
+    "word": "rescind",
+    "meaning": "verb. To revoke or cancel a decision or law.",
+    "example": "The government decided to rescind the outdated policy."
+  },
+  {
+    "word": "resonance",
+    "meaning": "noun. A deep, full sound or an emotional impact.",
+    "example": "The resonance of his speech left the audience in tears."
+  },
+  {
+    "word": "reticent",
+    "meaning": "adj. Reserved or reluctant to speak.",
+    "example": "Despite being reticent, he shared his thoughts when asked."
+  },
+  {
+    "word": "retrospective",
+    "meaning": "adj. Looking back on past events.",
+    "example": "The artist held a retrospective exhibition of his early works."
+  },
+  {
+    "word": "reverence",
+    "meaning": "noun. Deep respect or admiration.",
+    "example": "She spoke of her mentor with great reverence."
+  },
+  {
+    "word": "rudimentary",
+    "meaning": "adj. Basic or elementary.",
+    "example": "He had only a rudimentary understanding of physics."
+  },
+  {
+    "word": "sagacious",
+    "meaning": "adj. Wise and insightful.",
+    "example": "The sagacious leader made thoughtful decisions."
+  },
+  {
+    "word": "salient",
+    "meaning": "adj. Most noticeable or important.",
+    "example": "The salient feature of the painting was its vibrant colors."
+  },
+  {
+    "word": "sanguine",
+    "meaning": "adj. Optimistic or hopeful.",
+    "example": "Despite the challenges, he remained sanguine about the future."
+  },
+  {
+    "word": "scrutinize",
+    "meaning": "verb. To examine closely.",
+    "example": "The editor scrutinized every detail of the manuscript."
+  },
+  {
+    "word": "scrutiny",
+    "meaning": "noun. Close examination or observation.",
+    "example": "The scientist’s work was under intense scrutiny."
+  },
+  {
+    "word": "sequential",
+    "meaning": "adj. Arranged in a logical order.",
+    "example": "The instructions must be followed in a sequential manner."
+  },
+  {
+    "word": "serendipitous",
+    "meaning": "adj. Occurring by chance in a happy way.",
+    "example": "Their meeting at the café was completely serendipitous."
+  },
+  {
+    "word": "singular",
+    "meaning": "adj. Unique or extraordinary.",
+    "example": "Her singular talent set her apart from other musicians."
+  },
+  {
+    "word": "smoothly",
+    "meaning": "adv. Without problems or interruptions.",
+    "example": "The event ran smoothly from start to finish."
+  },
+  {
+    "word": "spatial",
+    "meaning": "adj. Related to space or physical dimensions.",
+    "example": "The architect had strong spatial awareness."
+  },
+  {
+    "word": "spurious",
+    "meaning": "adj. False or not genuine.",
+    "example": "The claim was spurious and lacked evidence."
+  },
+  {
+    "word": "stratagem",
+    "meaning": "noun. A clever plan to achieve a goal.",
+    "example": "He used a clever stratagem to outmaneuver his opponents."
+  },
+  {
+    "word": "stratify",
+    "meaning": "verb. To arrange into layers or levels.",
+    "example": "The society was stratified by wealth and status."
+  },
+  {
+    "word": "strenuously",
+    "meaning": "adv. Requiring great effort.",
+    "example": "She strenuously opposed the new policy."
+  },
+  {
+    "word": "stringent",
+    "meaning": "adj. Strict or precise.",
+    "example": "The safety regulations were very stringent."
+  },
+  {
+    "word": "subjugate",
+    "meaning": "verb. To bring under control.",
+    "example": "The empire sought to subjugate its enemies."
+  },
+  {
+    "word": "substantiate",
+    "meaning": "verb. To prove with evidence.",
+    "example": "He failed to substantiate his claim with facts."
+  },
+  {
+    "word": "succinct",
+    "meaning": "adj. Brief and to the point.",
+    "example": "His explanation was clear and succinct."
+  },
+  {
+    "word": "suggests",
+    "meaning": "verb. To propose or indicate.",
+    "example": "The evidence suggests a connection between the two cases."
+  },
+  {
+    "word": "superfluous",
+    "meaning": "adj. Unnecessary or excessive.",
+    "example": "The report contained superfluous details."
+  },
+  {
+    "word": "supposition",
+    "meaning": "noun. An uncertain belief.",
+    "example": "His argument was based on mere supposition."
+  },
+  {
+    "word": "surreptitious",
+    "meaning": "adj. Done secretly.",
+    "example": "She cast a surreptitious glance at the clock."
+  },
+  {
+    "word": "symbiotic",
+    "meaning": "adj. Mutually beneficial.",
+    "example": "Their business partnership was symbiotic."
+  },
+  {
+    "word": "synthesis",
+    "meaning": "noun. Combining different elements into a whole.",
+    "example": "The scientist worked on the synthesis of new compounds."
+  },
+  {
+    "word": "synthesize",
+    "meaning": "verb. To combine elements into a whole.",
+    "example": "The researcher synthesized data from various studies."
+  },
+  {
+    "word": "systematic",
+    "meaning": "adj. Done in an organized way.",
+    "example": "His approach to problem-solving was systematic."
+  },
+  {
+    "word": "tacit",
+    "meaning": "adj. Understood without being spoken.",
+    "example": "There was a tacit agreement between them."
+  },
+  {
+    "word": "taciturn",
+    "meaning": "adj. Reserved or silent.",
+    "example": "The taciturn man rarely spoke in meetings."
+  },
+  {
+    "word": "tangible",
+    "meaning": "adj. Able to be touched or felt.",
+    "example": "The evidence presented in court was tangible."
+  },
+  {
+    "word": "tenacious",
+    "meaning": "adj. Holding firmly to something.",
+    "example": "She had a tenacious grip on her beliefs."
+  },
+  {
+    "word": "tenet",
+    "meaning": "noun. A principle or belief.",
+    "example": "The tenets of democracy emphasize equality."
+  },
+  {
+    "word": "tentative",
+    "meaning": "adj. Not certain or fixed.",
+    "example": "They made a tentative agreement."
+  },
+  {
+    "word": "tenuous",
+    "meaning": "adj. Weak or insubstantial.",
+    "example": "His argument was tenuous and lacked support."
+  },
+  {
+    "word": "theoretical",
+    "meaning": "adj. Based on ideas rather than practice.",
+    "example": "His research was highly theoretical."
+  },
+  {
+    "word": "transcend",
+    "meaning": "verb. To go beyond limits.",
+    "example": "Her talent transcended cultural boundaries."
+  },
+  {
+    "word": "transitory",
+    "meaning": "adj. Temporary or short-lived.",
+    "example": "The storm had only a transitory effect."
+  },
+  {
+    "word": "trenchant",
+    "meaning": "adj. Sharp or incisive.",
+    "example": "His trenchant critique was difficult to ignore."
+  },
+  {
+    "word": "trepidation",
+    "meaning": "noun. Fear or anxiety.",
+    "example": "She entered the room with trepidation."
+  },
+  {
+    "word": "turbulent",
+    "meaning": "adj. Chaotic or unstable.",
+    "example": "The country went through a turbulent period."
+  },
+  {
+    "word": "ubiquitous",
+    "meaning": "adj. Present everywhere.",
+    "example": "Smartphones have become ubiquitous in modern life."
+  },
+  {
+    "word": "ubiquity",
+    "meaning": "noun. The state of being everywhere.",
+    "example": "The ubiquity of the internet has changed society."
+  },
+  {
+    "word": "undermines",
+    "meaning": "verb. To weaken or damage.",
+    "example": "His behavior undermines his credibility."
+  },
+  {
+    "word": "underpin",
+    "meaning": "verb. To support or reinforce.",
+    "example": "The theory is underpinned by scientific evidence."
+  },
+  {
+    "word": "unequivocal",
+    "meaning": "adj. Clear and unambiguous.",
+    "example": "Her statement was unequivocal and firm."
+  },
+  {
+    "word": "unfounded",
+    "meaning": "adj. Not based on facts.",
+    "example": "The rumor was completely unfounded."
+  },
+  {
+    "word": "universal",
+    "meaning": "adj. Present everywhere.",
+    "example": "Human rights should be universal."
+  },
+  {
+    "word": "unoriginal",
+    "meaning": "adj. Lacking novelty.",
+    "example": "The movie’s plot felt unoriginal."
+  },
+  {
+    "word": "unprecedented",
+    "meaning": "adj. Never seen before.",
+    "example": "The crisis was unprecedented in scale."
+  },
+  {
+    "word": "vacillate",
+    "meaning": "verb. To waver between choices.",
+    "example": "He vacillated between two career paths."
+  },
+  {
+    "word": "variable",
+    "meaning": "adj. Likely to change.",
+    "example": "The weather here is highly variable."
+  },
+  {
+    "word": "veneration",
+    "meaning": "noun. Deep respect.",
+    "example": "The scholar was held in veneration."
+  },
+  {
+    "word": "veracity",
+    "meaning": "noun. Truthfulness.",
+    "example": "The veracity of his statement was questioned."
+  },
+  {
+    "word": "veritable",
+    "meaning": "adj. Real or genuine.",
+    "example": "It was a veritable feast."
+  },
+  {
+    "word": "vestige",
+    "meaning": "noun. A small remaining part.",
+    "example": "There was no vestige of the ancient city left."
+  },
+  {
+    "word": "viability",
+    "meaning": "noun. Ability to succeed.",
+    "example": "The viability of the business was uncertain."
+  },
+  {
+    "word": "vindicate",
+    "meaning": "verb. To clear from blame.",
+    "example": "The evidence vindicated his innocence."
+  },
+  {
+    "word": "vindictive",
+    "meaning": "adj. Seeking revenge.",
+    "example": "She had a vindictive streak."
+  },
+  {
+    "word": "vivid",
+    "meaning": "adj. Bright or lifelike.",
+    "example": "She had a vivid imagination."
+  },
+  {
+    "word": "vociferous",
+    "meaning": "adj. Loud and forceful.",
+    "example": "The crowd was vociferous in its demands."
+  },
+  {
+    "word": "voracious",
+    "meaning": "adj. Having a great appetite.",
+    "example": "He was a voracious reader."
+  },
+  {
+    "word": "warrants",
+    "meaning": "verb. To justify or guarantee.",
+    "example": "The situation warrants immediate action."
+  },
+  {
+    "word": "yield",
+    "meaning": "verb. To produce or give way.",
+    "example": "The experiment yielded promising results."
+  }
+]

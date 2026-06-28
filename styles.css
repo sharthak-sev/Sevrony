@@ -415,39 +415,49 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
 /* ---- Telemetry Consent ---- */
 .telemetry-banner {
   position: fixed;
-  left: 50%;
-  bottom: 20px;
-  transform: translateX(-50%);
+  inset: 0;
   z-index: 10000;
-  width: min(920px, calc(100vw - 32px));
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  background: rgba(255, 255, 255, 0.96);
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+[data-theme="dark"] .telemetry-banner {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.telemetry-content {
+  background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-  padding: 16px;
-  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-2xl);
+  padding: 24px;
+  width: min(480px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .telemetry-banner strong {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
 }
 
 .telemetry-banner p {
   color: var(--ink-secondary);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   margin: 0;
 }
 
 .telemetry-actions {
   display: flex;
-  flex-shrink: 0;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
 }
 
 /* ---- Eyebrow Label ---- */
@@ -2277,23 +2287,15 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
 }
 
 @media (max-width: 560px) {
-  .telemetry-banner {
-    align-items: stretch;
-    bottom: 12px;
-    flex-direction: column;
-    width: calc(100vw - 24px);
-  }
-
   .telemetry-actions {
+    grid-template-columns: 1fr 1fr;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
   }
 
   .telemetry-actions .ghost-btn,
   .telemetry-actions .primary-btn {
     padding-inline: 10px;
   }
-
   .hero-card { padding: 24px; }
   .hero-card h1 { font-size: 28px; }
   .metric-card strong { font-size: 28px; }
@@ -3993,5 +3995,114 @@ html[data-transition="drill"]::view-transition-new(root) {
   .feedback-form-row {
     flex-direction: column;
     gap: 16px;
+  }
+}
+
+/* Demo Banner */
+.demo-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.2) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.25);
+  border-left-color: rgba(255, 255, 255, 0.2);
+  padding: 8px 8px 8px 20px;
+  border-radius: 999px; /* Pill shape */
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 
+    0 20px 40px -10px rgba(0, 0, 0, 0.5), 
+    inset 0 2px 4px rgba(255, 255, 255, 0.15),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+  width: max-content;
+  max-width: 90vw;
+}
+
+.demo-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.demo-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--blue, #3b82f6);
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  animation: pulse-blue 2s infinite;
+}
+
+@keyframes pulse-blue {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.demo-label {
+  color: var(--zinc-100, #f4f4f5);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.demo-text {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  font-size: 14px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.demo-banner button {
+  background: var(--blue, #3b82f6);
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+
+.demo-banner button:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+@media (max-width: 768px) {
+  .demo-banner {
+    bottom: 24px;
+    top: auto;
+    padding: 6px 6px 6px 16px;
+    gap: 12px;
+  }
+  
+  .demo-text {
+    display: none;
+  }
+  
+  .demo-label {
+    font-size: 13px;
+  }
+  
+  .demo-banner button {
+    padding: 8px 16px;
+    font-size: 13px;
   }
 }

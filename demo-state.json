@@ -11516,60 +11516,84 @@
   ],
   "vocabWords": [
     {
-      "word": "ABATE",
+      "word": "abundance",
+      "meaning": "noun. A large quantity of something.",
+      "example": "The farmer was pleased with the abundance of crops this season.",
       "status": "Mastered",
-      "nextReviewDate": "2026-07-01T00:00:00.000Z"
+      "nextReviewDate": "2026-06-28T09:57:12.694Z"
     },
     {
-      "word": "ABERRATION",
+      "word": "acclaim",
+      "meaning": "verb. To praise enthusiastically.",
+      "example": "The critic acclaimed the novel as a masterpiece.",
       "status": "Mastered",
-      "nextReviewDate": "2026-07-01T00:00:00.000Z"
+      "nextReviewDate": "2026-06-28T09:57:12.694Z"
     },
     {
-      "word": "ABHOR",
+      "word": "accolade",
+      "meaning": "noun. An award or special recognition.",
+      "example": "She received an accolade for her outstanding performance.",
       "status": "Mastered",
-      "nextReviewDate": "2026-07-01T00:00:00.000Z"
+      "nextReviewDate": "2026-06-28T09:57:12.694Z"
     },
     {
-      "word": "ABSTRUSE",
+      "word": "acoustic",
+      "meaning": "adj. Relating to sound or hearing.",
+      "example": "The concert hall has excellent acoustic properties.",
       "status": "Mastered",
-      "nextReviewDate": "2026-07-01T00:00:00.000Z"
+      "nextReviewDate": "2026-06-28T09:57:12.694Z"
     },
     {
-      "word": "ACRIMONY",
+      "word": "acquiesce",
+      "meaning": "verb. To accept or comply without protest.",
+      "example": "She acquiesced to her supervisor’s request.",
       "status": "Mastered",
-      "nextReviewDate": "2026-07-01T00:00:00.000Z"
+      "nextReviewDate": "2026-06-28T09:57:12.694Z"
     },
     {
-      "word": "ACUMEN",
+      "word": "acquired",
+      "meaning": "verb. To gain or obtain.",
+      "example": "He acquired a new skill through practice.",
       "status": "Learning",
-      "nextReviewDate": "2026-06-25T00:00:00.000Z",
+      "nextReviewDate": "2026-06-28T09:57:12.694Z",
       "phase": 1,
       "streak": 1
     },
     {
-      "word": "AMELIORATE",
+      "word": "adapt to",
+      "meaning": "verb. To adjust to new conditions.",
+      "example": "He adapted quickly to the colder climate.",
       "status": "Learning",
-      "nextReviewDate": "2026-06-25T00:00:00.000Z",
+      "nextReviewDate": "2026-06-28T09:57:12.694Z",
       "phase": 2,
       "streak": 2
     },
     {
-      "word": "ANOMALY",
+      "word": "adversity",
+      "meaning": "noun. Difficulties or misfortune.",
+      "example": "Despite adversity, she remained determined to succeed.",
       "status": "Learning",
-      "nextReviewDate": "2026-06-25T00:00:00.000Z",
+      "nextReviewDate": "2026-06-28T09:57:12.694Z",
       "phase": 3,
       "streak": 3
     },
     {
-      "word": "ANTIPATHY",
+      "word": "allocate",
+      "meaning": "verb. To distribute resources for a particular purpose.",
+      "example": "The government allocated funds for education.",
       "status": "New",
-      "nextReviewDate": "2026-06-25T00:00:00.000Z"
+      "nextReviewDate": "2026-06-28T09:57:12.694Z",
+      "phase": 4,
+      "streak": 4
     },
     {
-      "word": "APATHY",
+      "word": "alludes",
+      "meaning": "verb. To refer to something indirectly.",
+      "example": "The book alludes to historical events.",
       "status": "New",
-      "nextReviewDate": "2026-06-25T00:00:00.000Z"
+      "nextReviewDate": "2026-06-28T09:57:12.694Z",
+      "phase": 5,
+      "streak": 5
     }
   ],
   "appConfig": [
