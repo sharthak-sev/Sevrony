@@ -263,6 +263,13 @@
       }
     });
 
+    if (window.location.hash) {
+      const hashView = window.location.hash.slice(1);
+      if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup", "vocab", "vocab-mastered"].includes(hashView)) {
+         state.view = hashView;
+      }
+    }
+
     initPersistentDesmos();
     initTelemetryConsent();
     if (window.Vocab) window.Vocab.init();
@@ -367,13 +374,6 @@
       const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
       if (fullTests.length === 0 && subjectTests.length > 0) {
         state.historyTab = "subject";
-      }
-
-      if (window.location.hash) {
-        const hashView = window.location.hash.slice(1);
-        if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup", "vocab", "vocab-mastered"].includes(hashView)) {
-           state.view = hashView;
-        }
       }
       
       const lastResultSessionId = sessionStorage.getItem('lastResultSessionId');
