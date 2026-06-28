@@ -527,7 +527,7 @@
   function renderTelemetryBanner() {
     const existing = document.querySelector(".telemetry-banner");
     if (existing) existing.remove();
-    if (state.telemetryConsent) return;
+    if (state.telemetryConsent || state.view === "privacy") return;
 
     const banner = document.createElement("section");
     banner.className = "telemetry-banner";
@@ -921,6 +921,8 @@
   function renderHome(skipPush = false, replace = false) {
     if (state.activeTest) return;
     stopTicker();
+    
+    renderTelemetryBanner();
 
     state.showDesmos = false;
     const pd = document.getElementById("persistent-desmos");
@@ -1013,7 +1015,7 @@
     return `
       <main class="page-container" style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
         <div style="margin-bottom: 32px; display: flex; align-items: center; gap: 16px;">
-          <button type="button" data-action="dashboard" class="ghost-btn icon-btn" style="padding: 8px; border-radius: 50%;" aria-label="Go back">
+          <button type="button" data-action="privacy-back" class="ghost-btn icon-btn" style="padding: 8px; border-radius: 50%;" aria-label="Go back">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
           <div>
@@ -3485,6 +3487,14 @@ function renderTestReview() {
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
     if (action === "returning-sign-in") { await syncLinkedAccount({ returningUser: true }); return; }
     if (action === "import-bluebook") { fileInput.click(); return; }
+    if (action === "privacy-back") {
+      if (state.questions.length === 0) {
+        window.history.back();
+      } else {
+        state.view = "dashboard"; state.notice = null; renderHome();
+      }
+      return;
+    }
     if (action === "dashboard") { state.view = "dashboard"; state.notice = null; renderHome(); }
     if (action === "vocab") { state.view = "vocab"; state.notice = null; renderHome(); }
     if (action === "backup") { state.view = "backup"; state.notice = null; renderHome(); }
