@@ -224,6 +224,43 @@
   }
 
   async function init() {
+    if (window.location.search.includes("demo=true")) {
+      try {
+        const loading = document.getElementById("initial-loading");
+        if (loading) loading.style.display = "flex";
+        const res = await fetch("demo-state.json");
+        const demoState = await res.json();
+        await window.SatPracticeDB.clearAll();
+        if (demoState.questionBanks) await window.SatPracticeDB.putMany("questionBanks", demoState.questionBanks);
+        if (demoState.questions) await window.SatPracticeDB.putMany("questions", demoState.questions);
+        if (demoState.sessions) await window.SatPracticeDB.putMany("sessions", demoState.sessions);
+        if (demoState.responses) await window.SatPracticeDB.putMany("responses", demoState.responses);
+        if (demoState.vocabWords) await window.SatPracticeDB.putMany("vocabWords", demoState.vocabWords);
+        if (demoState.appConfig) await window.SatPracticeDB.putMany("appConfig", demoState.appConfig);
+        localStorage.setItem("sat_demo_mode", "true");
+        const url = new URL(window.location);
+        url.searchParams.delete("demo");
+        window.history.replaceState({}, document.title, url);
+      } catch (e) {
+        console.error("Failed to load demo state:", e);
+      }
+    }
+
+    if (localStorage.getItem("sat_demo_mode") === "true") {
+        const banner = document.createElement("div");
+        banner.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(15, 23, 42, 0.85);backdrop-filter:blur(16px);border:1px solid var(--zinc-800);padding:12px 16px 12px 24px;border-radius:999px;z-index:9999;display:flex;align-items:center;gap:20px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5);width:max-content;max-width:90vw;";
+        banner.innerHTML = `
+            <span style="color:var(--zinc-200);font-weight:500;font-size:14px;white-space:nowrap;">You're exploring a demo sandbox. Ready for the real thing?</span>
+            <button id="exit-demo-btn" style="background:var(--blue);color:white;border:none;padding:10px 20px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;transition:background 0.2s;">Get Started</button>
+        `;
+        document.body.appendChild(banner);
+        document.getElementById("exit-demo-btn").addEventListener("click", async () => {
+            await window.SatPracticeDB.clearAll();
+            localStorage.removeItem("sat_demo_mode");
+            window.location.reload();
+        });
+    }
+
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
