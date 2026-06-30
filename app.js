@@ -674,9 +674,33 @@
         </div>
       </div>
     `;
-    banner.querySelector("[data-telemetry-action='accept']").addEventListener("click", () => {
-      setTelemetryConsent(TELEMETRY_ACCEPTED);
-      captureTelemetry("Telemetry Consent Accepted");
+    banner.querySelector("[data-telemetry-action='accept']").addEventListener("click", async (e) => {
+      const btn = e.target;
+      const originalText = btn.textContent;
+      btn.textContent = "Verifying...";
+      btn.disabled = true;
+      
+      try {
+        const res = await fetch("https://divine-silence-6016.sharthakjaiswal50.workers.dev/api/consent", {
+          method: "POST"
+        });
+        if (!res.ok) throw new Error("Verification failed");
+        
+        const data = await res.json();
+        if (data.key) {
+          localStorage.setItem('app_encryption_key', data.key);
+          setTelemetryConsent(TELEMETRY_ACCEPTED);
+          captureTelemetry("Telemetry Consent Accepted");
+          window.location.reload(); // Reload to initialize DB with the key
+        } else {
+          throw new Error("Invalid server response");
+        }
+      } catch (err) {
+        console.error("Consent API error:", err);
+        btn.textContent = originalText;
+        btn.disabled = false;
+        alert("Failed to verify privacy policy consent. Please check your connection and try again.");
+      }
     });
     banner.querySelector("[data-telemetry-action='details']").addEventListener("click", () => {
       window.location.hash = "privacy";
@@ -2396,13 +2420,10 @@ font-family: inherit !important;
     }
     if ((session.mode !== "full" && session.mode !== "bluebook") || !mods) return "";
 
-    let rwThetaSum = 0, mathThetaSum = 0, rwMods = 0, mathMods = 0;
-    for (const s of mods) {
-      if (s.subject === "rw") { rwThetaSum += s.theta; rwMods++; }
-      if (s.subject === "math") { mathThetaSum += s.theta; mathMods++; }
-    }
-    const rwTheta = rwMods ? (rwThetaSum / rwMods) : 0;
-    const mathTheta = mathMods ? (mathThetaSum / mathMods) : 0;
+    const rwResponses = responses.filter(r => r.subject === "rw");
+    const mathResponses = responses.filter(r => r.subject === "math");
+    const rwTheta = rwResponses.length ? estimateTheta(rwResponses) : 0;
+    const mathTheta = mathResponses.length ? estimateTheta(mathResponses) : 0;
 
     /* Phase 2: Determine route from Module 2 summaries */
     const rwRoute = mods.find(m => m.subject === "rw" && m.id?.endsWith("2"))?.route || null;
@@ -5620,13 +5641,14 @@ function renderTestReview() {
     if (score === items.length) return 3.0; // All correct
     
     let theta = 0.0;
+    const a = 1.5; // Discrimination parameter to match SAT normal ogive
     for (let iter = 0; iter < 10; iter++) {
       let f = 0;
       let df = 0;
       for (const item of items) {
-        const p = 1 / (1 + Math.exp(-(theta - item.b)));
+        const p = 1 / (1 + Math.exp(-a * (theta - item.b)));
         f += (item.u - p);
-        df -= p * (1 - p);
+        df -= a * p * (1 - p);
       }
       if (Math.abs(df) < 1e-9) break;
       const dTheta = f / df;

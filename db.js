@@ -5,6 +5,92 @@
   const DB_VERSION = 3;
   let dbPromise = null;
 
+  // --- ENCRYPTION LOGIC ---
+  const SENSITIVE_STORES = ["questions", "sessions", "responses"];
+  const SENSITIVE_FIELDS = ["prompt", "passage", "choices", "correctAnswer", "rationale", "history", "answer"];
+
+  async function getCryptoKey() {
+    const isDemo = localStorage.getItem('sat_demo_mode') === 'true';
+    const rawKey = isDemo ? "demo_mode_dummy_key_999999999999" : localStorage.getItem('app_encryption_key');
+    if (!rawKey) throw new Error("Privacy Policy not accepted. Master key missing.");
+    const enc = new TextEncoder();
+    return await crypto.subtle.importKey(
+      "raw",
+      enc.encode(rawKey.padEnd(32, '0').slice(0, 32)),
+      { name: "AES-GCM" },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  async function encryptPayload(data) {
+    const key = await getCryptoKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv },
+      key,
+      enc.encode(JSON.stringify(data))
+    );
+    return {
+      __encrypted: true,
+      iv: Array.from(iv),
+      data: Array.from(new Uint8Array(encrypted))
+    };
+  }
+
+  async function decryptPayload(encryptedObj) {
+    if (!encryptedObj || !encryptedObj.__encrypted) return encryptedObj;
+    const key = await getCryptoKey();
+    const iv = new Uint8Array(encryptedObj.iv);
+    const data = new Uint8Array(encryptedObj.data);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv },
+      key,
+      data
+    );
+    const dec = new TextDecoder();
+    return JSON.parse(dec.decode(decrypted));
+  }
+
+  async function encryptObject(storeName, obj) {
+    if (!obj || !SENSITIVE_STORES.includes(storeName)) return obj;
+    
+    // Create a copy to avoid mutating the original before saving
+    const secureObj = { ...obj };
+    let hasSensitive = false;
+    const securePayload = {};
+    
+    for (const field of SENSITIVE_FIELDS) {
+      if (secureObj[field] !== undefined) {
+        securePayload[field] = secureObj[field];
+        delete secureObj[field];
+        hasSensitive = true;
+      }
+    }
+    
+    if (hasSensitive) {
+      secureObj._secure = await encryptPayload(securePayload);
+    }
+    return secureObj;
+  }
+
+  async function decryptObject(storeName, obj) {
+    if (!obj || !SENSITIVE_STORES.includes(storeName) || !obj._secure) return obj;
+    try {
+      const decrypted = await decryptPayload(obj._secure);
+      for (const key in decrypted) {
+        obj[key] = decrypted[key];
+      }
+      delete obj._secure;
+    } catch (e) {
+      console.error("Decryption failed for object in", storeName, obj);
+      throw new Error("Data decryption failed. Invalid App Key.");
+    }
+    return obj;
+  }
+  // ------------------------
+
   function open() {
     if (dbPromise) {
       return dbPromise;
@@ -84,24 +170,29 @@
   }
 
   async function getAll(storeName) {
-    return withStore(storeName, "readonly", store => requestToPromise(store.getAll()));
+    const records = await withStore(storeName, "readonly", store => requestToPromise(store.getAll()));
+    if (!records) return records;
+    return Promise.all(records.map(r => decryptObject(storeName, r)));
   }
 
   async function get(storeName, key) {
-    return withStore(storeName, "readonly", store => requestToPromise(store.get(key)));
+    const record = await withStore(storeName, "readonly", store => requestToPromise(store.get(key)));
+    return decryptObject(storeName, record);
   }
 
   async function put(storeName, value) {
+    const encryptedValue = await encryptObject(storeName, value);
     return withStore(storeName, "readwrite", store => {
-      store.put(value);
+      store.put(encryptedValue);
       return value;
     });
   }
 
   async function putMany(storeName, values) {
+    const encryptedValues = await Promise.all(values.map(v => encryptObject(storeName, v)));
     return withStore(storeName, "readwrite", store => {
-      for (const value of values) {
-        store.put(value);
+      for (const val of encryptedValues) {
+        store.put(val);
       }
       return values.length;
     });
@@ -139,10 +230,12 @@
   }
 
   async function getAllByIndex(storeName, indexName, key) {
-    return withStore(storeName, "readonly", store => {
+    const records = await withStore(storeName, "readonly", store => {
       const index = store.index(indexName);
       return requestToPromise(index.getAll(key));
     });
+    if (!records) return records;
+    return Promise.all(records.map(r => decryptObject(storeName, r)));
   }
 
   window.SatPracticeDB = {

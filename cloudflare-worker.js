@@ -45,7 +45,25 @@ export default {
 
 
       // --- Routing ---
-      if (urlObj.pathname === "/api/feedback") {
+      if (urlObj.pathname === "/api/consent") {
+        // Handle Privacy Policy Consent
+        if (request.method !== "POST") {
+          return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+        }
+        
+        // In a real app, you might log the IP to a KV store or external DB here
+        // For now, we just return the master key required to unlock the local database
+        const appKey = env.APP_ENCRYPTION_KEY || "sevrony_fallback_master_key_9312";
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          key: appKey,
+          message: "Consent logged successfully."
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+
+      } else if (urlObj.pathname === "/api/feedback") {
         // Handle Feedback Submission
         const formData = await request.formData();
         const type = formData.get("type");
