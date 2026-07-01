@@ -228,6 +228,7 @@
       try {
         const loading = document.getElementById("initial-loading");
         if (loading) loading.style.display = "flex";
+        localStorage.setItem("sat_demo_mode", "true");
         const res = await fetch("demo-state.json?t=" + Date.now());
         const demoState = await res.json();
         await window.SatPracticeDB.clearAll();
@@ -237,7 +238,6 @@
         if (demoState.responses) await window.SatPracticeDB.putMany("responses", demoState.responses);
         if (demoState.vocabWords) await window.SatPracticeDB.putMany("vocabWords", demoState.vocabWords);
         if (demoState.appConfig) await window.SatPracticeDB.putMany("appConfig", demoState.appConfig);
-        localStorage.setItem("sat_demo_mode", "true");
         localStorage.removeItem("sevrony.tutorial.v1.done");
         localStorage.removeItem("sat_vocab_state");
         // Clear any leftover Google auth state for a clean sandbox
