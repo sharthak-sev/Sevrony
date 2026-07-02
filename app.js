@@ -5057,7 +5057,10 @@ function renderTestReview() {
       </main>
 
       <footer class="bb-footer">
-        <button class="ghost-btn" type="button" data-test-action="${isFull ? "previous" : "noop"}" ${!isFull || ctx.index === 0 ? "disabled" : ""}>Back</button>
+        <button class="ghost-btn" type="button" data-test-action="${isFull ? "previous" : "noop"}" ${!isFull || ctx.index === 0 ? "disabled" : ""}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+          Back
+        </button>
         <div class="bb-question-nav">
           ${ctx.list.map((q, i) => `
             <button class="bb-nav-dot ${i === ctx.index ? "current" : ""} ${isQuestionAnswered(q) ? "answered" : ""} ${test.marked?.[q.id] ? "marked" : ""}"
@@ -5145,16 +5148,19 @@ function renderTestReview() {
   function renderForwardButton(ctx) {
     const test = state.activeTest;
     const isLast = ctx.index === ctx.list.length - 1;
+    const arrowIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>`;
+    const checkIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`;
+    
     if (test.mode === "custom") {
       if (test.config.immediateFeedback && !test.responses[test.currentIndex]) {
-        return `<button class="primary-btn" type="button" data-test-action="next-custom">Submit</button>`;
+        return `<button class="primary-btn" type="button" data-test-action="next-custom">Submit ${checkIcon}</button>`;
       }
-      return `<button class="primary-btn" type="button" data-test-action="next-custom">${isLast ? "Finish" : "Next"}</button>`;
+      return `<button class="primary-btn" type="button" data-test-action="next-custom">${isLast ? "Finish " + checkIcon : "Next " + arrowIcon}</button>`;
     }
     if (isLast) {
-      return `<button class="primary-btn" type="button" data-test-action="check-module">Review</button>`;
+      return `<button class="primary-btn" type="button" data-test-action="check-module">Review ${arrowIcon}</button>`;
     }
-    return `<button class="primary-btn" type="button" data-test-action="next">Next</button>`;
+    return `<button class="primary-btn" type="button" data-test-action="next">Next ${arrowIcon}</button>`;
   }
 
   function renderModuleCheckScreen() {
