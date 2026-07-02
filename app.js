@@ -2162,7 +2162,7 @@ font-family: inherit !important;
           : '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--yellow,#eab308);">Session expired — tap the sync icon in the sidebar to reconnect</p>'
         }
         <div style="display: flex; gap: 8px;">
-          <button class="ghost-btn" data-action="unlink-cloud-sync">Unlink Account</button>
+          <button class="danger-btn" type="button" data-action="logout">Log Out</button>
         </div>
       `;
     } else {
@@ -2200,16 +2200,7 @@ font-family: inherit !important;
 
       ${_isDemoMode ? '' : renderCloudSyncSection()}
 
-      ${!_isDemoMode && window.SevSync?.isLinked() ? `
-      <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
-        <div class="panel-heading">
-          <p class="eyebrow" style="color: var(--red);">Account</p>
-          <h2 style="color: var(--red);">Log Out</h2>
-        </div>
-        <p style="color: var(--red); opacity: 0.8; margin-bottom: 16px;">Your data will remain safe in the cloud.</p>
-        <button class="danger-btn" type="button" data-action="logout">Log Out</button>
-      </section>
-      ` : ''}
+
 
       <section class="panel two-column" style="margin-top: 32px;">
         <div class="backup-col-left">
@@ -4285,13 +4276,6 @@ function renderTestReview() {
     if (action === "link-cloud-sync") {
       state.backupMessage = null;
       await syncLinkedAccount();
-    }
-    if (action === "unlink-cloud-sync") {
-      state.backupMessage = null;
-      await SevSync.unlink();
-      if (window.posthog?.reset) window.posthog.reset();
-      showNotice("Account unlinked. Local data preserved.", "success");
-      renderHome();
     }
     if (action === "force-cloud-sync") {
       state.backupMessage = null;
