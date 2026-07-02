@@ -21,17 +21,27 @@
     {
       selector: "[data-tour-target='dashboard-hero']",
       title: "Your dashboard",
-      body: "This is the command center for imported questions, accuracy, timing, and weak areas."
+      body: "This is the command center for your practice sessions, accuracy, and weak areas. Let's get you familiar with it."
     },
     {
       selector: "[data-tour-target='create-test']",
       title: "Start practice",
-      body: "Create adaptive drills or full sections from your imported SAT question bank."
+      body: "Create adaptive drills or full sections from your imported SAT question bank. Get ready to boost your score!"
     },
     {
       selector: "[data-tour-target='metrics']",
       title: "Track what changed",
-      body: "These cards update from completed sessions and deduped responses, so deleted tests no longer linger."
+      body: "These cards update automatically from completed sessions, so you always know where you stand."
+    },
+    {
+      selector: "[data-tour-target='mistakes-log-nav']",
+      title: "Master your mistakes",
+      body: "Use the Mistakes Log to review missed questions, add custom tags, and write personal notes to improve."
+    },
+    {
+      selector: "[data-tour-target='vocab-nav']",
+      title: "Build your vocabulary",
+      body: "Practice high-frequency SAT vocabulary using our smart spaced-repetition system."
     },
     {
       selector: "[data-tour-target='history-nav']",
@@ -41,7 +51,7 @@
     {
       selector: "[data-tour-target='sync'], [data-tour-target='backup-nav']",
       title: "Sync and backups",
-      body: "Use Data & Backups to link Google Drive sync, restore data, or reconnect when the indicator turns orange."
+      body: "Link your Google Drive to sync your progress across devices, or restore data anytime from Data & Backups."
     }
   ];
 
@@ -448,6 +458,36 @@
     });
 
     await refreshLocalData();
+
+    // Scrub any contaminated demo data from real accounts (caused by legacy sync bug)
+    if (!isDemoMode()) {
+        const now = Date.now();
+        let scrubbed = false;
+        
+        const demoSessions = state.sessions.filter(s => s.id.startsWith("session-demo-"));
+        if (demoSessions.length > 0) {
+            console.log("Scrubbing contaminated demo sessions...");
+            demoSessions.forEach(s => { s.deletedAt = now; s.updatedAt = now; });
+            await window.SatPracticeDB.putMany("sessions", demoSessions);
+            scrubbed = true;
+        }
+
+        const demoResponses = state.responses.filter(r => r.id.startsWith("session-demo-"));
+        if (demoResponses.length > 0) {
+            console.log("Scrubbing contaminated demo responses...");
+            demoResponses.forEach(r => { r.deletedAt = now; r.updatedAt = now; });
+            await window.SatPracticeDB.putMany("responses", demoResponses);
+            scrubbed = true;
+        }
+
+        if (scrubbed) {
+            await refreshLocalData();
+            if (window.SevSync && window.SevSync.isLinked()) {
+                window.SevSync.sync(false, { silent: true });
+            }
+        }
+    }
+
     await restoreActiveTest();
     ensureConfigDefaults();
 
@@ -1513,7 +1553,7 @@ font-family: inherit !important;
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
               <span class="nav-label">Retry Mistakes</span>
             </button>
-            <button class="nav-item ${state.view === 'mistakes-log' ? 'active' : ''}" type="button" data-action="mistakes-log" title="Mistakes Log">
+            <button class="nav-item ${state.view === 'mistakes-log' ? 'active' : ''}" type="button" data-action="mistakes-log" data-tour-target="mistakes-log-nav" title="Mistakes Log">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <g transform="rotate(-30 12 12)">
                   <ellipse cx="6" cy="12" rx="3" ry="5"/>
@@ -1526,7 +1566,7 @@ font-family: inherit !important;
               </svg>
               <span class="nav-label">Mistakes Log</span>
             </button>
-            <button class="nav-item ${state.view === 'vocab' || state.view === 'vocab-mastered' ? 'active' : ''}" type="button" data-action="vocab" title="Vocabulary">
+            <button class="nav-item ${state.view === 'vocab' || state.view === 'vocab-mastered' ? 'active' : ''}" type="button" data-action="vocab" data-tour-target="vocab-nav" title="Vocabulary">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
               <span class="nav-label">Vocabulary</span>
             </button>
@@ -3487,7 +3527,7 @@ function renderTestReview() {
     if (!shouldAutoStartTutorial()) return;
     window.setTimeout(() => {
       if (shouldAutoStartTutorial()) startTutorial();
-    }, 350);
+    }, 50);
   }
 
   function startTutorial({ force = false } = {}) {
@@ -3558,6 +3598,7 @@ function renderTestReview() {
     target.scrollIntoView({ block: "center", inline: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
 
     let overlay = document.querySelector(".tour-overlay");
+    const isInitial = !overlay;
     if (!overlay) {
       overlay = document.createElement("div");
       overlay.className = "tour-overlay";
@@ -3574,9 +3615,16 @@ function renderTestReview() {
         if (action === "done") endTutorial(true);
       });
       overlay.addEventListener("keydown", event => handleTutorialKey(event));
+      overlay.addEventListener("wheel", e => e.preventDefault(), { passive: false });
+      overlay.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
       document.body.appendChild(overlay);
       window.addEventListener("resize", updateTutorialPosition);
       window.addEventListener("scroll", updateTutorialPosition, true);
+    }
+
+    if (isInitial) {
+      const spotlight = overlay.querySelector(".tour-spotlight");
+      if (spotlight) spotlight.style.transition = "none";
     }
 
     const isFirst = state.tutorial.step === 0;
@@ -3597,6 +3645,13 @@ function renderTestReview() {
     `;
     requestAnimationFrame(() => {
       updateTutorialPosition();
+      
+      if (isInitial) {
+        void overlay.offsetWidth;
+        const spotlight = overlay.querySelector(".tour-spotlight");
+        if (spotlight) spotlight.style.transition = "";
+      }
+
       overlay.querySelector(isLast ? "[data-tour-action='done']" : "[data-tour-action='next']")?.focus();
       
       if (window.innerWidth <= 768) {

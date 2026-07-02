@@ -3164,13 +3164,13 @@ html[data-transition="drill"]::view-transition-new(root) {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .tour-spotlight {
   position: absolute;
   border-radius: 8px;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: top 0.4s cubic-bezier(0.16, 1, 0.3, 1), left 0.4s cubic-bezier(0.16, 1, 0.3, 1), width 0.4s cubic-bezier(0.16, 1, 0.3, 1), height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
   z-index: 10001;
 }
@@ -3183,12 +3183,24 @@ html[data-transition="drill"]::view-transition-new(root) {
   box-shadow: 0 20px 40px -10px rgba(0,0,0,0.2), 0 0 0 1px var(--line);
   pointer-events: auto;
   z-index: 10002;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: top 0.4s cubic-bezier(0.16, 1, 0.3, 1), left 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: tour-card-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   display: flex;
   flex-direction: column;
   gap: 8px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+@keyframes tour-card-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(15px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 :root[data-theme="dark"] .tour-card {
   background: rgba(15, 23, 42, 0.95);
