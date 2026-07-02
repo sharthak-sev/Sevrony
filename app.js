@@ -13,6 +13,10 @@
   const SENTRY_LOADER_URL = "https://js.sentry-cdn.com/610da841a6875eae790cbc1fd6ea96b1.min.js";
   const COLLEGE_BOARD_BASE_URL = "https://mypractice.collegeboard.org/";
   const TUTORIAL_DONE_KEY = "sevrony.tutorial.v1.done";
+
+  function isDemoMode() {
+    return localStorage.getItem("sat_demo_mode") === "true";
+  }
   const TUTORIAL_STEPS = [
     {
       selector: "[data-tour-target='dashboard-hero']",
@@ -253,7 +257,7 @@
       }
     }
 
-    if (localStorage.getItem("sat_demo_mode") === "true") {
+    if (isDemoMode()) {
         const banner = document.createElement("div");
         banner.className = "demo-banner";
         banner.innerHTML = `
@@ -313,7 +317,7 @@
         state.view = e.state.view || "dashboard";
         
         // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
-        if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && localStorage.getItem("sat_demo_mode") !== "true") {
+        if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
            if (state.view !== "marketing" && state.view !== "privacy") {
                state.view = "dashboard";
                window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
@@ -357,7 +361,7 @@
            let targetView = hashView;
            
            // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
-           if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && localStorage.getItem("sat_demo_mode") !== "true") {
+           if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
                if (targetView !== "marketing" && targetView !== "privacy") {
                    targetView = "dashboard";
                    window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
@@ -391,7 +395,7 @@
     }
     
     // Enforce tutorial if incomplete on initial load (skip enforcement in demo mode — let users explore freely)
-    if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && localStorage.getItem("sat_demo_mode") !== "true") {
+    if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
         if (state.view !== "marketing" && state.view !== "privacy") {
             state.view = "dashboard";
             window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
@@ -448,7 +452,8 @@
     ensureConfigDefaults();
 
     // Cloud sync: register for background sync updates from other devices
-    if (window.SevSync) {
+    // Entirely disabled in demo mode to prevent encryption key / consent race conditions
+    if (window.SevSync && !isDemoMode()) {
       SevSync.onUpdate(() => {
         refreshLocalData().then(() => renderHome());
       });
@@ -473,7 +478,7 @@
       });
     }
     // Auto cloud-sync on open (best-effort, non-blocking)
-    if (window.SevSync?.isLinked()) {
+    if (window.SevSync?.isLinked() && !isDemoMode()) {
       SevSync.sync(false, { silent: true }).then(result => {
         if (result.ok && result.localChanged) refreshLocalData().then(() => renderHome());
       });
@@ -657,7 +662,7 @@
   function renderTelemetryBanner() {
     const existing = document.querySelector(".telemetry-banner");
     if (existing) existing.remove();
-    if (state.telemetryConsent || state.view === "privacy" || localStorage.getItem("sat_demo_mode") === "true") return;
+    if (state.telemetryConsent || state.view === "privacy" || isDemoMode()) return;
 
     const banner = document.createElement("section");
     banner.className = "telemetry-banner";
@@ -1053,7 +1058,7 @@
   }
 
   function renderIosWarningBanner() {
-    if (!isIosSafariWarningNeeded()) return "";
+    if (isDemoMode() || !isIosSafariWarningNeeded()) return "";
     return `
       <div class="banner warning-banner" style="display:flex; justify-content:space-between; align-items:flex-start; padding:12px 16px; background:var(--yellow-dim, rgba(234, 179, 8, 0.1)); border: 1px solid var(--yellow, #eab308); border-radius:8px; margin: 0 16px 16px 16px;">
         <div style="font-size: 14px; line-height: 1.5; color: var(--ink);">
@@ -1090,7 +1095,7 @@
 
     if (!skipPush) pushHistoryState(replace);
 
-    if (state.view === "onboarding" || state.view === "backup") {
+    if ((state.view === "onboarding" || state.view === "backup") && !isDemoMode()) {
       window.SevSync?.preload();
     }
 
@@ -1419,7 +1424,7 @@ font-family: inherit !important;
   }
 
   function renderSyncWidget() {
-    if (!window.SevSync?.isLinked()) return "";
+    if (isDemoMode() || !window.SevSync?.isLinked()) return "";
     const status = SevSync.getStatus();
     
     if (status.tokenValid) sessionBubbleDismissed = false;
@@ -2002,7 +2007,7 @@ font-family: inherit !important;
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 24px;">
-        ${!window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
+        ${!isDemoMode() && !window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
         <section class="panel cloud-sync-banner" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 12px; background: linear-gradient(145deg, var(--card) 0%, color-mix(in srgb, var(--line) 30%, transparent) 100%); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
           <div style="display: flex; align-items: center; gap: 16px; flex: 1; min-width: 250px;">
             <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink);">
@@ -2085,16 +2090,34 @@ font-family: inherit !important;
     `;
   }
 
-  function renderBackupView() {
-    return `
-      <section class="hero-card compact-hero">
-        <div>
-          <p class="eyebrow">Data & Backups</p>
-          <h1>Manage your local data.</h1>
-          <p>Secure your test history or transfer it between devices.</p>
+  function renderCloudSyncSection() {
+    let syncContent = '';
+    if (window.SevSync?.isLinked()) {
+      const status = SevSync.getStatus();
+      const ago = status.lastSynced ? (() => { const d = Math.round((Date.now() - new Date(status.lastSynced).getTime()) / 1000); if (d < 60) return 'just now'; if (d < 3600) return Math.floor(d/60) + ' min ago'; if (d < 86400) return Math.floor(d/3600) + 'h ago'; return Math.floor(d/86400) + 'd ago'; })() : 'never';
+      const autoSyncActive = status.tokenValid;
+      syncContent = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <div class="${autoSyncActive ? 'success-dot' : 'warning-dot'}" style="${!autoSyncActive ? 'background:var(--yellow,#eab308);' : ''}"></div>
+          <span>Linked: <strong>${escapeHtml(status.email || '')}</strong></span>
         </div>
-      </section>
+        <p class="muted" style="margin-bottom:8px; font-size:13px;">Last synced: ${escapeHtml(ago)}</p>
+        ${autoSyncActive
+          ? '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--green,#22c55e);">✓ Auto-sync active — changes sync across devices automatically</p>'
+          : '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--yellow,#eab308);">Session expired — tap the sync icon in the sidebar to reconnect</p>'
+        }
+        <div style="display: flex; gap: 8px;">
+          <button class="ghost-btn" data-action="unlink-cloud-sync">Unlink Account</button>
+        </div>
+      `;
+    } else {
+      syncContent = `<button class="secondary-btn" data-action="link-cloud-sync">
+           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -3px; margin-right: 6px;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+           Link Google Account
+         </button>`;
+    }
 
+    return `
       <section class="panel" style="margin-top: 32px;">
         <div class="panel-heading">
           <p class="eyebrow">Cloud Sync</p>
@@ -2104,34 +2127,25 @@ font-family: inherit !important;
           </h2>
         </div>
         <p class="muted" style="margin-bottom:16px;">Sync your data across devices using your Google account. Data is stored privately in your own Google Drive.</p>
-         ${window.SevSync?.isLinked()
-          ? (() => {
-              const status = SevSync.getStatus();
-              const ago = status.lastSynced ? (() => { const d = Math.round((Date.now() - new Date(status.lastSynced).getTime()) / 1000); if (d < 60) return 'just now'; if (d < 3600) return Math.floor(d/60) + ' min ago'; if (d < 86400) return Math.floor(d/3600) + 'h ago'; return Math.floor(d/86400) + 'd ago'; })() : 'never';
-              const autoSyncActive = status.tokenValid;
-              return `
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                  <div class="${autoSyncActive ? 'success-dot' : 'warning-dot'}" style="${!autoSyncActive ? 'background:var(--yellow,#eab308);' : ''}"></div>
-                  <span>Linked: <strong>${escapeHtml(status.email || '')}</strong></span>
-                </div>
-                <p class="muted" style="margin-bottom:8px; font-size:13px;">Last synced: ${escapeHtml(ago)}</p>
-                ${autoSyncActive
-                  ? '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--green,#22c55e);">✓ Auto-sync active — changes sync across devices automatically</p>'
-                  : '<p class="muted" style="margin-bottom:16px; font-size:12px; color:var(--yellow,#eab308);">Session expired — tap the sync icon in the sidebar to reconnect</p>'
-                }
-                <div style="display: flex; gap: 8px;">
-                  <button class="ghost-btn" data-action="unlink-cloud-sync">Unlink Account</button>
-                </div>
-              `;
-            })()
-          : `<button class="secondary-btn" data-action="link-cloud-sync">
-               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -3px; margin-right: 6px;"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-               Link Google Account
-             </button>`
-        }
+        ${syncContent}
+      </section>
+    `;
+  }
+
+  function renderBackupView() {
+    const _isDemoMode = isDemoMode();
+    return `
+      <section class="hero-card compact-hero">
+        <div>
+          <p class="eyebrow">Data & Backups</p>
+          <h1>Manage your local data.</h1>
+          <p>Secure your test history or transfer it between devices.</p>
+        </div>
       </section>
 
-      ${window.SevSync?.isLinked() ? `
+      ${_isDemoMode ? '' : renderCloudSyncSection()}
+
+      ${!_isDemoMode && window.SevSync?.isLinked() ? `
       <section class="panel" style="margin-top: 32px; border-color: var(--red-border); background: var(--red-bg);">
         <div class="panel-heading">
           <p class="eyebrow" style="color: var(--red);">Account</p>
@@ -3387,6 +3401,11 @@ function renderTestReview() {
   let isSyncingLinkedAccount = false;
   async function syncLinkedAccount({ returningUser = false, hideBusy = false } = {}) {
     if (isSyncingLinkedAccount) return;
+    if (isDemoMode()) {
+      showNotice("Cloud sync is disabled in Demo Mode. Exit demo to use your own account.", "info");
+      renderHome();
+      return;
+    }
     if (!window.SevSync) {
       showNotice("Cloud sync is unavailable. Check your connection and try again.", "error");
       renderHome();
