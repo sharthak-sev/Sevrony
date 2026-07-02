@@ -1903,14 +1903,29 @@ font-family: inherit !important;
 
       let boxStyle = `position: relative; display: flex; width: 100%; aspect-ratio: 1/1; max-width: 48px; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid; transition: all 0.2s; margin: 0 auto; box-sizing: border-box;`;
       
+      let inactiveIconColor = isFuture ? 'color-mix(in srgb, var(--ink-muted, #64748b) 30%, transparent)' : 'color-mix(in srgb, var(--ink-muted, #64748b) 50%, transparent)';
+      let inactiveIcon = `<svg xmlns="http://www.w3.org/2000/svg" style="width: 45%; height: 45%; max-width: 24px; max-height: 24px;" viewBox="0 0 24 24" fill="none" stroke="${inactiveIconColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 3h12l4 6-10 13L2 9Z"/>
+        <path d="M2 9h20"/>
+        <path d="m12 22-4-13"/>
+        <path d="m12 22 4-13"/>
+      </svg>`;
+      
       let icon = "";
       if (isFuture) {
         boxStyle += `border-color: color-mix(in srgb, var(--line, #e2e8f0) 40%, transparent); background: color-mix(in srgb, var(--panel-alt, #f8fafc) 20%, transparent); opacity: 0.5;`;
+        icon = inactiveIcon;
       } else if (isCompleted) {
         boxStyle += `border-color: var(--ink, #0f172a); background: var(--ink, #0f172a);`;
-        icon = `<svg xmlns="http://www.w3.org/2000/svg" style="width: 45%; height: 45%; max-width: 24px; max-height: 24px;" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
+        icon = `<svg xmlns="http://www.w3.org/2000/svg" style="width: 45%; height: 45%; max-width: 24px; max-height: 24px;" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 3h12l4 6-10 13L2 9Z"/>
+          <path d="M2 9h20"/>
+          <path d="m12 22-4-13"/>
+          <path d="m12 22 4-13"/>
+        </svg>`;
       } else {
         boxStyle += `border-color: var(--line, #e2e8f0); background: color-mix(in srgb, var(--panel-alt, #f8fafc) 30%, transparent);`;
+        icon = inactiveIcon;
       }
       
       if (isToday) {
@@ -1940,7 +1955,7 @@ font-family: inherit !important;
           <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
             <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 140px;">
               <div style="display: flex; height: 48px; width: 48px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--ink, #0f172a) 8%, transparent);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ink, #0f172a)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="var(--ink, #0f172a)" stroke="var(--ink, #0f172a)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M2 9h20"/><path d="m12 22-4-13"/><path d="m12 22 4-13"/></svg>
               </div>
               <div style="display: flex; flex-direction: column; justify-content: center;">
                 <h3 style="font-size: 13px; font-weight: 500; color: var(--ink-muted, #64748b); margin: 0;">Current Streak</h3>
