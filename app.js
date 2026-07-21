@@ -3089,7 +3089,8 @@ function renderTestReview() {
             <div class="shadcn-filters-row">
               ${Array.from(allUsedTags).map(tag => `
                 <button type="button" data-action="ml-filter-tag" data-tag="${tag}" class="tag-badge ${state.mistakesLog.filterTags.has(tag) ? 'active' : ''}">
-                  ${tag}
+                  ${escapeHtml(tag)}
+                  ${!MISTAKE_TAGS.includes(tag) ? `<span data-action="ml-delete-custom-tag" data-tag="${tag}" style="margin-left: 6px; opacity: 0.6;">&times;</span>` : ''}
                 </button>
               `).join("")}
             </div>
@@ -3210,7 +3211,8 @@ function renderTestReview() {
                           <div class="shadcn-filters-row" style="margin-bottom: 12px;">
                             ${Array.from(allUsedTags).map(tag => `
                               <button type="button" data-action="ml-toggle-tag" data-id="${r.id}" data-tag="${tag}" class="tag-badge ${(r.tags || []).includes(tag) ? 'active' : ''}">
-                                ${tag}
+                                ${escapeHtml(tag)}
+                                ${!MISTAKE_TAGS.includes(tag) ? `<span data-action="ml-delete-custom-tag" data-tag="${tag}" style="margin-left: 6px; opacity: 0.6;">&times;</span>` : ''}
                               </button>
                             `).join("")}
                             <button type="button" data-action="ml-add-custom-tag" data-id="${r.id}" class="tag-badge" style="border-style: dashed; background: transparent;">
@@ -3900,6 +3902,7 @@ function renderTestReview() {
         }
         r.updatedAt = Date.now();
         DB.put("responses", r).catch(console.error);
+        if (window.SevSync?.isLinked()) window.SevSync.sync();
         target.classList.toggle("active");
       }
     }
@@ -3916,6 +3919,7 @@ function renderTestReview() {
               r.tags.push(cleanTag);
               r.updatedAt = Date.now();
               DB.put("responses", r).catch(console.error);
+              if (window.SevSync?.isLinked()) window.SevSync.sync();
             }
             
             const container = target.parentElement;
@@ -3927,13 +3931,32 @@ function renderTestReview() {
               tagBtn.dataset.id = id;
               tagBtn.dataset.tag = cleanTag;
               tagBtn.className = "tag-badge";
-              tagBtn.textContent = cleanTag;
+              tagBtn.innerHTML = `${escapeHtml(cleanTag)} <span data-action="ml-delete-custom-tag" data-tag="${cleanTag}" style="margin-left: 6px; opacity: 0.6;">&times;</span>`;
+              tagBtn.addEventListener("click", handleHomeAction);
+              tagBtn.querySelector("span").addEventListener("click", handleHomeAction);
               container.insertBefore(tagBtn, target);
             }
             tagBtn.classList.add("active");
           }
         });
       }
+    }
+    if (action === "ml-delete-custom-tag") {
+      const tag = event.currentTarget.dataset.tag || event.target.dataset.tag;
+      showConfirmModal(`Are you sure you want to completely delete the custom tag "${escapeHtml(tag)}"? It will be removed from all mistakes.`, "Delete Tag", async () => {
+        const toUpdate = state.responses.filter(r => r.tags && r.tags.includes(tag));
+        for (const r of toUpdate) {
+          r.tags = r.tags.filter(t => t !== tag);
+          r.updatedAt = Date.now();
+        }
+        if (state.mistakesLog.filterTags.has(tag)) state.mistakesLog.filterTags.delete(tag);
+        if (toUpdate.length > 0) {
+          await DB.putMany("responses", toUpdate);
+          if (window.SevSync?.isLinked()) window.SevSync.sync();
+        }
+        updateMistakesLogUI();
+      });
+      return;
     }
     if (action === "ml-delete-notes") {
       const target = event.currentTarget || event.target;
@@ -3948,6 +3971,7 @@ function renderTestReview() {
           if (textarea) textarea.value = "";
           DB.put("responses", r).then(() => {
             updateMistakesLogUI();
+            if (window.SevSync?.isLinked()) window.SevSync.sync();
           }).catch(console.error);
         });
       }
@@ -3961,6 +3985,8 @@ function renderTestReview() {
         const errorMsg = document.getElementById(`ml-error-${id}`);
         
         if (textarea) {
+          const currentNotes = r.notes || "";
+          
           if (!r.tags || r.tags.length === 0) {
             if (textarea.value.trim() !== "") {
               if (errorMsg) {
@@ -3969,12 +3995,17 @@ function renderTestReview() {
               }
               return;
             } else {
+              if (currentNotes === "") {
+                updateMistakesLogUI();
+                return;
+              }
               r.notes = "";
               r.tags = [];
               r.updatedAt = Date.now();
               textarea.value = "";
               DB.put("responses", r).then(() => {
                 updateMistakesLogUI();
+                if (window.SevSync?.isLinked()) window.SevSync.sync();
               }).catch(console.error);
               return;
             }
@@ -3982,10 +4013,17 @@ function renderTestReview() {
           
           if (errorMsg) errorMsg.style.display = "none";
           
-          r.notes = textarea.value.trim() === "" ? "" : textarea.value;
+          const newNotes = textarea.value.trim() === "" ? "" : textarea.value;
+          if (currentNotes === newNotes) {
+            updateMistakesLogUI();
+            return;
+          }
+          
+          r.notes = newNotes;
           r.updatedAt = Date.now();
           DB.put("responses", r).then(() => {
             updateMistakesLogUI();
+            if (window.SevSync?.isLinked()) window.SevSync.sync();
           }).catch(console.error);
         }
       }
@@ -5379,7 +5417,6 @@ function renderTestReview() {
       });
       container.outerHTML = renderMistakesLog();
       bindHomeEvents();
-      if (window.SevSync?.isLinked()) window.SevSync.sync();
     }
   }
 
