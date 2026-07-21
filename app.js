@@ -14,6 +14,40 @@
   const COLLEGE_BOARD_BASE_URL = "https://mypractice.collegeboard.org/";
   const TUTORIAL_DONE_KEY = "sevrony.tutorial.v1.done";
 
+window.handleSkillCheckboxChange = function(cb) {
+    const skill = cb.value;
+    const container = cb.closest('div').parentElement;
+    const btn = container.querySelector('button[data-action="toggle-skill-limit"]');
+    const limitDiv = container.querySelector('div[id^="limit_"]');
+    if (cb.checked) {
+        if (btn) { btn.style.display = "inline-block"; btn.textContent = '+'; }
+    } else {
+        if (btn) { btn.style.display = "none"; btn.textContent = '+'; }
+        if (limitDiv) {
+            limitDiv.style.display = "none";
+            const input = limitDiv.querySelector('input');
+            if (input) input.value = "";
+        }
+        if (state && state.showSkillLimits) state.showSkillLimits[skill] = false;
+    }
+    window.updateSelectAllButtons();
+};
+
+window.updateSelectAllButtons = function() {
+    const skills = Array.from(document.querySelectorAll('input[name="skill"]'));
+    if (!skills.length) return;
+    const allChecked = skills.every(cb => cb.checked);
+    const noneChecked = skills.every(cb => !cb.checked);
+    
+    document.querySelectorAll('[data-action="select-all-skills"]').forEach(btn => {
+        btn.style.display = allChecked ? "none" : "inline-block";
+    });
+    document.querySelectorAll('[data-action="deselect-all-skills"]').forEach(btn => {
+        btn.style.display = noneChecked ? "none" : "inline-block";
+    });
+};
+
+
   function isDemoMode() {
     return localStorage.getItem("sat_demo_mode") === "true";
   }
@@ -2281,9 +2315,16 @@ font-family: inherit !important;
               <p class="eyebrow">Filters</p>
               <h2>Domains</h2>
             </div>
-            ${state.config.subject !== "both" ? `<button type="button" class="ghost-btn" data-action="toggle-advanced-domains" style="font-size: 13px; padding: 4px 8px;">Advanced</button>` : ""}
+            ${state.config.subject !== "both" ? `<button type="button" class="ghost-btn" data-action="toggle-advanced-domains" style="font-size: 13px; padding: 4px 8px;">${state.showAdvancedDomains ? "Hide" : "Advanced"}</button>` : ""}
           </div>
           <div class="check-grid">
+            ${state.config.subject !== "both" && state.showAdvancedDomains ? `
+              <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom: 8px; grid-column: 1 / -1;">
+                <button type="button" class="ghost-btn" data-action="select-all-skills" style="font-size:12px; padding:4px 8px;">Select All</button>
+                <button type="button" class="ghost-btn" data-action="deselect-all-skills" style="font-size:12px; padding:4px 8px;">Deselect All</button>
+                <button type="button" class="ghost-btn" data-action="reset-skills" style="font-size:12px; padding:4px 8px;">Reset</button>
+              </div>
+            ` : ""}
             ${availableDomains.map(domain => `
               <div style="display:flex; flex-direction:column; gap:4px;">
                 <label class="check-card" style="height:auto; min-height:76px; margin-bottom:0;">
@@ -2293,17 +2334,34 @@ font-family: inherit !important;
                 </label>
                 ${state.config.subject !== "both" && state.showAdvancedDomains && domain.skills && domain.skills.length > 0 ? `
                   <div style="display:flex; flex-direction:column; gap:6px; margin-left:12px; margin-top:4px; border-left:2px solid var(--line); padding-left:12px;">
-                    ${domain.skills.map(skill => `
-                      <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer;">
-                        <input type="checkbox" name="skill" value="${escapeAttr(skill)}" ${selectedSkills.has(skill) ? "checked" : ""}>
-                        <span>${escapeHtml(skill)}</span>
-                      </label>
-                    `).join("")}
+                    ${domain.skills.map(skill => {
+                      const isChecked = selectedSkills.has(skill);
+                      const customCount = state.config.customSkillCounts?.[skill] || "";
+                      const maxAvailable = countAvailableQuestionsForSkill(skill, state.config);
+                      return `
+                      <div style="display:flex; flex-direction:column; gap:4px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer;">
+                            <input type="checkbox" name="skill" value="${escapeAttr(skill)}" ${isChecked ? "checked" : ""} onchange="window.handleSkillCheckboxChange(this)">
+                            <span>${escapeHtml(skill)}</span>
+                          </label>
+                          <button type="button" class="ghost-btn" data-action="toggle-skill-limit" data-skill="${escapeAttr(skill)}" style="font-size: 16px; padding: 2px 6px; line-height: 1; display: ${isChecked ? 'inline-block' : 'none'};" title="Set question limit">${state.showSkillLimits && state.showSkillLimits[skill] ? '\u2212' : '+'}</button>
+                        </div>
+                        <div id="limit_${escapeAttr(skill)}" style="margin-left: 24px; display:${isChecked && state.showSkillLimits && state.showSkillLimits[skill] ? 'flex' : 'none'}; align-items:center; gap:8px;">
+                            <div class="stepper-group">
+                              <button type="button" class="stepper-btn" data-action="stepper-dec" data-skill="${escapeAttr(skill)}">−</button>
+                              <input type="number" name="skill_count_${escapeAttr(skill)}" value="${customCount}" min="1" max="${maxAvailable}" placeholder="Limit" style="width: 56px; padding: 4px; font-size: 13px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); text-align:center;">
+                              <button type="button" class="stepper-btn" data-action="stepper-inc" data-skill="${escapeAttr(skill)}">+</button>
+                            </div>
+                            <small class="muted" style="font-size: 11px;">Max: ${maxAvailable}</small>
+                        </div>
+                      </div>
+                    `}).join("")}
                   </div>
                 ` : ""}
               </div>
             `).join("") || `<p class="muted">Import questions to see domains.</p>`}
-          </div>
+</div>
         </section>
 
         <section class="panel two-column compact">
@@ -2357,7 +2415,7 @@ font-family: inherit !important;
             <strong>${availableCount}</strong>
             <span>matching questions</span>
           </div>
-          <button class="primary-btn large" type="submit">Start Practice</button>
+          <button class="primary-btn large" type="submit" ${availableCount === 0 ? "disabled" : ""}>Start Practice</button>
         </section>
       </form>
     `;
@@ -3427,10 +3485,75 @@ function renderTestReview() {
         btn.addEventListener("click", handleHomeAction);
       }
     }
+
+    function syncConfigUI(form) {
+      const newCount = countFilteredQuestions(state.config);
+      // Update matching question count
+      const countEl = form.querySelector('.start-summary strong');
+      if (countEl) countEl.textContent = newCount;
+      // Sync limit input: when custom skill counts are active, show computed total and disable
+      const limitInput = form.querySelector('input[name="limit"]');
+      const limitLabel = limitInput ? limitInput.closest('.limit-field') : null;
+      const limitCaption = limitLabel ? limitLabel.querySelector('small') : null;
+      if (limitInput) {
+        if (state.config.hasCustomCounts) {
+          limitInput.value = state.config.limit;
+          limitInput.disabled = true;
+          if (limitCaption) limitCaption.textContent = "Driven by skill limits above.";
+        } else {
+          limitInput.disabled = (state.config.subject === "both");
+          if (limitCaption) limitCaption.textContent = state.config.subject === "both" ? "Full test uses SAT module sizes." : "Set how many questions to practice.";
+        }
+      }
+      // Grey out start button when 0 questions match
+      const startBtn = form.querySelector('button[type="submit"]');
+      if (startBtn) startBtn.disabled = (newCount === 0);
+    }
+
     const form = app.querySelector("#configForm");
     if (form) {
       form.addEventListener("submit", e => { e.preventDefault(); startPractice(readConfigFromForm(form)); });
       form.addEventListener("change", e => {
+        // Bug fix #1: Deselecting a domain cascades to its sub-skills
+        if (e.target.name === "domain" && !e.target.checked && state.showAdvancedDomains) {
+          const domainCode = e.target.value;
+          const availableDomains = getAvailableDomains(state.config.subject || "math");
+          const domain = availableDomains.find(d => d.code === domainCode);
+          if (domain && domain.skills) {
+            const domainContainer = e.target.closest('div');
+            if (domainContainer) {
+              domainContainer.querySelectorAll('input[name="skill"]').forEach(cb => {
+                if (cb.checked) {
+                  cb.checked = false;
+                  window.handleSkillCheckboxChange(cb);
+                }
+              });
+            }
+          }
+        }
+        // Bug fix #1b: Re-selecting a domain selects all its sub-skills
+        if (e.target.name === "domain" && e.target.checked && state.showAdvancedDomains) {
+          const domainContainer = e.target.closest('div');
+          if (domainContainer) {
+            domainContainer.querySelectorAll('input[name="skill"]').forEach(cb => {
+              if (!cb.checked) {
+                cb.checked = true;
+                window.handleSkillCheckboxChange(cb);
+              }
+            });
+          }
+        }
+        // Checking a skill auto-selects its parent domain if unchecked
+        if (e.target.name === "skill" && e.target.checked && state.showAdvancedDomains) {
+          // Walk up to the outer domain container div that holds both the check-card and the skills
+          const outerDiv = e.target.closest('.check-grid > div');
+          if (outerDiv) {
+            const domainCb = outerDiv.querySelector('input[name="domain"]');
+            if (domainCb && !domainCb.checked) {
+              domainCb.checked = true;
+            }
+          }
+        }
         state.config = readConfigFromForm(form);
         if (e.target.name === "subject") {
           const availableDomains = getAvailableDomains(state.config.subject);
@@ -3438,12 +3561,18 @@ function renderTestReview() {
           state.config.skillCodes = availableDomains.flatMap(d => d.skills);
           renderHome();
         } else {
-          const newCount = countFilteredQuestions(state.config);
-          const countEl = form.querySelector('.start-summary strong');
-          if (countEl) countEl.textContent = newCount;
+          syncConfigUI(form);
+        }
+      });
+      // Bug fix #6: Also listen for 'input' event on number fields for real-time updates
+      form.addEventListener("input", e => {
+        if (e.target.type === "number") {
+          state.config = readConfigFromForm(form);
+          syncConfigUI(form);
         }
       });
     }
+    window.updateSelectAllButtons();
   }
 
   let isSyncingLinkedAccount = false;
@@ -4164,6 +4293,97 @@ function renderTestReview() {
     if (action === "toggle-advanced-domains") {
       state.showAdvancedDomains = !state.showAdvancedDomains;
       renderHome();
+      return;
+    }
+    if (action === "select-all-skills") {
+      document.querySelectorAll('input[name="skill"]').forEach(cb => {
+         if (!cb.checked) {
+             cb.checked = true;
+             window.handleSkillCheckboxChange(cb);
+         }
+      });
+      // Also check all domains since all their subdomains are now selected
+      document.querySelectorAll('input[name="domain"]').forEach(cb => {
+         cb.checked = true;
+      });
+      const form = document.getElementById("configForm");
+      if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+    if (action === "deselect-all-skills") {
+      document.querySelectorAll('input[name="skill"]').forEach(cb => {
+         if (cb.checked) {
+             cb.checked = false;
+             window.handleSkillCheckboxChange(cb);
+         }
+      });
+      // Also uncheck all domains since all their subdomains are now deselected
+      document.querySelectorAll('input[name="domain"]').forEach(cb => {
+         cb.checked = false;
+      });
+      const form = document.getElementById("configForm");
+      if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+    if (action === "reset-skills") {
+      document.querySelectorAll('input[name="skill"]').forEach(cb => {
+         if (!cb.checked) {
+             cb.checked = true;
+             window.handleSkillCheckboxChange(cb);
+         }
+      });
+      document.querySelectorAll('input[name^="skill_count_"]').forEach(inp => inp.value = "");
+      // Also re-check all domains
+      document.querySelectorAll('input[name="domain"]').forEach(cb => {
+         cb.checked = true;
+      });
+      state.showSkillLimits = {};
+      document.querySelectorAll('[id^="limit_"]').forEach(div => div.style.display = "none");
+      // Reset all toggle icons back to '+'
+      document.querySelectorAll('[data-action="toggle-skill-limit"]').forEach(btn => {
+         btn.textContent = '+';
+      });
+      // Reset question limit to default 20
+      const form = document.getElementById("configForm");
+      if (form) {
+        const limitInput = form.querySelector('input[name="limit"]');
+        if (limitInput) {
+          limitInput.value = 20;
+          limitInput.disabled = false;
+        }
+        const limitCaption = form.querySelector('.limit-field small');
+        if (limitCaption) limitCaption.textContent = "Set how many questions to practice.";
+      }
+      window.updateSelectAllButtons();
+      if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+    if (action === "toggle-skill-limit") {
+      const skill = event.currentTarget.dataset.skill;
+      if (!state.showSkillLimits) state.showSkillLimits = {};
+      state.showSkillLimits[skill] = !state.showSkillLimits[skill];
+      // Bug fix #4: Toggle the button icon between + and −
+      event.currentTarget.textContent = state.showSkillLimits[skill] ? '\u2212' : '+';
+      const container = event.currentTarget.closest('div').parentElement;
+      const limitDiv = container.querySelector('[id^="limit_"]');
+      if (limitDiv) {
+         limitDiv.style.display = state.showSkillLimits[skill] ? "flex" : "none";
+      }
+      return;
+    }
+    // Bug fix #2: Stepper increment/decrement buttons on subdomain limit inputs
+    if (action === "stepper-inc" || action === "stepper-dec") {
+      const container = event.currentTarget.closest('.stepper-group');
+      const input = container ? container.querySelector('input[type="number"]') : null;
+      if (input) {
+        const max = parseInt(input.max, 10) || 200;
+        const min = parseInt(input.min, 10) || 1;
+        let val = parseInt(input.value, 10) || 0;
+        if (action === "stepper-inc") val = Math.min(val + 1, max);
+        else val = Math.max(val - 1, min);
+        input.value = val;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
       return;
     }
     if (action === "toggle-advanced-mistakes") {
@@ -4891,14 +5111,38 @@ function renderTestReview() {
     const skills = data.getAll("skill");
     const difficulties = data.getAll("difficulty");
     const availableDomains = getAvailableDomains(subject);
+    
+    const customSkillCounts = {};
+    let hasCustomCounts = false;
+    let customTotal = 0;
+    for (const skill of skills) {
+      const countStr = data.get("skill_count_" + skill);
+      if (countStr && countStr.trim() !== "") {
+        const count = parseInt(countStr, 10);
+        if (!isNaN(count) && count > 0) {
+          customSkillCounts[skill] = count;
+          hasCustomCounts = true;
+          customTotal += count;
+        }
+      }
+    }
+    let finalLimit = clamp(parseInt(data.get("limit"), 10) || 20, 1, 200);
+    if (hasCustomCounts) {
+      finalLimit = customTotal;
+    }
+    
     return {
       subject,
-      domainCodes: domains.length ? domains : availableDomains.map(d => d.code),
-      skillCodes: skills.length ? skills : availableDomains.flatMap(d => d.skills),
+      // Domain checkboxes are always rendered: empty = user explicitly unchecked all
+      domainCodes: domains,
+      // Skill checkboxes only exist when advanced mode is on; fall back to all when hidden
+      skillCodes: skills.length ? skills : (state.showAdvancedDomains ? [] : availableDomains.flatMap(d => d.skills)),
+      customSkillCounts,
+      hasCustomCounts,
       difficulties: difficulties.length ? difficulties : ["E", "M", "H"],
       excludeAnswered: data.get("excludeAnswered") === "on",
       immediateFeedback: data.get("immediateFeedback") === "on",
-      limit: clamp(parseInt(data.get("limit"), 10) || 20, 1, 200)
+      limit: finalLimit
     };
   }
 
@@ -4916,7 +5160,19 @@ function renderTestReview() {
       questions = shuffle(forcedQuestions);
     } else {
       const pool = shuffle(getFilteredQuestions(config));
-      questions = pool.slice(0, Math.min(config.limit, pool.length));
+      if (config.hasCustomCounts) {
+        questions = [];
+        const counts = { ...config.customSkillCounts };
+        for (const q of pool) {
+          const skill = q.skill || "Unspecified";
+          if (counts[skill] > 0) {
+            questions.push(q);
+            counts[skill]--;
+          }
+        }
+      } else {
+        questions = pool.slice(0, Math.min(config.limit, pool.length));
+      }
     }
     if (!questions.length) { showNotice("No questions match those filters.", "error"); renderHome(); return; }
 
@@ -6202,6 +6458,10 @@ function renderTestReview() {
   function getFilteredQuestions(config) {
     const subjects = config.subject === "both" ? ["math", "rw"] : [config.subject];
     const availableDomains = getAvailableDomains(config.subject);
+    // If config explicitly provides an empty array, it means "nothing selected" — return 0 questions
+    const explicitEmptyDomains = Array.isArray(config.domainCodes) && config.domainCodes.length === 0;
+    const explicitEmptySkills = Array.isArray(config.skillCodes) && config.skillCodes.length === 0;
+    if (explicitEmptyDomains || explicitEmptySkills) return [];
     const domainCodes = new Set(config.domainCodes?.length ? config.domainCodes : availableDomains.map(d => d.code));
     const skillCodes = new Set(config.skillCodes?.length ? config.skillCodes : availableDomains.flatMap(d => d.skills));
     const difficulties = new Set(config.difficulties?.length ? config.difficulties : ["E", "M", "H"]);
@@ -6217,6 +6477,19 @@ function renderTestReview() {
   }
 
   function countFilteredQuestions(config) { return getFilteredQuestions(config).length; }
+
+  function countAvailableQuestionsForSkill(skill, config) {
+    const subjects = config.subject === "both" ? ["math", "rw"] : [config.subject];
+    const difficulties = new Set(config.difficulties?.length ? config.difficulties : ["E", "M", "H"]);
+    const answered = config.excludeAnswered ? new Set(state.responses.filter(isAnsweredResponse).map(r => r.questionId)) : new Set();
+    return state.questions.filter(q => {
+      if (!subjects.includes(q.subject)) return false;
+      if ((q.skill || "Unspecified") !== skill) return false;
+      if (difficulties.size && !difficulties.has(q.difficultyCode) && q.difficultyCode) return false;
+      return !answered.has(q.id);
+    }).length;
+  }
+
 
   function getAvailableDomains(subject) {
     const subjects = subject === "both" ? ["math", "rw"] : [subject];

@@ -889,10 +889,55 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
 }
 .limit-field input:focus { border-color: var(--bb-blue); outline: 2px solid var(--bb-blue); outline-offset: 2px; }
 
+/* ---- Stepper Buttons ---- */
+.stepper-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.stepper-btn {
+  background: var(--paper);
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 6px 10px;
+  transition: background 120ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stepper-btn:hover { background: var(--bg); }
+.stepper-btn:active { background: var(--line); }
+.stepper-group input[type="number"] {
+  border: none;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+/* Hide browser spin buttons inside stepper */
+.stepper-group input[type="number"]::-webkit-inner-spin-button,
+.stepper-group input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.stepper-group input[type="number"] { -moz-appearance: textfield; }
+
 .start-summary { text-align: right; }
 .start-summary strong, .start-summary span { display: block; }
 .start-summary strong { font-size: 26px; font-weight: 800; letter-spacing: -0.04em; }
 .start-summary span { color: var(--ink-muted); font-size: 13px; }
+
+/* ---- Disabled Start Button ---- */
+.primary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 /* ---- Module Summary Grid ---- */
 .module-summary-grid {
