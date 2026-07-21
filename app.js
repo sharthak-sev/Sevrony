@@ -810,7 +810,7 @@ window.updateSelectAllButtons = function() {
       window.posthog.init(POSTHOG_TOKEN, {
         api_host: POSTHOG_API_HOST,
         defaults: "2026-01-30",
-        person_profiles: "identified_only",
+        person_profiles: "always",
         autocapture: false,
         capture_pageview: false,
         capture_pageleave: false,

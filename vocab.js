@@ -28,6 +28,8 @@
     mcqCorrectValue: null,
     mcqOptions: null,
     lastSentenceSubmitted: null,
+    loadingDbWords: false,
+    dbWordsLoadError: null,
     // Backend API
     backendEndpoint: 'https://divine-silence-6016.sharthakjaiswal50.workers.dev/', // Replace this with your actual deployed Cloudflare Worker URL
     showSettings: false,
@@ -40,17 +42,34 @@
       const { backendEndpoint, ...parsedState } = parsed;
       Object.assign(vocabState, parsedState);
       vocabState.completedWords = new Set(parsedState.completedWords || []);
+      vocabState.loadingDbWords = false;
+      vocabState.dbWordsLoadError = null;
     }
   } catch(e) {}
 
   function saveVocabState() {
-    const { allDbWords, backendEndpoint, ...stateToSave } = vocabState;
+    const { allDbWords, backendEndpoint, loadingDbWords, dbWordsLoadError, ...stateToSave } = vocabState;
     stateToSave.completedWords = Array.from(vocabState.completedWords || []);
     stateToSave.updatedAt = Date.now();
     localStorage.setItem('sat_vocab_state', JSON.stringify(stateToSave));
   }
 
   const PHASES_LEARN = ['flashcard', 'mcq', 'match', 'sentence'];
+
+  function resetActivityState() {
+    vocabState.matchWords = [];
+    vocabState.matchSelected = { left: null, right: null };
+    vocabState.matchPaired = [];
+    vocabState.matchWrong = null;
+    vocabState.matchCorrect = null;
+    vocabState.matchChunk = null;
+    vocabState.matchMeanings = null;
+    vocabState.matchCompleteScheduled = false;
+    vocabState.mcqSelected = null;
+    vocabState.mcqCorrectValue = null;
+    vocabState.mcqOptions = null;
+    vocabState.lastSentenceSubmitted = null;
+  }
 
   // Fisher-Yates shuffle
   function shuffle(arr) {
@@ -102,11 +121,13 @@
 
   // Strip the "noun. " / "verb. " / "adj. " prefix for display-only contexts
   function stripPosTag(meaning) {
+    if (!meaning) return "";
     return meaning.replace(/^(noun|verb|adj|adv)\.\s*/i, '');
   }
 
   // Get the POS tag from a meaning string
   function getPosTag(meaning) {
+    if (!meaning) return null;
     const m = meaning.match(/^(noun|verb|adj|adv)\./i);
     return m ? m[1].toLowerCase() : null;
   }
@@ -135,6 +156,16 @@
     return vocabState.backendEndpoint ? 'background: var(--bb-blue-soft); color: var(--bb-blue); border: 1px solid var(--line);' : 'background: var(--paper); color: var(--ink-muted); border: 1px solid var(--line);';
   }
 
+  function getPhaseStyle(phase) {
+    const styles = {
+      flashcard: 'background: var(--bb-blue-soft); color: var(--bb-blue);',
+      mcq: 'background: rgba(59, 130, 246, 0.12); color: var(--blue);',
+      match: 'background: rgba(139, 92, 246, 0.12); color: #7c3aed;',
+      sentence: 'background: rgba(245, 158, 11, 0.14); color: #b45309;'
+    };
+    return styles[phase] || 'background: var(--paper); color: var(--ink-muted);';
+  }
+
   async function initVocab() {
     try {
       const existingWords = await window.SatPracticeDB.getAll("vocabWords");
@@ -153,13 +184,19 @@
             updatedAt: 0
           }));
           await window.SatPracticeDB.putMany("vocabWords", dbWords);
+          vocabState.allDbWords = dbWords;
           console.log(`Seeded ${dbWords.length} vocabulary words.`);
           if (window.SevSync?.isLinked()) window.SevSync.sync();
         } else {
           console.warn("dsat_vocabulary.json not found for seeding.");
         }
+      } else {
+        vocabState.allDbWords = existingWords;
       }
+      vocabState.dbWordsLoadError = null;
+      if (vocabState.sessionActive && window.renderHome) window.renderHome();
     } catch (e) {
+      vocabState.dbWordsLoadError = e;
       console.error("Error initializing vocabulary:", e);
     }
   }
@@ -382,6 +419,7 @@
     vocabState.completedWords = new Set();
     vocabState.phasesPassed = 0;
     vocabState.sessionComplete = false;
+    resetActivityState();
 
     if (mode === 'flashcard') {
       vocabState.words = shuffle([...vocabState.sessionWords]);
@@ -440,6 +478,7 @@
         vocabState.phaseIndex = 0;
         vocabState.phase = PHASES_LEARN[vocabState.phaseIndex];
         vocabState.currentIndex = 0;
+        resetActivityState();
         
         vocabState.currentBatch = vocabState.words.map(w => ({
           ...w,
@@ -465,6 +504,7 @@
 
     vocabState.phase = PHASES_LEARN[vocabState.phaseIndex];
     vocabState.currentIndex = 0;
+    resetActivityState();
 
     const reshuffled = shuffle(vocabState.words);
     vocabState.currentBatch = reshuffled.map(w => ({
@@ -482,26 +522,28 @@
 
     saveVocabState();
 
-    if (vocabState.phase === 'match') {
-      vocabState.matchWords = [];
-      vocabState.matchSelected = { left: null, right: null };
-      vocabState.matchPaired = [];
-      vocabState.matchWrong = null;
-      vocabState.matchCorrect = null;
-      vocabState.matchChunk = null;
-      vocabState.matchMeanings = null;
-      vocabState.matchCompleteScheduled = false;
-    }
-
     return true;
   }
 
   function renderSession() {
     if (!vocabState.allDbWords || vocabState.allDbWords.length === 0) {
-       window.SatPracticeDB.getAll("vocabWords").then(words => {
-           vocabState.allDbWords = words;
-           if (window.renderHome) window.renderHome();
-       });
+       if (!vocabState.loadingDbWords) {
+         vocabState.loadingDbWords = true;
+         vocabState.dbWordsLoadError = null;
+         window.SatPracticeDB.getAll("vocabWords").then(words => {
+             vocabState.allDbWords = words || [];
+             vocabState.loadingDbWords = false;
+             if (window.renderHome) window.renderHome();
+         }).catch(e => {
+             vocabState.dbWordsLoadError = e;
+             vocabState.loadingDbWords = false;
+             console.error("Error loading vocabulary session data:", e);
+             if (window.renderHome) window.renderHome();
+         });
+       }
+       if (vocabState.dbWordsLoadError) {
+         return `<div style="text-align: center; padding: 48px; color: var(--ink-muted);">Unable to load vocabulary session data. Please try again.</div>`;
+       }
        return `<div style="text-align: center; padding: 48px; color: var(--ink-muted);">Loading session data...</div>`;
     }
 
@@ -573,8 +615,8 @@
         </div>
       </div>
       <div style="display: flex; justify-content: center; gap: 16px; margin-top: 32px;">
-        <button class="ghost-btn large" style="min-width: 140px;" onclick="window.Vocab.nextQuestion(false)">Still Learning</button>
-        <button class="primary-btn large" style="min-width: 140px; border-radius: var(--radius-pill);" onclick="window.Vocab.nextQuestion(true)">Got It</button>
+        <button class="ghost-btn large" style="min-width: 140px;" onclick="window.Vocab.nextQuestion(false, 'flashcard')">Still Learning</button>
+        <button class="primary-btn large" style="min-width: 140px; border-radius: var(--radius-pill);" onclick="window.Vocab.nextQuestion(true, 'flashcard')">Got It</button>
       </div>
     `;
   }
@@ -814,7 +856,7 @@
 
   function checkMCQ(selected, correct) {
     const passed = selected === correct;
-    nextQuestion(passed);
+    nextQuestion(passed, 'mcq');
   }
 
   function selectMCQ(opt) {
@@ -829,7 +871,7 @@
     vocabState.mcqSelected = null;
     vocabState.mcqCorrectValue = null;
     vocabState.mcqOptions = null;
-    nextQuestion(passed);
+    nextQuestion(passed, 'mcq');
   }
 
   async function callBackend(word, meaning, sentence) {
@@ -967,7 +1009,7 @@
           <p style="font-size: 15px; margin: 0;">${feedback}</p>
           <div>${modelBadge}</div>
           <div style="margin-top: 8px;">
-            <button class="primary-btn" style="border-radius: var(--radius-pill); padding: 8px 24px;" onclick="window.Vocab.nextQuestion(true)">Next Word &rsaquo;</button>
+            <button class="primary-btn" style="border-radius: var(--radius-pill); padding: 8px 24px;" onclick="window.Vocab.nextQuestion(true, 'sentence')">Next Word &rsaquo;</button>
           </div>
         </div>
       `;
@@ -1004,16 +1046,21 @@
           <div>${modelBadge}</div>
           <div style="margin-top: 8px; display: flex; gap: 12px;">
             ${isRateLimited ? '' : `<button class="secondary-btn" style="border-radius: var(--radius-pill); padding: 8px 24px;" onclick="document.getElementById('sentence-feedback').style.display='none'">Try Again</button>`}
-            <button class="ghost-btn" style="border-radius: var(--radius-pill); padding: 8px 24px;" onclick="window.Vocab.nextQuestion(false)">Skip for now</button>
+            <button class="ghost-btn" style="border-radius: var(--radius-pill); padding: 8px 24px;" onclick="window.Vocab.nextQuestion(false, 'sentence')">Skip for now</button>
           </div>
         </div>
       `;
     }
   }
 
-  function nextQuestion(passed) {
+  function nextQuestion(passed, expectedActivity) {
     vocabState.lastSentenceSubmitted = null;
     const currentWord = vocabState.currentBatch[vocabState.currentIndex];
+    if (!currentWord) return;
+    if (expectedActivity && currentWord.activity !== expectedActivity) return;
+    if (vocabState.mode === 'learn' && currentWord.activity !== vocabState.phase) return;
+    if (vocabState.mode === 'learn' && !expectedActivity && (vocabState.phase === 'mcq' || vocabState.phase === 'match')) return;
+
     if (passed) {
       currentWord.passed = true;
       if (vocabState.mode === 'learn') {
@@ -1034,7 +1081,6 @@
         if (orig && (orig.mistakes || 0) === 0) {
             if (!vocabState.completedWords) vocabState.completedWords = new Set();
             vocabState.completedWords.add(currentWord.word);
-            updateWordDB(currentWord, true);
         }
     } else if (vocabState.mode === 'flashcard' && passed) {
         let orig = vocabState.words.find(w => w.word === currentWord.word);
@@ -1062,18 +1108,7 @@
       vocabState.sessionComplete = false;
       vocabState.phasesPassed = 0;
     }
-    vocabState.matchWords = [];
-    vocabState.matchPaired = [];
-    vocabState.matchSelected = { left: null, right: null };
-    vocabState.matchWrong = null;
-    vocabState.matchCorrect = null;
-    vocabState.matchChunk = null;
-    vocabState.matchMeanings = null;
-    vocabState.matchCompleteScheduled = false;
-    vocabState.mcqSelected = null;
-    vocabState.mcqCorrectValue = null;
-    vocabState.mcqOptions = null;
-    vocabState.lastSentenceSubmitted = null;
+    resetActivityState();
     saveVocabState();
     if (window.SevSync && window.SevSync.isLinked()) window.SevSync.sync();
     if (window.renderHome) window.renderHome();
@@ -1235,6 +1270,8 @@
         const { backendEndpoint, ...parsedState } = parsed;
         Object.assign(vocabState, parsedState);
         vocabState.completedWords = new Set(parsedState.completedWords || []);
+        vocabState.loadingDbWords = false;
+        vocabState.dbWordsLoadError = null;
         if (window.renderHome) window.renderHome();
       }
     } catch(e) {}
