@@ -2962,9 +2962,9 @@ function renderTestReview() {
     if (!state.selectedMistakeSkills) {
       const allSkills = new Set();
       for (const sub of Object.values(subjects)) {
-        for (const domData of Object.values(sub.domains)) {
+        for (const [dom, domData] of Object.entries(sub.domains)) {
           for (const sk of Object.keys(domData.skills)) {
-            allSkills.add(sk);
+            allSkills.add(`${dom}|${sk}`);
           }
         }
       }
@@ -2977,10 +2977,10 @@ function renderTestReview() {
     // Calculate selected count
     let selectedCount = 0;
     if (state.selectedMistakeTypes.has("wrong")) {
-      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
+      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.domain + "|" + (q.skill || "Unspecified"))).length;
     }
     if (state.selectedMistakeTypes.has("skipped")) {
-      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
+      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.domain + "|" + (q.skill || "Unspecified"))).length;
     }
 
     return `
@@ -3019,6 +3019,32 @@ function renderTestReview() {
           const totalWrong = sub.wrong;
           const totalSkipped = sub.skipped;
 
+          let totalItems = 0;
+          let selectedItems = 0;
+          domEntries.forEach(([domName, data]) => {
+            totalItems++;
+            if (state.selectedMistakeDomains.has(domName)) selectedItems++;
+            if (state.showAdvancedMistakeSkills) {
+              const skills = Object.keys(data.skills);
+              totalItems += skills.length;
+              skills.forEach(skill => {
+                if (state.selectedMistakeSkills.has(domName + "|" + skill)) selectedItems++;
+              });
+            }
+          });
+          
+          let buttonsHtml = '';
+          if (selectedItems === 0) {
+            buttonsHtml = `<button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>`;
+          } else if (selectedItems === totalItems) {
+            buttonsHtml = `<button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="none" style="font-size:12px; padding:4px 10px; min-height:28px;">Deselect All</button>`;
+          } else {
+            buttonsHtml = `
+              <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>
+              <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="none" style="font-size:12px; padding:4px 10px; min-height:28px;">Deselect All</button>
+            `;
+          }
+
           return `
             <section class="panel">
               <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center;">
@@ -3028,9 +3054,8 @@ function renderTestReview() {
                 </div>
                 <button type="button" class="ghost-btn" data-action="toggle-advanced-mistakes" style="font-size: 13px; padding: 4px 8px;">Advanced</button>
               </div>
-              <div style="display:flex; gap:8px; margin-bottom:16px;">
-                <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>
-                <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subKey}" data-value="none" style="font-size:12px; padding:4px 10px; min-height:28px;">Clear</button>
+              <div class="subject-buttons-container" data-subject-container="${subKey}" style="display:flex; gap:8px; margin-bottom:16px;">
+                ${buttonsHtml}
               </div>
               <div class="check-grid">
                 ${domEntries.map(([domName, data]) => `
@@ -3044,7 +3069,7 @@ function renderTestReview() {
                       <div style="display:flex; flex-direction:column; gap:6px; margin-left: 12px; margin-top: 4px; border-left: 2px solid var(--line); padding-left: 12px;">
                         ${Object.entries(data.skills).map(([skillName, skData]) => `
                           <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer;">
-                            <input type="checkbox" data-action="toggle-mistake-skill" data-domain="${escapeAttr(domName)}" data-skill="${escapeAttr(skillName)}" ${state.selectedMistakeSkills.has(skillName) ? "checked" : ""}>
+                            <input type="checkbox" data-action="toggle-mistake-skill" data-domain="${escapeAttr(domName)}" data-skill="${escapeAttr(skillName)}" ${state.selectedMistakeSkills.has(domName + "|" + skillName) ? "checked" : ""}>
                             <span>${escapeHtml(skillName)} <span class="muted" style="margin-left:4px;">(${skData.wrong}W / ${skData.skipped}S)</span></span>
                           </label>
                         `).join("")}
@@ -3467,10 +3492,10 @@ function renderTestReview() {
     const { wrongQuestions, skippedQuestions } = getMistakesData();
     let selectedCount = 0;
     if (state.selectedMistakeTypes.has("wrong")) {
-      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
+      selectedCount += wrongQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.domain + "|" + (q.skill || "Unspecified"))).length;
     }
     if (state.selectedMistakeTypes.has("skipped")) {
-      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")).length;
+      selectedCount += skippedQuestions.filter(q => state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.domain + "|" + (q.skill || "Unspecified"))).length;
     }
     
     const countEl = document.querySelector('.start-summary strong');
@@ -3491,7 +3516,38 @@ function renderTestReview() {
     }
     const skillCheckboxes = document.querySelectorAll('input[data-action="toggle-mistake-skill"]');
     for (const cb of skillCheckboxes) {
-      cb.checked = state.selectedMistakeSkills.has(cb.dataset.skill);
+      cb.checked = state.selectedMistakeSkills.has(cb.dataset.domain + "|" + cb.dataset.skill);
+    }
+
+    const subjectContainers = document.querySelectorAll('.subject-buttons-container');
+    for (const container of subjectContainers) {
+      const subjectKey = container.dataset.subjectContainer;
+      const panel = container.closest('.panel');
+      if (panel) {
+        const checkboxes = panel.querySelectorAll('input[type="checkbox"][data-action="toggle-mistake-domain"], input[type="checkbox"][data-action="toggle-mistake-skill"]');
+        if (checkboxes.length > 0) {
+          const total = checkboxes.length;
+          const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+          let html = '';
+          if (checked === 0) {
+            html = `<button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subjectKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>`;
+          } else if (checked === total) {
+            html = `<button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subjectKey}" data-value="none" style="font-size:12px; padding:4px 10px; min-height:28px;">Deselect All</button>`;
+          } else {
+            html = `
+              <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subjectKey}" data-value="all" style="font-size:12px; padding:4px 10px; min-height:28px;">Select All</button>
+              <button class="ghost-btn" type="button" data-action="toggle-mistake-subject" data-subject="${subjectKey}" data-value="none" style="font-size:12px; padding:4px 10px; min-height:28px;">Deselect All</button>
+            `;
+          }
+          if (container.innerHTML.trim() !== html.trim()) {
+            container.innerHTML = html;
+            const newBtns = container.querySelectorAll('button');
+            for (const btn of newBtns) {
+              btn.addEventListener("click", handleHomeAction);
+            }
+          }
+        }
+      }
     }
   }
 
@@ -4203,10 +4259,12 @@ function renderTestReview() {
     }
     if (action === "toggle-mistake-skill") {
       const skillName = event.currentTarget.dataset.skill;
+      const domainName = event.currentTarget.dataset.domain;
+      const compKey = domainName + "|" + skillName;
       if (event.currentTarget.checked) {
-        state.selectedMistakeSkills.add(skillName);
+        state.selectedMistakeSkills.add(compKey);
       } else {
-        state.selectedMistakeSkills.delete(skillName);
+        state.selectedMistakeSkills.delete(compKey);
       }
       updateMistakesSummary();
     }
@@ -4228,7 +4286,7 @@ function renderTestReview() {
       for (const q of [...wrongQuestions, ...skippedQuestions]) {
         if (q.subject === subjectKey) {
           subjectDomains.add(q.domain);
-          subjectSkills.add(q.skill || "Unspecified");
+          subjectSkills.add(`${q.domain}|${q.skill || "Unspecified"}`);
         }
       }
       if (selectValue === "all") {
@@ -4253,14 +4311,14 @@ function renderTestReview() {
       const questionsToPractice = [];
       if (state.selectedMistakeTypes.has("wrong")) {
         for (const q of wrongQuestions) {
-          if (state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")) {
+          if (state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.domain + "|" + (q.skill || "Unspecified"))) {
             questionsToPractice.push(q);
           }
         }
       }
       if (state.selectedMistakeTypes.has("skipped")) {
         for (const q of skippedQuestions) {
-          if (state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.skill || "Unspecified")) {
+          if (state.selectedMistakeDomains.has(q.domain) && state.selectedMistakeSkills.has(q.domain + "|" + (q.skill || "Unspecified"))) {
             questionsToPractice.push(q);
           }
         }
