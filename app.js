@@ -1109,6 +1109,26 @@ window.updateSelectAllButtons = function() {
     }
   }
 
+  function updateClearHighlightsButton(questionId) {
+    const headerRow = app.querySelector('.question-header-row');
+    if (!headerRow) return;
+    const hasHighlights = getQuestionHighlights(questionId).length > 0;
+    let btn = headerRow.querySelector('button[data-test-action="clear-highlights"]');
+    
+    if (hasHighlights && !btn) {
+      const btnHtml = `<button class="ghost-btn" type="button" data-test-action="clear-highlights" style="font-size: 12px; padding: 4px 8px; margin-left: auto;">
+                  Clear Highlights
+                </button>`;
+      headerRow.insertAdjacentHTML('beforeend', btnHtml);
+      const newBtn = headerRow.querySelector('button[data-test-action="clear-highlights"]');
+      if (newBtn && typeof handleTestAction === 'function') {
+        newBtn.addEventListener("click", handleTestAction);
+      }
+    } else if (!hasHighlights && btn) {
+      btn.remove();
+    }
+  }
+
   function bindHighlightClicks() {
     for (const mark of app.querySelectorAll('mark.sev-highlight')) {
       mark.addEventListener('click', async (e) => {
@@ -1137,22 +1157,28 @@ window.updateSelectAllButtons = function() {
     const container = surface === 'stimulus' 
       ? app.querySelector('.passage-pane .html-content')
       : app.querySelector('.question-pane .html-content.prompt');
-    if (!container || !container.contains(sel.anchorNode) || !container.contains(sel.focusNode)) return;
+      
+    if (!container) return;
+    const range = sel.getRangeAt(0);
+    if (!range.intersectsNode(container)) return;
     
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
     let offset = 0;
     let startOffset = -1, endOffset = -1;
-    const range = sel.getRangeAt(0);
     
     while (walker.nextNode()) {
       const node = walker.currentNode;
-      if (node === range.startContainer) startOffset = offset + range.startOffset;
-      if (node === range.endContainer) endOffset = offset + range.endOffset;
+      if (range.intersectsNode(node)) {
+        if (startOffset === -1) {
+          startOffset = (node === range.startContainer) ? offset + range.startOffset : offset;
+        }
+        endOffset = (node === range.endContainer) ? offset + range.endOffset : offset + node.length;
+      }
       offset += node.length;
     }
     
     if (startOffset >= 0 && endOffset > startOffset) {
-      const quote = sel.toString().trim();
+      const quote = container.textContent.substring(startOffset, endOffset).trim();
       saveHighlight(question.id, surface, startOffset, endOffset, quote);
       sel.removeAllRanges();
       
@@ -1165,6 +1191,7 @@ window.updateSelectAllButtons = function() {
       });
       applyHighlights(container, highlights.map(h => ({...h, _questionId: question.id})), surface);
       bindHighlightClicks();
+      updateClearHighlightsButton(question.id);
     }
   }
 
