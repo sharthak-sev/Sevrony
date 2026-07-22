@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.1.2";
+  const APP_VERSION = "v2.1.5";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -13,6 +13,16 @@
   const SENTRY_LOADER_URL = "https://js.sentry-cdn.com/610da841a6875eae790cbc1fd6ea96b1.min.js";
   const COLLEGE_BOARD_BASE_URL = "https://mypractice.collegeboard.org/";
   const TUTORIAL_DONE_KEY = "sevrony.tutorial.v1.done";
+
+  // Vocabulary can be used without importing an SAT question bank. Keep an
+  // in-progress vocab session out of the question-bank onboarding flow.
+  function hasActiveVocabSession() {
+    return Boolean(window.Vocab?.isSessionActive?.());
+  }
+
+  function hasRestorablePracticeData() {
+    return state.questions.length > 0 || state.sessions.length > 0 || hasActiveVocabSession();
+  }
 
 window.handleSkillCheckboxChange = function(cb) {
     const skill = cb.value;
@@ -363,8 +373,10 @@ window.updateSelectAllButtons = function() {
         // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
         if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
            if (state.view !== "marketing" && state.view !== "privacy") {
-               state.view = "dashboard";
-               window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+               if (state.view !== "vocab" || !hasActiveVocabSession()) {
+                   state.view = "dashboard";
+                   window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+               }
            }
         }
         
@@ -376,7 +388,7 @@ window.updateSelectAllButtons = function() {
         // Guard: data was wiped but user pressed back to a data-dependent view.
         // Use pushState (not replaceState) to create a "wall" — each back-press
         // pushes the user forward again, trapping them at the correct view.
-        const dataViews = ["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "vocab", "vocab-mastered"];
+        const dataViews = ["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review"];
         if (state.questions.length === 0 && dataViews.includes(state.view)) {
             state.view = "onboarding";
             window.history.pushState({view: "onboarding"}, "", window.location.pathname);
@@ -407,8 +419,10 @@ window.updateSelectAllButtons = function() {
            // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
            if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
                if (targetView !== "marketing" && targetView !== "privacy") {
-                   targetView = "dashboard";
-                   window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+                   if (targetView !== "vocab" || !hasActiveVocabSession()) {
+                       targetView = "dashboard";
+                       window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+                   }
                }
            }
            
@@ -439,10 +453,16 @@ window.updateSelectAllButtons = function() {
     }
     
     // Enforce tutorial if incomplete on initial load (skip enforcement in demo mode — let users explore freely)
+    if (hasActiveVocabSession()) {
+        state.view = "vocab";
+    }
+
     if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
         if (state.view !== "marketing" && state.view !== "privacy") {
-            state.view = "dashboard";
-            window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+            if (state.view !== "vocab" || !hasActiveVocabSession()) {
+                state.view = "dashboard";
+                window.history.replaceState({view: "dashboard"}, "", window.location.pathname);
+            }
         }
     }
 
@@ -3610,7 +3630,7 @@ function renderTestReview() {
       ensureConfigDefaults();
       if (!hideBusy) clearBusy(false);
 
-      if (returningUser && state.questions.length === 0 && state.sessions.length === 0) {
+      if (returningUser && !hasRestorablePracticeData()) {
         state.view = "onboarding";
         showNotice("No synced practice data was found for this account. Import a .sat-test file or choose another account.", "error");
         renderHome();
@@ -3619,7 +3639,7 @@ function renderTestReview() {
       }
 
       if (returningUser) {
-        state.view = "dashboard";
+        state.view = hasActiveVocabSession() ? "vocab" : "dashboard";
         localStorage.setItem(TUTORIAL_DONE_KEY, "true"); // Skip tutorial
       }
       showNotice(email ? `Synced with ${email}.` : "Synced successfully.", "success");
