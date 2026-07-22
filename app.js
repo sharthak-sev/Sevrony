@@ -3581,12 +3581,12 @@ function renderTestReview() {
                             const answerText = attempt.answer ? `Answered: ${escapeHtml(attempt.answer)}` : '';
                             const time = attempt.timeSpentSeconds ? `${attempt.timeSpentSeconds}s` : '—';
                             const mode = attempt.mode === 'full' ? 'Full Test' : attempt.mode === 'custom' ? 'Custom' : attempt.mode || '—';
-                            return `<div style="display: flex; gap: 12px; font-size: 0.8em; color: var(--ink-muted); padding: 4px 0;">
-                              <span style="min-width: 70px;">${date}</span>
-                              <span style="min-width: 60px;">${mode}</span>
-                              <span style="min-width: 60px; color: ${status === 'Omitted' ? 'var(--ink-secondary)' : 'var(--red)'}">${status}</span>
-                              <span>${answerText}</span>
-                              <span style="margin-left: auto;">${time}</span>
+                            return `<div style="display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 0.8em; color: var(--ink-muted); padding: 4px 0; align-items: baseline;">
+                              <span style="white-space: nowrap;">${date}</span>
+                              <span style="white-space: nowrap;">${mode}</span>
+                              <span style="white-space: nowrap; color: ${status === 'Omitted' ? 'var(--ink-secondary)' : 'var(--red)'}">${status}</span>
+                              <span style="flex: 1 1 100px; word-break: break-word;">${answerText}</span>
+                              <span style="margin-left: auto; white-space: nowrap;">${time}</span>
                             </div>`;
                           }).join('')}
                         </div>
