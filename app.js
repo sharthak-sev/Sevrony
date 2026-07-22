@@ -236,6 +236,8 @@ window.updateSelectAllButtons = function() {
     showShortcuts: false,
     showSupport: false,
     showAdvancedDomains: false,
+    showPacingConfig: false,
+    pacingConfig: null,
     showAdvancedMistakeSkills: false,
     busy: null,
     tutorial: {
@@ -243,6 +245,7 @@ window.updateSelectAllButtons = function() {
       step: 0,
       previousFocus: null
     },
+    questionStudyState: {},
   };
 
   if (document.readyState === "loading") {
@@ -954,7 +957,8 @@ window.updateSelectAllButtons = function() {
       questionBanks: state.banks.filter(record => !isDeletedRecord(record)),
       questions: state.questions.filter(record => !isDeletedRecord(record)),
       sessions: state.sessions.filter(record => !isDeletedRecord(record)),
-      responses: dedupeResponses(state.responses)
+      responses: dedupeResponses(state.responses),
+      questionStudyState: Object.values(state.questionStudyState || {})
     };
   }
 
@@ -1013,12 +1017,195 @@ window.updateSelectAllButtons = function() {
     if (questionsToTombstone.length) await putManyChunked("questions", questionsToTombstone);
   }
 
+  // --- HIGHLIGHT MANAGEMENT ---
+  function getQuestionHighlights(questionId) {
+    return state.questionStudyState[questionId]?.highlights || [];
+  }
+
+  async function saveHighlight(questionId, surface, start, end, quote) {
+    const studyState = state.questionStudyState[questionId] || { id: questionId, highlights: [], updatedAt: 0 };
+    const newHighlight = {
+      id: uid('hl'),
+      surface, start, end, quote,
+      color: 'yellow',
+      createdAt: Date.now()
+    };
+    
+    let highlights = [...studyState.highlights, newHighlight].filter(h => h.surface === surface);
+    highlights.sort((a, b) => a.start - b.start);
+    const merged = [];
+    for (const h of highlights) {
+      const last = merged[merged.length - 1];
+      if (last && h.start <= last.end) {
+        last.end = Math.max(last.end, h.end);
+        last.quote = ''; 
+        last.id = h.id; 
+      } else {
+        merged.push({...h});
+      }
+    }
+    
+    const otherSurface = studyState.highlights.filter(h => h.surface !== surface);
+    studyState.highlights = [...otherSurface, ...merged];
+    studyState.updatedAt = Date.now();
+    state.questionStudyState[questionId] = studyState;
+    await DB.put('questionStudyState', studyState);
+  }
+
+  async function removeHighlight(questionId, highlightId) {
+    const studyState = state.questionStudyState[questionId];
+    if (!studyState) return;
+    studyState.highlights = studyState.highlights.filter(h => h.id !== highlightId);
+    studyState.updatedAt = Date.now();
+    await DB.put('questionStudyState', studyState);
+  }
+
+  async function clearQuestionHighlights(questionId) {
+    const studyState = state.questionStudyState[questionId];
+    if (!studyState) return;
+    studyState.highlights = [];
+    studyState.updatedAt = Date.now();
+    await DB.put('questionStudyState', studyState);
+  }
+
+  function applyHighlights(container, highlights, surface) {
+    if (!container || !highlights.length) return;
+    const surfaceHighlights = highlights.filter(h => h.surface === surface);
+    if (!surfaceHighlights.length) return;
+    
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+    const textNodes = [];
+    let totalOffset = 0;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      textNodes.push({ node, start: totalOffset, end: totalOffset + node.length });
+      totalOffset += node.length;
+    }
+    
+    const sorted = [...surfaceHighlights].sort((a, b) => a.start - b.start);
+    
+    for (let hi = sorted.length - 1; hi >= 0; hi--) {
+      const hl = sorted[hi];
+      for (let ti = textNodes.length - 1; ti >= 0; ti--) {
+        const tn = textNodes[ti];
+        const overlapStart = Math.max(hl.start, tn.start);
+        const overlapEnd = Math.min(hl.end, tn.end);
+        if (overlapStart < overlapEnd) {
+          const relStart = overlapStart - tn.start;
+          const relEnd = overlapEnd - tn.start;
+          const range = document.createRange();
+          range.setStart(tn.node, relStart);
+          range.setEnd(tn.node, relEnd);
+          const mark = document.createElement('mark');
+          mark.className = 'sev-highlight';
+          mark.dataset.highlightId = hl.id;
+          mark.dataset.questionId = hl._questionId || '';
+          mark.style.backgroundColor = 'rgba(255, 230, 100, 0.5)';
+          mark.style.cursor = 'pointer';
+          mark.title = 'Click to remove highlight';
+          range.surroundContents(mark);
+        }
+      }
+    }
+  }
+
+  function bindHighlightClicks() {
+    for (const mark of app.querySelectorAll('mark.sev-highlight')) {
+      mark.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const hlId = mark.dataset.highlightId;
+        const ctx = getCurrentContext();
+        if (!ctx) return;
+        await removeHighlight(ctx.question.id, hlId);
+        renderActiveTest();
+      });
+    }
+  }
+
+  function handleTextSelection(surface) {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+    
+    const test = state.activeTest;
+    if (!test) return;
+    const ctx = getCurrentContext();
+    if (!ctx) return;
+    const question = ctx.question;
+    
+    if (question.subject !== 'rw') return;
+    
+    const container = surface === 'stimulus' 
+      ? app.querySelector('.passage-pane .html-content')
+      : app.querySelector('.question-pane .html-content.prompt');
+    if (!container || !container.contains(sel.anchorNode) || !container.contains(sel.focusNode)) return;
+    
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+    let offset = 0;
+    let startOffset = -1, endOffset = -1;
+    const range = sel.getRangeAt(0);
+    
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node === range.startContainer) startOffset = offset + range.startOffset;
+      if (node === range.endContainer) endOffset = offset + range.endOffset;
+      offset += node.length;
+    }
+    
+    if (startOffset >= 0 && endOffset > startOffset) {
+      const quote = sel.toString().trim();
+      saveHighlight(question.id, surface, startOffset, endOffset, quote);
+      sel.removeAllRanges();
+      
+      const highlights = getQuestionHighlights(question.id);
+      container.querySelectorAll('mark.sev-highlight').forEach(m => {
+        const parent = m.parentNode;
+        while (m.firstChild) parent.insertBefore(m.firstChild, m);
+        parent.removeChild(m);
+        parent.normalize();
+      });
+      applyHighlights(container, highlights.map(h => ({...h, _questionId: question.id})), surface);
+      bindHighlightClicks();
+    }
+  }
+
+  function applyAllVisibleHighlights() {
+    const activeCtx = state.activeTest ? getCurrentContext() : null;
+    if (activeCtx && activeCtx.question.subject === 'rw') {
+      const hlList = getQuestionHighlights(activeCtx.question.id);
+      if (hlList.length) {
+        const passageEl = app.querySelector('.passage-pane .html-content');
+        const promptEl = app.querySelector('.question-pane .html-content.prompt');
+        applyHighlights(passageEl, hlList, 'stimulus');
+        applyHighlights(promptEl, hlList, 'prompt');
+        bindHighlightClicks();
+      }
+    }
+    
+    for (const card of app.querySelectorAll('.review-card, .shadcn-accordion-item')) {
+      const qidEl = card.querySelector('[data-qid]') || card.querySelector('[data-id]');
+      if (!qidEl) continue;
+      const stimulusEl = card.querySelector('.review-stimulus.html-content, .question-content .html-content:first-child');
+      const promptEl = card.querySelector('.html-content.prompt');
+      const responseId = qidEl.dataset.id || qidEl.dataset.qid;
+      if (!responseId) continue;
+      const response = state.responses.find(r => r.id === responseId);
+      const questionId = response?.questionId || responseId;
+      const hlList = getQuestionHighlights(questionId);
+      if (hlList.length) {
+        applyHighlights(stimulusEl, hlList, 'stimulus');
+        applyHighlights(promptEl, hlList, 'prompt');
+      }
+    }
+  }
+  // ------------------------------
+
   async function refreshLocalData() {
-    const [banks, questions, sessions, oldResponses] = await Promise.all([
+    const [banks, questions, sessions, oldResponses, studyStates] = await Promise.all([
       DB.getAll("questionBanks"),
       DB.getAll("questions"),
       DB.getAll("sessions"),
-      DB.getAll("responses")
+      DB.getAll("responses"),
+      DB.getAll("questionStudyState")
     ]);
 
     state.banks = banks.filter(record => !isDeletedRecord(record)).sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)));
@@ -1044,6 +1231,9 @@ window.updateSelectAllButtons = function() {
 
     const backupConf = await DB.get("appConfig", "backupHandle");
     state.backupHandle = backupConf ? backupConf.handle : null;
+
+    state.questionStudyState = {};
+    for (const s of studyStates) { state.questionStudyState[s.id] = s; }
   }
 
   /* ===========================================================
@@ -2425,6 +2615,53 @@ font-family: inherit !important;
           </div>
         </section>
 
+        ${state.config.subject !== 'both' ? `
+        <section class="panel">
+          <div class="panel-heading" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <p class="eyebrow">Self-Pacing</p>
+              <h2>Time Targets</h2>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              ${state.showPacingConfig ? `<button type="button" class="ghost-btn" data-action="reset-pacing" style="font-size: 13px; padding: 4px 8px; color: var(--red);">Reset</button>` : ''}
+              <button type="button" class="ghost-btn" data-action="toggle-pacing" style="font-size: 13px; padding: 4px 8px;">${state.showPacingConfig ? 'Hide' : 'Configure'}</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size: 13px;">Set optional seconds-per-question targets. These are warnings only and do not affect scoring.</p>
+          ${state.showPacingConfig ? `
+            <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+              ${availableDomains.filter(d => selectedDomains.has(d.code)).map(domain => {
+                const domKey = state.config.subject + ':' + domain.code;
+                const domLimit = state.pacingConfig?.domainLimitSeconds?.[domKey] || '';
+                return `
+                <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <strong style="font-size: 14px;">${escapeHtml(domain.label)}</strong>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <label style="font-size: 12px; color: var(--ink-muted);">sec/question:</label>
+                      <input type="number" name="pacing_domain_${escapeAttr(domKey)}" value="${domLimit}" min="5" max="3600" placeholder="—" style="width: 64px; padding: 4px; font-size: 13px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); text-align: center;">
+                    </div>
+                  </div>
+                  ${domain.skills && domain.skills.length > 0 && selectedSkills.has(domain.skills[0]) ? `
+                    <div style="margin-left: 12px; border-left: 2px solid var(--line); padding-left: 12px;">
+                      ${domain.skills.filter(sk => selectedSkills.has(sk)).map(skill => {
+                        const skKey = domKey + ':' + skill;
+                        const skLimit = state.pacingConfig?.skillLimitSeconds?.[skKey] || '';
+                        return `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0;">
+                          <span style="font-size: 13px;">${escapeHtml(skill)}</span>
+                          <input type="number" name="pacing_skill_${escapeAttr(skKey)}" value="${skLimit}" min="5" max="3600" placeholder="—" style="width: 56px; padding: 4px; font-size: 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); text-align: center;">
+                        </div>`;
+                      }).join('')}
+                    </div>
+                  ` : ''}
+                </div>`;
+              }).join('')}
+            </div>
+          ` : ''}
+        </section>
+        ` : ''}
+
         <section class="panel action-panel">
           <label class="limit-field ${state.config.subject === "both" ? "disabled" : ""}">
             <span>Question limit</span>
@@ -2814,6 +3051,7 @@ function renderTestReview() {
             ${renderReviewStatus(response)}
           </div>
         </div>
+        ${renderQuestionMeta(question)}
         <div class="review-question ${question.stimulus ? "split" : ""}">
           ${question.stimulus ? `<div class="review-stimulus html-content">${sanitizeHtml(question.stimulus)}</div>` : ""}
           <div>
@@ -3151,6 +3389,21 @@ function renderTestReview() {
        if(r.tags) r.tags.forEach(t => allUsedTags.add(t));
     });
 
+    // Group mistakes by question ID
+    const grouped = new Map();
+    for (const r of validMistakes) {
+      const qid = r.questionId;
+      if (!grouped.has(qid)) {
+        grouped.set(qid, { questionId: qid, attempts: [], mostRecentDate: 0 });
+      }
+      const group = grouped.get(qid);
+      group.attempts.push(r);
+      const d = r.answeredAt || 0;
+      if (d > group.mostRecentDate) group.mostRecentDate = d;
+    }
+    // Sort groups by most recent miss date
+    const groupedList = [...grouped.values()].sort((a, b) => b.mostRecentDate - a.mostRecentDate);
+
     return `
       <div id="mistakes-log-container">
         <div class="shadcn-card" style="margin-bottom: 24px;">
@@ -3203,15 +3456,20 @@ function renderTestReview() {
         <div class="shadcn-card">
         <div class="shadcn-card-content" style="padding-top: 1.5rem;">
           <div class="shadcn-accordion">
-            ${validMistakes.length === 0 ? `
+            ${groupedList.length === 0 ? `
               <div class="empty-state" style="padding: 2rem 0; text-align: center;">
                 <p class="shadcn-card-description">No mistakes found matching your filters.</p>
               </div>
-            ` : validMistakes.map(r => {
+            ` : groupedList.map(group => {
+              const r = group.attempts[0];
               const q = questionsMap.get(r.questionId);
               const isExpanded = state.mistakesLog.expanded.has(r.id);
-              const dateStr = r.answeredAt ? new Date(r.answeredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Unknown date";
+              const dateStr = group.mostRecentDate ? new Date(group.mostRecentDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Unknown date";
               
+              const allTags = new Set();
+              group.attempts.forEach(att => att.tags && att.tags.forEach(t => allTags.add(t)));
+              const unionTags = [...allTags];
+
               const titleTextParts = [];
               if (state.mistakesLog.filterSubject === "all") titleTextParts.push(SUBJECTS[r.subject] || r.subject);
               if (state.mistakesLog.filterDomain === "all") titleTextParts.push(r.domain);
@@ -3223,27 +3481,16 @@ function renderTestReview() {
                 <button type="button" class="shadcn-accordion-trigger" data-action="ml-toggle-card" data-id="${r.id}" aria-expanded="${isExpanded}">
                   <span style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;">
                     <span style="font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span class="tag-badge" style="font-size:0.75em; padding:2px 6px; font-weight: bold; background: var(--red); color: #fff; border: none;">Missed ${group.attempts.length} time${group.attempts.length > 1 ? 's' : ''}</span>
                       ${titleText}
-                      ${(() => {
-                        if (!q.difficulty || q.difficulty === "Unspecified") return "";
-                        let bg = "var(--surface-2)"; let color = "inherit"; let border = "1px solid var(--line)";
-                        const dLow = q.difficulty.toLowerCase();
-                        if (dLow === "easy") { bg = "var(--green)"; color = "#fff"; border = "none"; }
-                        else if (dLow === "medium") { bg = "var(--amber)"; color = "#fff"; border = "none"; }
-                        else if (dLow === "hard") { bg = "var(--red)"; color = "#fff"; border = "none"; }
-                        return `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px; font-weight: normal; text-transform: capitalize; background: ${bg}; color: ${color}; border: ${border};">${q.difficulty}</span>`;
-                      })()}
-                      ${r.isAnswered === false ? `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px; font-weight: normal; background: var(--ink-secondary); color: #fff; border: none;">Omitted</span>` : ""}
                     </span>
-                    <span style="font-size: 0.8em; color: var(--ink-muted); font-weight: 400;">${dateStr}</span>
-                    ${(!isExpanded && r.tags && r.tags.length > 0) ? `
+                    <span style="font-size: 0.8em; color: var(--ink-muted); font-weight: 400;">
+                      ${group.attempts.filter(a => a.isAnswered !== false).length} incorrect · ${group.attempts.filter(a => a.isAnswered === false).length} omitted
+                    </span>
+                    <span style="font-size: 0.8em; color: var(--ink-muted); font-weight: 400;">Most recent: ${dateStr}</span>
+                    ${(!isExpanded && unionTags.length > 0) ? `
                       <span style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;">
-                        ${r.tags.map(t => `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px;">${t}</span>`).join("")}
-                      </span>
-                    ` : ""}
-                    ${(!isExpanded && r.notes) ? `
-                      <span style="margin-top: 8px; font-size: 0.85em; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">
-                        <strong style="color: var(--ink);">Note:</strong> ${escapeHtml(r.notes)}
+                        ${unionTags.map(t => `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px;">${t}</span>`).join("")}
                       </span>
                     ` : ""}
                   </span>
@@ -3268,6 +3515,28 @@ function renderTestReview() {
                       </div>
                       ${renderAnswerArea(q, r.answer, r, { hideAnswer: !isAnswerShown, isMistakesLog: true })}
                       ${isAnswerShown ? renderImmediateExplanation(q, r) : ""}
+                      
+                      ${renderQuestionMeta(q)}
+                      
+                      <div style="margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px;">
+                        <h4 style="font-size: 0.85em; font-weight: 600; margin-bottom: 8px; color: var(--ink-muted);">Attempt History</h4>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                          ${group.attempts.map(attempt => {
+                            const date = attempt.answeredAt ? new Date(attempt.answeredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
+                            const status = attempt.isAnswered === false ? 'Omitted' : 'Incorrect';
+                            const answerText = attempt.answer ? `Answered: ${escapeHtml(attempt.answer)}` : '';
+                            const time = attempt.timeSpentSeconds ? `${attempt.timeSpentSeconds}s` : '—';
+                            const mode = attempt.mode === 'full' ? 'Full Test' : attempt.mode === 'custom' ? 'Custom' : attempt.mode || '—';
+                            return `<div style="display: flex; gap: 12px; font-size: 0.8em; color: var(--ink-muted); padding: 4px 0;">
+                              <span style="min-width: 70px;">${date}</span>
+                              <span style="min-width: 60px;">${mode}</span>
+                              <span style="min-width: 60px; color: ${status === 'Omitted' ? 'var(--ink-secondary)' : 'var(--red)'}">${status}</span>
+                              <span>${answerText}</span>
+                              <span style="margin-left: auto;">${time}</span>
+                            </div>`;
+                          }).join('')}
+                        </div>
+                      </div>
                       
                       <div class="ml-notes-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -3370,6 +3639,11 @@ function renderTestReview() {
               <span style="font-size: 14px; font-weight: 500; color: var(--ink);">${escapeHtml(d.label)}</span>
               <span style="font-size: 13px; font-weight: 600; color: var(--ink-muted);">${Math.round(d.accuracy * 100)}% Accuracy</span>
             </div>
+            ${d.repeatMissQuestions > 0 ? `
+              <div style="font-size: 12px; color: var(--red); margin-top: 4px; margin-bottom: 4px;">
+                ⚠ ${d.repeatMissQuestions} repeat-miss question${d.repeatMissQuestions > 1 ? 's' : ''} · ${d.totalMissedAttempts} missed attempts
+              </div>
+            ` : ''}
             <div style="height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; display: flex;">
               <div style="width: ${d.accuracy * 100}%; background: ${color}; border-radius: 5px; transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);"></div>
             </div>
@@ -3552,6 +3826,7 @@ function renderTestReview() {
   }
 
   function bindHomeEvents() {
+    applyAllVisibleHighlights();
     for (const btn of app.querySelectorAll("[data-action]")) {
       if (btn.tagName === "SELECT" || btn.tagName === "INPUT") {
         btn.addEventListener("change", handleHomeAction);
@@ -3935,6 +4210,18 @@ function renderTestReview() {
           onCancel: () => showManualReportFallback(debugUrl)
         }
       );
+      return;
+    }
+
+    if (action === "toggle-pacing") {
+      state.showPacingConfig = !state.showPacingConfig;
+      renderHome();
+      return;
+    }
+
+    if (action === "reset-pacing") {
+      state.pacingConfig = null;
+      renderHome();
       return;
     }
 
@@ -4818,10 +5105,11 @@ function renderTestReview() {
             
             const filteredBanks = banksData.filter(record => !isDeletedRecord(record)).map(stamp);
             const filteredQuestions = payload.questions.filter(record => !isDeletedRecord(record)).map(stamp);
+            const studyStatesData = (payload.questionStudyState || []).map(stamp);
 
             await DB.clearAll();
             
-            const totalRecords = filteredBanks.length + filteredQuestions.length + sessionsData.length + responseData.length;
+            const totalRecords = filteredBanks.length + filteredQuestions.length + sessionsData.length + responseData.length + studyStatesData.length;
             let baseWritten = 0;
             const trackProgress = (storeSize) => (percentComplete) => {
               const currentWritten = baseWritten + Math.round(storeSize * percentComplete / 100);
@@ -4836,6 +5124,7 @@ function renderTestReview() {
             if (filteredQuestions.length) await putManyChunked("questions", filteredQuestions, 300, trackProgress(filteredQuestions.length));
             if (sessionsData.length) await putManyChunked("sessions", sessionsData, 300, trackProgress(sessionsData.length));
             if (responseData.length) await putManyChunked("responses", responseData, 300, trackProgress(responseData.length));
+            if (studyStatesData.length) await putManyChunked("questionStudyState", studyStatesData, 300, trackProgress(studyStatesData.length));
 
             await refreshLocalData();
             clearBusy(false);
@@ -5209,8 +5498,24 @@ function renderTestReview() {
       finalLimit = customTotal;
     }
     
+    const pacingConfig = { domainLimitSeconds: {}, skillLimitSeconds: {} };
+    for (const [key, val] of data.entries()) {
+      if (key.startsWith('pacing_domain_') && val) {
+        const domKey = key.replace('pacing_domain_', '');
+        const seconds = parseInt(val, 10);
+        if (seconds >= 5 && seconds <= 3600) pacingConfig.domainLimitSeconds[domKey] = seconds;
+      }
+      if (key.startsWith('pacing_skill_') && val) {
+        const skKey = key.replace('pacing_skill_', '');
+        const seconds = parseInt(val, 10);
+        if (seconds >= 5 && seconds <= 3600) pacingConfig.skillLimitSeconds[skKey] = seconds;
+      }
+    }
+    state.pacingConfig = pacingConfig;
+
     return {
       subject,
+      pacing: pacingConfig,
       // Domain checkboxes are always rendered: empty = user explicitly unchecked all
       domainCodes: domains,
       // Skill checkboxes only exist when advanced mode is on; fall back to all when hidden
@@ -5254,13 +5559,20 @@ function renderTestReview() {
     }
     if (!questions.length) { showNotice("No questions match those filters.", "error"); renderHome(); return; }
 
-    state.activeTest = {
+    const activeTest = {
       id: uid("session"), mode: "custom", config, questions,
       startedAt: new Date().toISOString(),
       currentIndex: 0, currentAnswer: "",
       currentQuestionStartedAt: Date.now(),
       responses: [], notice: null
     };
+    if (!config.immediateFeedback) {
+      activeTest.answersByQuestionId = {};
+      activeTest.elapsedSecondsByQuestionId = {};
+      activeTest.visitedQuestionIds = [questions[0].id];
+      activeTest.activeQuestionStartedAt = Date.now();
+    }
+    state.activeTest = activeTest;
     state.eliminatedChoices = {};
     persistActiveTest();
     renderActiveTest();
@@ -5328,6 +5640,7 @@ function renderTestReview() {
       startTicker();
       updateLiveTimers();
       fitQuestionContent();
+      applyAllVisibleHighlights();
     });
   }
 
@@ -5336,6 +5649,32 @@ function renderTestReview() {
     if (!pane || pane.scrollHeight <= pane.clientHeight) return;
     pane.classList.add("compact-content");
     if (pane.scrollHeight > pane.clientHeight) pane.classList.add("tight-content");
+  }
+
+  function renderQuestionMeta(question) {
+    let idLabel, idValue;
+    if (question.questionId && question.questionId !== question.id) {
+      idLabel = 'Student Question Bank ID';
+      idValue = question.questionId;
+    } else if (question.externalId) {
+      idLabel = 'Imported question ID';
+      idValue = question.externalId;
+    } else {
+      idLabel = 'Question ID';
+      idValue = 'Unavailable';
+    }
+    
+    const skillText = question.skill 
+      ? `${escapeHtml(question.skill)}${question.skillCode ? ` (${escapeHtml(question.skillCode)})` : ''}`
+      : 'Skill unavailable in this import';
+    
+    return `
+      <div class="question-meta" style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.8em; color: var(--ink-muted); padding: 8px 0; border-top: 1px solid var(--line); margin-top: 8px;">
+        <span><strong>${escapeHtml(idLabel)}:</strong> ${escapeHtml(String(idValue))}</span>
+        <span><strong>Skill:</strong> ${skillText}</span>
+        <span><strong>Domain:</strong> ${escapeHtml(question.domain || 'Unknown')}</span>
+      </div>
+    `;
   }
 
   function renderQuestionScreen() {
@@ -5402,7 +5741,44 @@ function renderTestReview() {
                 <span class="question-number">Question ${ctx.index + 1}</span>
                 <small>${escapeHtml(question.domain)}${question.skill ? ` · ${escapeHtml(question.skill)}` : ""} · ${escapeHtml(question.difficulty || "")}</small>
               </div>
+              ${question.subject === 'rw' && getQuestionHighlights(question.id).length > 0 ? `
+                <button class="ghost-btn" type="button" data-test-action="clear-highlights" style="font-size: 12px; padding: 4px 8px; margin-left: auto;">
+                  Clear Highlights
+                </button>
+              ` : ''}
             </div>
+${(() => {
+  if (test.mode !== 'custom' || !test.config.pacing) return '';
+  const pacing = test.config.pacing;
+  const q = question;
+  const skKey = `${q.subject}:${q.domainCode}:${q.skill || ''}`;
+  const domKey = `${q.subject}:${q.domainCode}`;
+  const targetSeconds = pacing.skillLimitSeconds?.[skKey] || pacing.domainLimitSeconds?.[domKey];
+  if (!targetSeconds) return '';
+  
+  // Calculate elapsed for this question
+  let elapsed = 0;
+  if (test.answersByQuestionId) {
+    elapsed = (test.elapsedSecondsByQuestionId?.[q.id] || 0);
+    if (test.questions[test.currentIndex]?.id === q.id) {
+      elapsed += (Date.now() - (test.activeQuestionStartedAt || Date.now())) / 1000;
+    }
+  } else {
+    elapsed = (Date.now() - (test.currentQuestionStartedAt || Date.now())) / 1000;
+  }
+  elapsed = Math.round(elapsed);
+  
+  const isOver = elapsed >= targetSeconds;
+  const overSeconds = elapsed - targetSeconds;
+  const overMin = Math.floor(overSeconds / 60);
+  const overSec = overSeconds % 60;
+  
+  if (isOver) {
+    return `<div class="pacing-indicator over" role="status" aria-live="polite" style="color: var(--red); font-weight: 600; font-size: 13px; margin-top: 4px;">Over target +${overMin > 0 ? overMin + ':' + String(overSec).padStart(2, '0') : overSec + 's'}</div>`;
+  }
+  return `<div class="pacing-indicator" style="font-size: 13px; color: var(--ink-muted); margin-top: 4px;">${elapsed}s / ${targetSeconds}s</div>`;
+})()}
+            ${renderQuestionMeta(question)}
             <div class="question-content-layout ${fitColumns ? "fit-columns" : ""}">
               <div class="html-content prompt">${sanitizeHtml(question.prompt)}</div>
               ${renderAnswerArea(question, answer, response)}
@@ -5413,15 +5789,19 @@ function renderTestReview() {
       </main>
 
       <footer class="bb-footer">
-        <button class="ghost-btn" type="button" data-test-action="${isFull ? "previous" : "noop"}" ${!isFull || ctx.index === 0 ? "disabled" : ""}>
+        <button class="ghost-btn" type="button" data-test-action="${isFull ? "previous" : (test.mode === "custom" && !test.config.immediateFeedback ? "back-custom" : "noop")}" ${(!isFull && (test.mode !== "custom" || test.config.immediateFeedback)) || ctx.index === 0 ? "disabled" : ""}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
           Back
         </button>
         <div class="bb-question-nav">
-          ${ctx.list.map((q, i) => `
+          ${ctx.list.map((q, i) => {
+            const isCustomNonFB = test.mode === "custom" && !test.config.immediateFeedback;
+            const canJump = isFull || (isCustomNonFB && test.visitedQuestionIds?.includes(q.id));
+            const jumpAction = isFull ? "jump-question" : (isCustomNonFB && canJump ? "jump-custom-question" : "noop");
+            return `
             <button class="bb-nav-dot ${i === ctx.index ? "current" : ""} ${isQuestionAnswered(q) ? "answered" : ""} ${test.marked?.[q.id] ? "marked" : ""}"
-              type="button" data-test-action="${isFull ? "jump-question" : "noop"}" data-index="${i}" ${!isFull ? "disabled" : ""}>${i + 1}</button>
-          `).join("")}
+              type="button" data-test-action="${jumpAction}" data-index="${i}" ${!canJump ? "disabled" : ""}>${i + 1}</button>
+          `}).join("")}
         </div>
         <div class="footer-center">${escapeHtml(question.questionId ? `ID ${question.questionId}` : question.externalId)}</div>
         ${renderForwardButton(ctx)}
@@ -5441,7 +5821,8 @@ function renderTestReview() {
         <div class="spr-card ${isSubmitted ? (response.isCorrect ? "correct" : "incorrect") : ""}">
           <label for="sprAnswer">Enter your answer</label>
           <input id="sprAnswer" type="text" inputmode="decimal" autocomplete="off" value="${hideAnswer ? "" : escapeAttr(answer)}" data-answer-input ${isSubmitted ? "disabled" : ""}>
-          <small>Student-produced response — scored by exact match.</small>
+          <div id="sprFormatError" style="display: none; color: var(--red); font-size: 0.85em; margin-top: 4px;">Invalid format. Use integer (12), decimal (0.75), or fraction (3/4).</div>
+          <small>Student-produced response. Valid formats: 12, 0.75, 3/4. No signs (+/-) or spaces.</small>
           ${(isSubmitted && !response.isCorrect && question.correctAnswers && question.correctAnswers.length > 0) ? `
             <div style="margin-top: 8px; color: var(--green); font-weight: 500; font-size: 0.9em;">
               Correct Answer: ${escapeHtml(question.correctAnswers.join(' or '))}
@@ -5661,13 +6042,83 @@ function renderTestReview() {
      TEST EVENT HANDLING
      =========================================================== */
 
+  function sprSanitize(value) {
+    if (value == null) return { sanitized: "", isValid: false };
+    let clean = "";
+    let hasDecimal = false;
+    let hasSlash = false;
+    
+    for (const char of String(value).trim()) {
+      if (/[0-9]/.test(char)) {
+        clean += char;
+      } else if (char === '.' && !hasDecimal && !hasSlash) {
+        clean += char;
+        hasDecimal = true;
+      } else if (char === '/' && !hasSlash && !hasDecimal) {
+        clean += char;
+        hasSlash = true;
+      }
+    }
+    const isValid = /^\d+$|^\d*\.\d+$|^\d+\/\d+$/.test(clean);
+    return { sanitized: clean, isValid };
+  }
+
+  function handleSprBeforeInput(e) {
+    if (e.inputType === "insertText" && e.data) {
+      const char = e.data;
+      const currentVal = e.target.value;
+      
+      const isValidChar = /[0-9\.\/]/.test(char);
+      const isTooManyDec = char === '.' && currentVal.includes('.');
+      const isTooManySlash = char === '/' && currentVal.includes('/');
+      const isDecWithSlash = char === '.' && currentVal.includes('/');
+      const isSlashWithDec = char === '/' && currentVal.includes('.');
+      
+      if (!isValidChar || isTooManyDec || isTooManySlash || isDecWithSlash || isSlashWithDec) {
+        e.preventDefault();
+        const err = document.getElementById("sprFormatError");
+        if (err) err.style.display = "block";
+      }
+    }
+  }
+
+  function handleSprPaste(e) {
+    e.preventDefault();
+    const paste = (e.clipboardData || window.clipboardData).getData("text");
+    const target = e.target;
+    
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+    
+    const newVal = target.value.slice(0, start) + paste + target.value.slice(end);
+    const spr = sprSanitize(newVal);
+    
+    target.value = spr.sanitized;
+    if (paste !== spr.sanitized) {
+      const err = document.getElementById("sprFormatError");
+      if (err) err.style.display = "block";
+    }
+    target.dispatchEvent(new Event('input'));
+  }
+
   function bindTestEvents() {
     for (const el of app.querySelectorAll("[data-test-action]")) {
       el.addEventListener("click", handleTestAction);
     }
     const answerInput = app.querySelector("[data-answer-input]");
     if (answerInput) {
-      answerInput.addEventListener("input", e => setCurrentAnswer(e.target.value, false));
+      const isSpr = answerInput.id === "sprAnswer";
+      if (isSpr) {
+        answerInput.addEventListener("beforeinput", handleSprBeforeInput);
+        answerInput.addEventListener("paste", handleSprPaste);
+      }
+      answerInput.addEventListener("input", e => {
+        if (isSpr && e.isTrusted) {
+          const err = document.getElementById("sprFormatError");
+          if (err) err.style.display = "none";
+        }
+        setCurrentAnswer(e.target.value, false);
+      });
       answerInput.focus();
     }
 
@@ -5678,7 +6129,15 @@ function renderTestReview() {
       } catch (e) { el.textContent = el.dataset.tex; }
     }
 
-
+    // Text highlighting for R/W passages and prompts
+    const passagePane = app.querySelector('.passage-pane .html-content');
+    const promptPane = app.querySelector('.question-pane .html-content.prompt');
+    const highlightSurfaces = [[passagePane, 'stimulus'], [promptPane, 'prompt']];
+    for (const [el, surface] of highlightSurfaces) {
+      if (!el) continue;
+      el.addEventListener('mouseup', () => handleTextSelection(surface));
+      el.addEventListener('touchend', () => setTimeout(() => handleTextSelection(surface), 50));
+    }
   }
 
   function handleTestAction(event) {
@@ -5711,6 +6170,8 @@ function renderTestReview() {
     }
 
     if (action === "next-custom") submitCustomAnswer();
+    if (action === "back-custom") navigateCustomQuestion(state.activeTest.currentIndex - 1);
+    if (action === "jump-custom-question") navigateCustomQuestion(parseInt(event.currentTarget.dataset.index, 10));
     if (action === "end-custom") {
       showConfirmModal("Are you sure you want to end this test early? Unanswered questions will be marked as skipped.", "End Test", () => endCustomTest());
     }
@@ -5735,6 +6196,10 @@ function renderTestReview() {
     if (action === "show-shortcuts") { state.showShortcuts = true; renderActiveTest(); }
     if (action === "close-shortcuts") { state.showShortcuts = false; renderActiveTest(); }
     if (action === "show-rationale") { state.showRationale = true; renderActiveTest(); }
+    if (action === "clear-highlights") {
+      const ctx = getCurrentContext();
+      if (ctx) { clearQuestionHighlights(ctx.question.id); renderActiveTest(); }
+    }
   }
 
   function updateMistakesLogUI() {
@@ -5770,7 +6235,10 @@ function renderTestReview() {
       }
     }
 
-    if (test.mode === "custom") {
+    if (test.mode === "custom" && !test.config.immediateFeedback && test.answersByQuestionId) {
+      test.answersByQuestionId[question.id] = value;
+      test.currentAnswer = value;
+    } else if (test.mode === "custom") {
       test.currentAnswer = value;
     } else {
       test.answers[question.id] = value;
@@ -5802,9 +6270,12 @@ function renderTestReview() {
     }
 
     if (!test.config.immediateFeedback) {
-      const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
-      const response = makeResponse(question, answer, elapsed, test, true);
-      test.responses[test.currentIndex] = response;
+      if (test.currentIndex >= test.questions.length - 1) {
+        finishNonFeedbackCustomTest();
+        return;
+      }
+      navigateCustomQuestion(test.currentIndex + 1);
+      return;
     }
     
     if (test.currentIndex >= test.questions.length - 1) {
@@ -5821,10 +6292,63 @@ function renderTestReview() {
     renderActiveTest();
   }
 
+  function freezeCustomQuestionTime() {
+    const test = state.activeTest;
+    if (!test || test.mode !== "custom" || test.config.immediateFeedback) return;
+    const curId = test.questions[test.currentIndex].id;
+    const elapsedNow = (Date.now() - test.activeQuestionStartedAt) / 1000;
+    test.elapsedSecondsByQuestionId[curId] = (test.elapsedSecondsByQuestionId[curId] || 0) + elapsedNow;
+  }
+
+  function navigateCustomQuestion(newIndex) {
+    const test = state.activeTest;
+    if (!test || test.mode !== "custom" || test.config.immediateFeedback) return;
+    
+    freezeCustomQuestionTime();
+    
+    test.currentIndex = newIndex;
+    const newQuestion = test.questions[newIndex];
+    
+    if (!test.visitedQuestionIds.includes(newQuestion.id)) {
+      test.visitedQuestionIds.push(newQuestion.id);
+    }
+    
+    test.currentAnswer = test.answersByQuestionId[newQuestion.id] || "";
+    test.activeQuestionStartedAt = Date.now();
+    test.notice = null;
+    state.showRationale = false;
+    
+    persistActiveTest();
+    renderActiveTest();
+  }
+
+  function finishNonFeedbackCustomTest() {
+    const test = state.activeTest;
+    if (!test || test.mode !== "custom" || test.config.immediateFeedback) return;
+    
+    freezeCustomQuestionTime();
+    
+    const responses = [];
+    for (const q of test.questions) {
+      const ans = test.answersByQuestionId[q.id];
+      if (hasAnswer(ans)) {
+        const elapsed = test.elapsedSecondsByQuestionId[q.id] || 0;
+        const response = makeResponse(q, ans, elapsed, test, true);
+        if (response) responses.push(response);
+      }
+    }
+    
+    finishActiveTest(responses);
+  }
+
   function endCustomTest() {
     const test = state.activeTest;
+    if (!test.config.immediateFeedback) {
+      finishNonFeedbackCustomTest();
+      return;
+    }
     const question = test.questions[test.currentIndex];
-    if (!test.config.immediateFeedback || !test.responses[test.currentIndex]) {
+    if (!test.responses[test.currentIndex]) {
       if (hasAnswer(test.currentAnswer)) {
         const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
         const response = makeResponse(question, test.currentAnswer, elapsed, test);
@@ -6056,6 +6580,13 @@ function renderTestReview() {
 
   function scoreAnswer(question, answer) {
     if (!hasAnswer(answer)) return { wasAnswered: false, isCorrect: false };
+    
+    if (question.type === "spr" || (question.type !== "mcq" && (!question.answerOptions || !question.answerOptions.length))) {
+      const spr = sprSanitize(answer);
+      if (!spr.isValid) return { wasAnswered: false, isCorrect: false };
+      answer = spr.sanitized;
+    }
+
     const expected = question.correctAnswers || [];
     if (!expected.length) return { wasAnswered: true, isCorrect: false };
     if (question.type === "mcq" && question.answerOptions.length) {
@@ -6292,6 +6823,47 @@ function renderTestReview() {
   function updateLiveTimers() {
     const timer = app.querySelector("#liveTimer");
     if (timer) timer.textContent = getTimerText();
+
+    // Update pacing indicator
+    const pacingEl = document.querySelector('.pacing-indicator');
+    if (pacingEl && state.activeTest?.config?.pacing) {
+      const test = state.activeTest;
+      const question = getCurrentContext()?.question;
+      if (question) {
+        const pacing = test.config.pacing;
+        const skKey = `${question.subject}:${question.domainCode}:${question.skill || ''}`;
+        const domKey = `${question.subject}:${question.domainCode}`;
+        const targetSeconds = pacing.skillLimitSeconds?.[skKey] || pacing.domainLimitSeconds?.[domKey];
+        if (targetSeconds) {
+          let elapsed = 0;
+          if (test.answersByQuestionId) {
+            elapsed = (test.elapsedSecondsByQuestionId?.[question.id] || 0);
+            if (test.questions[test.currentIndex]?.id === question.id) {
+              elapsed += (Date.now() - (test.activeQuestionStartedAt || Date.now())) / 1000;
+            }
+          } else {
+            elapsed = (Date.now() - (test.currentQuestionStartedAt || Date.now())) / 1000;
+          }
+          elapsed = Math.round(elapsed);
+          const isOver = elapsed >= targetSeconds;
+          const overSeconds = elapsed - targetSeconds;
+          const overMin = Math.floor(overSeconds / 60);
+          const overSec = overSeconds % 60;
+          
+          if (isOver) {
+            pacingEl.className = 'pacing-indicator over';
+            pacingEl.style.color = 'var(--red)';
+            pacingEl.style.fontWeight = '600';
+            pacingEl.textContent = `Over target +${overMin > 0 ? overMin + ':' + String(overSec).padStart(2, '0') : overSec + 's'}`;
+          } else {
+            pacingEl.className = 'pacing-indicator';
+            pacingEl.style.color = 'var(--ink-muted)';
+            pacingEl.style.fontWeight = '';
+            pacingEl.textContent = `${elapsed}s / ${targetSeconds}s`;
+          }
+        }
+      }
+    }
   }
 
   function handleTimerExpiry() {
@@ -6335,12 +6907,18 @@ function renderTestReview() {
     const context = getCurrentContext();
     if (!context || !context.question) return "";
     const question = context.question;
+    if (test.mode === "custom" && !test.config.immediateFeedback && test.answersByQuestionId) {
+      return test.answersByQuestionId[question.id] || "";
+    }
     return test.mode === "custom" ? test.currentAnswer : test.answers[question.id] || "";
   }
 
   function isQuestionAnswered(question) {
     const test = state.activeTest;
     if (test.mode === "custom") {
+      if (!test.config.immediateFeedback && test.answersByQuestionId) {
+        return hasAnswer(test.answersByQuestionId[question.id]);
+      }
       const cur = test.questions[test.currentIndex];
       return test.responses.some(r => r.questionId === question.id) || (cur?.id === question.id && hasAnswer(test.currentAnswer));
     }
@@ -6372,7 +6950,11 @@ function renderTestReview() {
         if (!activeTest) return;
         const snapshot = { ...activeTest, _persistedAt: Date.now() };
         if (snapshot.mode === "custom") {
-          snapshot._elapsedBeforePersist = Date.now() - (snapshot.currentQuestionStartedAt || Date.now());
+          if (!snapshot.config.immediateFeedback && snapshot.activeQuestionStartedAt) {
+            snapshot._elapsedBeforePersist = Date.now() - snapshot.activeQuestionStartedAt;
+          } else {
+            snapshot._elapsedBeforePersist = Date.now() - (snapshot.currentQuestionStartedAt || Date.now());
+          }
         }
         await DB.put("sessions", { id: "__active_test__", snapshot, type: "active" });
       } catch (_) { /* ignore */ }
@@ -6390,7 +6972,11 @@ function renderTestReview() {
         state.activeTest = snap;
         // Recalculate timing references
         if (snap.mode === "custom") {
-          state.activeTest.currentQuestionStartedAt = Date.now() - (snap._elapsedBeforePersist || 0);
+          if (!snap.config.immediateFeedback && snap.activeQuestionStartedAt) {
+            state.activeTest.activeQuestionStartedAt = Date.now() - (snap._elapsedBeforePersist || 0);
+          } else {
+            state.activeTest.currentQuestionStartedAt = Date.now() - (snap._elapsedBeforePersist || 0);
+          }
         }
       }
     } catch (_) { /* ignore */ }
@@ -6632,6 +7218,28 @@ function renderTestReview() {
       domainMap.set(key, domain);
 
       correct += r.isCorrect ? 1 : 0;
+    }
+
+    // Count repeat misses per domain
+    const mistakesByDomain = new Map();
+    for (const r of responses.filter(r2 => !r2.isCorrect)) {
+      const key = `${r.subject}:${r.domainCode}`;
+      if (!mistakesByDomain.has(key)) mistakesByDomain.set(key, { questionIds: new Set(), totalMisses: 0 });
+      const dm = mistakesByDomain.get(key);
+      dm.questionIds.add(r.questionId);
+      dm.totalMisses++;
+    }
+    // Attach to domain objects
+    for (const [key, dm] of mistakesByDomain) {
+      const domain = domainMap.get(key);
+      if (domain) {
+        const repeatCount = [...dm.questionIds].filter(qid => {
+          const misses = responses.filter(r2 => r2.questionId === qid && !r2.isCorrect);
+          return misses.length >= 2;
+        }).length;
+        domain.repeatMissQuestions = repeatCount;
+        domain.totalMissedAttempts = dm.totalMisses;
+      }
     }
 
     const answered = answeredResponses.length;

@@ -348,12 +348,13 @@
    */
   async function bidirectionalSync(options = {}) {
     // Read local (IndexedDB — instant)
-    const [localBanks, localQuestions, localSessions, localResponses, localVocabWords] = await Promise.all([
+    const [localBanks, localQuestions, localSessions, localResponses, localVocabWords, localStudyStates] = await Promise.all([
       DB.getAll("questionBanks"),
       DB.getAll("questions"),
       DB.getAll("sessions"),
       DB.getAll("responses"),
       DB.getAll("vocabWords"),
+      DB.getAll("questionStudyState"),
     ]);
 
     const filteredSessions = localSessions.filter(s => s.id !== "__active_test__");
@@ -369,6 +370,7 @@
         sessions: filteredSessions,
         responses: localResponses,
         vocabWords: localVocabWords,
+        questionStudyState: localStudyStates,
         vocabState: localVocabState,
       });
       return false; // Local DB was not changed by this sync
@@ -383,6 +385,7 @@
     const sessions = mergeRecordSets(filteredSessions, remote?.sessions);
     const responses = mergeRecordSets(localResponses, remote?.responses);
     const vocabWords = mergeVocabWords(localVocabWords, remote?.vocabWords);
+    const studyStates = mergeRecordSets(localStudyStates, remote?.questionStudyState);
 
     const localVocabStateStr = localStorage.getItem('sat_vocab_state');
     const localVocabState = localVocabStateStr ? JSON.parse(localVocabStateStr) : null;
@@ -406,8 +409,8 @@
        vocabStateRemoteNeedsUpdate = true;
     }
 
-    const hasLocalUpdates = banks.localUpdates.length > 0 || questions.localUpdates.length > 0 || sessions.localUpdates.length > 0 || responses.localUpdates.length > 0 || vocabWords.localUpdates.length > 0 || vocabStateLocalChanged;
-    const remoteNeedsUpdate = !remote || banks.remoteNeedsUpdate || questions.remoteNeedsUpdate || sessions.remoteNeedsUpdate || responses.remoteNeedsUpdate || vocabWords.remoteNeedsUpdate || vocabStateRemoteNeedsUpdate;
+    const hasLocalUpdates = banks.localUpdates.length > 0 || questions.localUpdates.length > 0 || sessions.localUpdates.length > 0 || responses.localUpdates.length > 0 || vocabWords.localUpdates.length > 0 || studyStates.localUpdates.length > 0 || vocabStateLocalChanged;
+    const remoteNeedsUpdate = !remote || banks.remoteNeedsUpdate || questions.remoteNeedsUpdate || sessions.remoteNeedsUpdate || responses.remoteNeedsUpdate || vocabWords.remoteNeedsUpdate || studyStates.remoteNeedsUpdate || vocabStateRemoteNeedsUpdate;
 
     // If we're in a silent background sync but found new data to pull,
     // light up the UI indicator so the user sees it's actively pulling changes.
@@ -427,6 +430,7 @@
         sessions: sessions.merged,
         responses: responses.merged,
         vocabWords: vocabWords.merged,
+        questionStudyState: studyStates.merged,
         vocabState: mergedVocabState,
       });
     }
@@ -438,6 +442,7 @@
     if (sessions.localUpdates.length) { await DB.putMany("sessions", sessions.localUpdates); localChanged = true; }
     if (responses.localUpdates.length) { await DB.putMany("responses", responses.localUpdates); localChanged = true; }
     if (vocabWords.localUpdates.length) { await DB.putMany("vocabWords", vocabWords.localUpdates); localChanged = true; }
+    if (studyStates.localUpdates.length) { await DB.putMany("questionStudyState", studyStates.localUpdates); localChanged = true; }
 
     if (vocabStateLocalChanged && mergedVocabState) {
         localStorage.setItem('sat_vocab_state', JSON.stringify(mergedVocabState));

@@ -2,12 +2,12 @@
   "use strict";
 
   const DB_NAME = "sat-interactive-practice";
-  const DB_VERSION = 3;
+  const DB_VERSION = 4;
   let dbPromise = null;
 
   // --- ENCRYPTION LOGIC ---
-  const SENSITIVE_STORES = ["questions", "sessions", "responses"];
-  const SENSITIVE_FIELDS = ["prompt", "passage", "choices", "correctAnswer", "rationale", "history", "answer"];
+  const SENSITIVE_STORES = ["questions", "sessions", "responses", "questionStudyState"];
+  const SENSITIVE_FIELDS = ["prompt", "passage", "choices", "correctAnswer", "rationale", "history", "answer", "highlights", "mistakeLog"];
 
   async function getCryptoKey() {
     const isDemo = localStorage.getItem('sat_demo_mode') === 'true';
@@ -137,6 +137,10 @@
           vocabWords.createIndex("status", "status", { unique: false });
           vocabWords.createIndex("nextReviewDate", "nextReviewDate", { unique: false });
         }
+
+        if (!db.objectStoreNames.contains("questionStudyState")) {
+          db.createObjectStore("questionStudyState", { keyPath: "id" });
+        }
       };
 
       request.onsuccess = () => resolve(request.result);
@@ -211,6 +215,7 @@
     await clear("sessions");
     await clear("questions");
     await clear("questionBanks");
+    await clear("questionStudyState");
   }
 
   async function remove(storeName, key) {

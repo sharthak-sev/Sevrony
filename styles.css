@@ -4187,3 +4187,32 @@ html[data-transition="drill"]::view-transition-new(root) {
     font-size: 13px;
   }
 }
+
+/* ── Highlighting ── */
+mark.sev-highlight {
+  background-color: rgba(255, 230, 100, 0.5);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  padding: 1px 0;
+}
+mark.sev-highlight:hover {
+  background-color: rgba(255, 200, 60, 0.7);
+}
+mark.sev-highlight:focus {
+  outline: 2px solid var(--bb-blue);
+  outline-offset: 1px;
+}
+
+/* Prevent selection highlighting in answer choices */
+.choice-list, .choice-button, .spr-card {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow selection in passage and prompt */
+.passage-pane .html-content,
+.question-pane .html-content.prompt {
+  -webkit-user-select: text;
+  user-select: text;
+}
