@@ -3004,7 +3004,7 @@ function renderTestReview() {
         </div>
       </section>
       <section class="review-list ${state.reviewFilterIncorrect ? 'filter-incorrect' : ''} ${state.reviewFilterSkipped ? 'filter-skipped' : ''}">
-        ${responses.length ? responses.map((r, i) => renderReviewedQuestion(questionMap.get(r.questionId), r, i)).join("") : `
+        ${responses.length ? responses.map((r, i) => renderReviewedQuestion(questionMap.get(r.questionId), r, i, session)).join("") : `
           <article class="panel empty-message">${allResponses.length === 0 ? "No questions were answered." : "All questions were answered correctly!"}</article>
         `}
         <article class="panel empty-message css-empty-message" style="display: none;">No questions match those filters.</article>
@@ -3016,12 +3016,31 @@ function renderTestReview() {
     `;
   }
 
-  function renderReviewedQuestion(question, response, index) {
+  function renderReviewedQuestion(question, response, index, session) {
     const num = (response.sequence ?? index) + 1;
     const isSkipped = !isAnsweredResponse(response);
     const status = isSkipped ? "skipped" : response.isCorrect ? "correct" : "incorrect";
     /* Phase 4: Pretest badge */
     const pretestBadge = response.isPretest ? `<span class="status-pill" style="background:var(--zinc-200);color:var(--zinc-600);font-size:11px;">Unscored (Pretest)</span>` : "";
+    
+    let timeText = formatDuration(response.timeSpentSeconds || 0);
+    if (question && session && session.config && session.config.pacing) {
+        const p = session.config.pacing;
+        const domKey = `${question.subject}:${question.domainCode}`;
+        const skKey = `${question.subject}:${question.domainCode}:${question.skill || ''}`;
+        let limit = 0;
+        if (p.skillLimitSeconds && p.skillLimitSeconds[skKey]) {
+            limit = p.skillLimitSeconds[skKey];
+        } else if (p.domainLimitSeconds && p.domainLimitSeconds[domKey]) {
+            limit = p.domainLimitSeconds[domKey];
+        }
+        
+        const spent = Math.round(response.timeSpentSeconds || 0);
+        if (limit > 0 && spent > limit) {
+            timeText = `${formatDuration(spent)}<span style="color:var(--red)">(+${formatDuration(spent - limit)})</span>`;
+        }
+    }
+
     if (!question) {
       return `
         <article class="panel review-card" data-status="${status}">
@@ -3047,7 +3066,7 @@ function renderTestReview() {
             <button type="button" class="ghost-btn icon-btn report-btn" data-action="report-question" data-qid="${escapeHtml(question.id)}" title="Report issue with question">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
             </button>
-            <span class="time-pill">${formatDuration(response.timeSpentSeconds || 0)}</span>
+            <span class="time-pill">${timeText}</span>
             ${renderReviewStatus(response)}
           </div>
         </div>
@@ -6286,6 +6305,7 @@ ${(() => {
     test.currentIndex += 1;
     test.currentAnswer = "";
     test.currentQuestionStartedAt = Date.now();
+    test.activeQuestionStartedAt = Date.now();
     test.notice = null;
     state.showRationale = false;
     persistActiveTest();
@@ -6882,10 +6902,17 @@ ${(() => {
     if (!test) return "00:00";
     if (state.hideTimer) return "Hidden";
     if (test.mode === "custom") {
-      if (test.config.immediateFeedback && test.responses[test.currentIndex]) {
-        return formatTimer(test.responses[test.currentIndex].timeSpentSeconds);
+      if (test.config.immediateFeedback) {
+        if (test.responses[test.currentIndex]) {
+          return formatTimer(test.responses[test.currentIndex].timeSpentSeconds);
+        }
+        return formatTimer(Math.floor((Date.now() - test.currentQuestionStartedAt) / 1000));
+      } else {
+        const curId = test.questions[test.currentIndex].id;
+        const previouslyElapsed = test.elapsedSecondsByQuestionId?.[curId] || 0;
+        const currentSessionElapsed = Math.floor((Date.now() - (test.activeQuestionStartedAt || test.currentQuestionStartedAt)) / 1000);
+        return formatTimer(previouslyElapsed + currentSessionElapsed);
       }
-      return formatTimer(Math.floor((Date.now() - test.currentQuestionStartedAt) / 1000));
     }
     if (test.phase === "break") return formatTimer(Math.max(0, Math.ceil((test.breakEndsAt - Date.now()) / 1000)));
     if (test.phase === "transition") return "—";
@@ -7850,7 +7877,7 @@ ${(() => {
   function formatPercent(v) { return `${Math.round((v || 0) * 100)}%`; }
 
   function formatTimer(totalSeconds) {
-    const s = Math.max(0, totalSeconds);
+    const s = Math.max(0, Math.floor(totalSeconds));
     return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   }
 
