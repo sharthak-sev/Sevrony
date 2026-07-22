@@ -6169,7 +6169,12 @@ ${(() => {
       const question = getCurrentContext().question;
       const elim = state.eliminatedChoices[question.id] || {};
       if (elim[val]) return; // Can't select an eliminated choice
-      setCurrentAnswer(val, true);
+      const currentAnswer = getCurrentAnswer();
+      if (currentAnswer === val) {
+        setCurrentAnswer("", true);
+      } else {
+        setCurrentAnswer(val, true);
+      }
     }
 
     if (action === "eliminate-option") {
@@ -6351,11 +6356,9 @@ ${(() => {
     const responses = [];
     for (const q of test.questions) {
       const ans = test.answersByQuestionId[q.id];
-      if (hasAnswer(ans)) {
-        const elapsed = test.elapsedSecondsByQuestionId[q.id] || 0;
-        const response = makeResponse(q, ans, elapsed, test, true);
-        if (response) responses.push(response);
-      }
+      const elapsed = test.elapsedSecondsByQuestionId[q.id] || 0;
+      const response = makeResponse(q, ans, elapsed, test, true);
+      if (response) responses.push(response);
     }
     
     finishActiveTest(responses);
@@ -6371,11 +6374,21 @@ ${(() => {
     if (!test.responses[test.currentIndex]) {
       if (hasAnswer(test.currentAnswer)) {
         const elapsed = (Date.now() - test.currentQuestionStartedAt) / 1000;
-        const response = makeResponse(question, test.currentAnswer, elapsed, test);
+        const response = makeResponse(question, test.currentAnswer, elapsed, test, true);
         if (response) test.responses[test.currentIndex] = response;
       }
     }
-    finishActiveTest(test.responses.filter(Boolean));
+    const finalResponses = [];
+    for (let i = 0; i < test.questions.length; i++) {
+      if (test.responses[i]) {
+        finalResponses.push(test.responses[i]);
+      } else {
+        const elapsed = (i === test.currentIndex) ? (Date.now() - test.currentQuestionStartedAt) / 1000 : 0;
+        const response = makeResponse(test.questions[i], "", elapsed, test, true);
+        if (response) finalResponses.push(response);
+      }
+    }
+    finishActiveTest(finalResponses);
   }
 
   function navigateQuestion(delta) {
@@ -6806,7 +6819,11 @@ ${(() => {
     if (!isInputFocused && /^[a-d]$/.test(key) && !isCtrl && !isAlt && !isShift && ctx.question.answerOptions.length) {
       e.preventDefault();
       const letter = key.toUpperCase();
-      if (ctx.question.answerOptions.some(o => o.letter === letter)) setCurrentAnswer(letter, true);
+      if (ctx.question.answerOptions.some(o => o.letter === letter)) {
+        const currentAnswer = getCurrentAnswer();
+        if (currentAnswer === letter) setCurrentAnswer("", true);
+        else setCurrentAnswer(letter, true);
+      }
       return;
     }
 
@@ -6814,7 +6831,11 @@ ${(() => {
     if (isCtrl && isShift && /^[1-4]$/.test(key) && ctx.question.answerOptions.length) {
       e.preventDefault();
       const letter = letters[parseInt(key) - 1];
-      if (ctx.question.answerOptions.some(o => o.letter === letter)) setCurrentAnswer(letter, true);
+      if (ctx.question.answerOptions.some(o => o.letter === letter)) {
+        const currentAnswer = getCurrentAnswer();
+        if (currentAnswer === letter) setCurrentAnswer("", true);
+        else setCurrentAnswer(letter, true);
+      }
       return;
     }
 
