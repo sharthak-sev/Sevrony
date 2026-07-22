@@ -3444,7 +3444,7 @@ function renderTestReview() {
       }
       const group = grouped.get(qid);
       group.attempts.push(r);
-      const d = r.answeredAt || 0;
+      const d = r.answeredAt ? new Date(r.answeredAt).getTime() : 0;
       if (d > group.mostRecentDate) group.mostRecentDate = d;
     }
     // Sort groups by most recent miss date
@@ -3523,12 +3523,20 @@ function renderTestReview() {
               let titleText = titleTextParts.join(" • ");
               if (!titleText) titleText = "Question " + (q.number || q.id.slice(0, 5));
 
+              const getDiffColor = (diff) => {
+                const d = diff ? diff.toLowerCase() : "";
+                if (d.startsWith("h")) return "#ef4444";
+                if (d.startsWith("m")) return "#f59e0b";
+                return "#10b981";
+              };
+
               const headerHtml = `
                 <button type="button" class="shadcn-accordion-trigger" data-action="ml-toggle-card" data-id="${r.id}" aria-expanded="${isExpanded}">
                   <span style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;">
                     <span style="font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                       <span class="tag-badge" style="font-size:0.75em; padding:2px 6px; font-weight: bold; background: var(--red); color: #fff; border: none;">Missed ${group.attempts.length} time${group.attempts.length > 1 ? 's' : ''}</span>
                       ${titleText}
+                      ${q.difficulty && q.difficulty !== "Unspecified" ? `<span class="tag-badge" style="font-size:0.75em; padding:2px 8px; font-weight: bold; background: ${getDiffColor(q.difficulty)}; color: #fff; border: none;">${DIFFICULTIES[q.difficulty] || q.difficulty}</span>` : ''}
                     </span>
                     <span style="font-size: 0.8em; color: var(--ink-muted); font-weight: 400;">
                       ${group.attempts.filter(a => a.isAnswered !== false).length} incorrect · ${group.attempts.filter(a => a.isAnswered === false).length} omitted
@@ -3562,7 +3570,7 @@ function renderTestReview() {
                       ${renderAnswerArea(q, r.answer, r, { hideAnswer: !isAnswerShown, isMistakesLog: true })}
                       ${isAnswerShown ? renderImmediateExplanation(q, r) : ""}
                       
-                      ${renderQuestionMeta(q)}
+                      ${renderQuestionMeta(q, { hideSkillDomain: true })}
                       
                       <div style="margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px;">
                         <h4 style="font-size: 0.85em; font-weight: 600; margin-bottom: 8px; color: var(--ink-muted);">Attempt History</h4>
@@ -5697,7 +5705,7 @@ function renderTestReview() {
     if (pane.scrollHeight > pane.clientHeight) pane.classList.add("tight-content");
   }
 
-  function renderQuestionMeta(question) {
+  function renderQuestionMeta(question, options = {}) {
     let idLabel, idValue;
     if (question.questionId && question.questionId !== question.id) {
       idLabel = 'Student Question Bank ID';
@@ -5717,8 +5725,8 @@ function renderTestReview() {
     return `
       <div class="question-meta" style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.8em; color: var(--ink-muted); padding: 8px 0; border-top: 1px solid var(--line); margin-top: 8px;">
         <span><strong>${escapeHtml(idLabel)}:</strong> ${escapeHtml(String(idValue))}</span>
-        <span><strong>Skill:</strong> ${skillText}</span>
-        <span><strong>Domain:</strong> ${escapeHtml(question.domain || 'Unknown')}</span>
+        ${options.hideSkillDomain ? '' : `<span><strong>Skill:</strong> ${skillText}</span>
+        <span><strong>Domain:</strong> ${escapeHtml(question.domain || 'Unknown')}</span>`}
       </div>
     `;
   }
