@@ -3503,8 +3503,9 @@ function renderTestReview() {
     }
 
     return `
-      <div id="mistakes-log-container" class="opacity-0 animate-fade-in-up" style="max-width: var(--max-content-width, 1200px); margin: 0 auto; padding-bottom: 48px; padding-top: 24px;">
-        <!-- Header Section -->
+      <div id="mistakes-log-container">
+        <div class="opacity-0 animate-fade-in-up" style="max-width: var(--max-content-width, 1200px); margin: 0 auto; padding-bottom: 48px; padding-top: 24px;">
+          <!-- Header Section -->
         <div style="margin-bottom: 24px; padding: 0 16px;">
             <h2 style="font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Mistakes Log</h2>
             <p style="font-size: 16px; color: var(--ink-muted); max-width: 42rem;">Review and analyze your incorrect answers to identify patterns and improve your performance.</p>
@@ -3784,10 +3785,11 @@ function renderTestReview() {
               `;
             }).join("")}
         </div>
+        </div>
+        <button class="primary-btn scroll-top-btn" type="button" data-action="scroll-top" aria-label="Scroll to top">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+        </button>
       </div>
-      <button class="primary-btn scroll-top-btn" type="button" data-action="scroll-top" aria-label="Scroll to top">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
-      </button>
     `;
   }
 
