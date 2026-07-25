@@ -2325,7 +2325,7 @@ font-family: inherit !important;
           <p style="color: var(--ink-muted); font-size: 15px; margin: 0;">${state.banks.length} imported bank${state.banks.length === 1 ? "" : "s"} · ${state.questions.length} total questions</p>
         </div>
         <div class="top-actions" style="display:flex;gap:12px;flex-wrap:wrap;">
-          <button class="primary-btn" type="button" data-action="config" data-tour-target="create-test" style="padding: 8px 16px;">
+          <button class="primary-btn" type="button" data-action="config" data-tour-target="create-test">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-3px"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
             Create New Test
           </button>
@@ -3750,10 +3750,10 @@ function renderTestReview() {
                             </div>
                             <!-- Note Actions exactly at the bottom -->
                             <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line); background-color: var(--panel);">
-                              <button type="button" class="ghost-btn" data-action="ml-delete-notes" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 14px; font-weight: 500; border-radius: 6px; color: var(--ink); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='var(--surface-hover)'" onmouseout="this.style.backgroundColor='transparent'">
+                              <button type="button" class="ghost-btn" data-action="ml-delete-notes" data-id="${r.id}" style="color: var(--ink);" onmouseover="this.style.backgroundColor='var(--surface-hover)'" onmouseout="this.style.backgroundColor='transparent'">
                                 Delete Note
                               </button>
-                              <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 14px; font-weight: 500; border-radius: 6px; background-color: var(--ink); color: var(--panel);">
+                              <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="background-color: var(--ink); color: var(--panel);">
                                 Edit Note
                               </button>
                             </div>
@@ -3775,7 +3775,7 @@ function renderTestReview() {
                           <textarea class="ml-note-input" data-action="ml-note-input" data-id="${r.id}" data-original="${escapeHtml(r.notes || "")}" placeholder="Why did you get this wrong? What will you do differently next time?" style="width: 100%; min-height: 100px; padding: 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-family: inherit; font-size: 14px; resize: vertical; margin-bottom: 16px;">${r.notes || ""}</textarea>
                           <div style="display: flex; justify-content: flex-end; align-items: center; gap: 16px;">
                             <span class="ml-error-msg" id="ml-error-${r.id}" style="color: #ef4444; font-size: 13px; display: none;">Please select at least one tag.</span>
-                            <button type="button" class="primary-btn" data-action="ml-save-notes" data-id="${r.id}" style="height: 40px; padding: 0 20px; font-size: 14px; font-weight: 600;">Save Note</button>
+                            <button type="button" class="primary-btn" data-action="ml-save-notes" data-id="${r.id}">Save Note</button>
                           </div>
                         </div>
                       </div>
@@ -7489,13 +7489,16 @@ ${(() => {
     const modal = document.createElement("div");
     modal.className = "modal-content confirm-modal";
     
+    const title = options.title || "Confirm Action";
     modal.innerHTML = `
-      <style>.prompt-input:focus { border-color: var(--bb-blue) !important; }</style>
-      <p class="modal-message" style="margin-bottom: 12px;">${escapeHtml(message)}</p>
-      <input type="text" class="prompt-input" placeholder="${escapeHtml(placeholder)}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); outline: none; box-sizing: border-box; font-family: inherit; font-size: 14px; transition: border-color 0.2s;" maxlength="20" />
-      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-        <button class="ghost-btn cancel-btn">${escapeHtml(options.cancelText || "Cancel")}</button>
-        <button class="primary-btn confirm-btn">${escapeHtml(confirmText)}</button>
+      <div class="shadcn-dialog-header">
+        <h2 class="shadcn-dialog-title">${escapeHtml(title)}</h2>
+        <p class="shadcn-dialog-description">${escapeHtml(message)}</p>
+      </div>
+      <input type="text" class="shadcn-input prompt-input" placeholder="${escapeHtml(placeholder)}" maxlength="20" />
+      <div class="shadcn-dialog-footer">
+        <button class="shadcn-button shadcn-button-outline cancel-btn">${escapeHtml(options.cancelText || "Cancel")}</button>
+        <button class="shadcn-button shadcn-button-primary confirm-btn">${escapeHtml(confirmText)}</button>
       </div>
     `;
     
@@ -7544,11 +7547,15 @@ ${(() => {
     const modal = document.createElement("div");
     modal.className = "modal-content confirm-modal";
     
+    const title = options.title || "Confirm Action";
     modal.innerHTML = `
-      <p class="modal-message">${escapeHtml(message)}</p>
-      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-        <button class="ghost-btn cancel-btn">${escapeHtml(options.cancelText || "Cancel")}</button>
-        <button class="danger-btn confirm-btn">${escapeHtml(confirmText)}</button>
+      <div class="shadcn-dialog-header">
+        <h2 class="shadcn-dialog-title">${escapeHtml(title)}</h2>
+        <p class="shadcn-dialog-description">${escapeHtml(message)}</p>
+      </div>
+      <div class="shadcn-dialog-footer">
+        <button class="shadcn-button shadcn-button-outline cancel-btn">${escapeHtml(options.cancelText || "Cancel")}</button>
+        <button class="shadcn-button shadcn-button-primary confirm-btn">${escapeHtml(confirmText)}</button>
       </div>
     `;
     

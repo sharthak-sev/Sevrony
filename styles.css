@@ -308,17 +308,22 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
 
 /* ---- Buttons ---- */
 .ghost-btn, .primary-btn, .secondary-btn, .danger-btn, .bb-end-btn {
-  border-radius: var(--radius-md); /* Shadcn SaaS styling */
+  border-radius: 8px; /* Matching the tight rounded shadcn style */
   font-weight: 500; /* Minimalist typography */
   letter-spacing: -0.01em;
-  min-height: 36px;
-  padding: 8px 16px;
+  height: 32px; /* Very tight height */
+  padding: 0 12px; /* Tight padding */
+  font-size: 0.875rem; /* 14px size */
   transition: all 150ms ease;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  white-space: nowrap;
+}
+.ghost-btn svg, .primary-btn svg, .secondary-btn svg, .danger-btn svg, .bb-end-btn svg, .shadcn-button svg {
+  flex-shrink: 0;
 }
 
 .ghost-btn:focus-visible, .primary-btn:focus-visible, .secondary-btn:focus-visible, .danger-btn:focus-visible, .bb-end-btn:focus-visible {
@@ -348,9 +353,7 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
 .secondary-btn:hover { background: var(--line-light); border-color: var(--bb-blue); }
 
 .primary-btn.large, .ghost-btn.large {
-  min-height: 46px;
-  padding: 12px 24px;
-  font-size: 15px;
+  /* Removed large height/padding overrides to keep all buttons perfectly compact */
 }
 
 .icon-btn {
@@ -2826,8 +2829,8 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
     gap: 16px;
   }
   .hero-card::after { display: none; }
-  .hero-actions { flex-direction: column; width: 100%; }
-  .hero-actions > * { width: 100%; }
+  .hero-actions { flex-direction: row; justify-content: center; width: 100%; }
+  .hero-actions > * { width: auto; }
   
   .metric-grid, .module-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2973,8 +2976,8 @@ html[data-transition="drill"]::view-transition-new(root) {
 /* Modal Overlay */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; width: 100vw; height: 100vh;
-  background: rgba(15, 23, 42, 0.4);
+  inset: 0; width: 100vw; height: 100vh;
+  background-color: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   z-index: 10000;
@@ -2999,14 +3002,17 @@ html[data-transition="drill"]::view-transition-new(root) {
 .modal-content.confirm-modal {
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  max-width: 400px;
-  width: 90%;
-  box-shadow: var(--shadow-lg);
-  transform: scale(0.95) translateY(10px);
+  border-radius: var(--radius-lg); /* 12px rounding for a softer, more modern modal */
+  padding: 20px; /* Tighter padding */
+  max-width: 400px; /* Tighter maximum width */
+  width: calc(100% - 32px); /* Tighter fluid width */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  transform: scale(0.95);
   opacity: 0;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* Immediate Feedback Styling */
@@ -3044,16 +3050,88 @@ html[data-transition="drill"]::view-transition-new(root) {
 }
 
 .modal-content.confirm-modal.visible {
-  transform: scale(1) translateY(0);
+  transform: scale(1);
   opacity: 1;
 }
 
-.modal-message {
+/* Shadcn Dialog Inner Elements */
+.shadcn-dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.shadcn-dialog-title {
   font-size: 1.125rem;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.75rem;
   color: var(--ink);
   margin: 0;
-  line-height: 1.5;
+}
+.shadcn-dialog-description {
+  font-size: 0.875rem;
+  color: var(--muted-foreground, #64748b);
+  margin: 0;
+}
+.shadcn-dialog-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin-top: 24px;
+  gap: 8px;
+}
+.shadcn-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px; /* 8px rounding for buttons */
+  font-size: 0.875rem;
+  font-weight: 500;
+  height: 32px; /* Very tight height */
+  padding: 0 12px; /* Very tight horizontal padding */
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+  outline: none;
+  border: none;
+}
+.shadcn-button-outline {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+.shadcn-button-outline:hover {
+  background: var(--line-light);
+}
+.shadcn-button-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.shadcn-button-primary:hover {
+  opacity: 0.9;
+}
+.shadcn-button-destructive {
+  background: hsl(0, 84.2%, 60.2%); /* True shadcn red */
+  color: #fff;
+}
+.shadcn-button-destructive:hover {
+  opacity: 0.9;
+}
+.shadcn-input {
+  width: 100%; 
+  padding: 8px 12px; 
+  border: 1px solid var(--line); 
+  border-radius: 6px; 
+  background: var(--panel); 
+  color: var(--ink); 
+  outline: none; 
+  box-sizing: border-box; 
+  font-family: inherit; 
+  font-size: 14px; 
+  transition: border-color 0.2s;
+}
+.shadcn-input:focus {
+  border-color: var(--bb-blue);
+  box-shadow: 0 0 0 1px var(--bb-blue);
 }
 
 .mistake-domain-card {

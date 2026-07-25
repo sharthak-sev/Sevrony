@@ -1122,14 +1122,13 @@
     modal.style.position = "relative";
     
     modal.innerHTML = `
-      <button class="ghost-btn icon-btn close-modal-btn" style="position: absolute; top: 12px; right: 12px; padding: 6px; z-index: 10;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
-      <h3 style="margin-top: 0; font-size: 18px; font-weight: 700;">Exit Session</h3>
-      <p class="modal-message" style="margin-top: 8px;">Mastered words are already saved.</p>
-      <div class="modal-actions" style="display:flex; flex-direction: column; gap:12px; margin-top:24px;">
-        <button class="secondary-btn save-exit-btn" style="width: 100%; justify-content: center;">Save and Exit</button>
-        <button class="danger-btn finalize-btn" style="width: 100%; justify-content: center;">Finalize Session</button>
+      <div class="shadcn-dialog-header">
+        <h2 class="shadcn-dialog-title">Exit Session</h2>
+        <p class="shadcn-dialog-description">Mastered words are already saved.</p>
+      </div>
+      <div class="shadcn-dialog-footer">
+        <button class="shadcn-button shadcn-button-outline save-exit-btn">Save and Exit</button>
+        <button class="shadcn-button shadcn-button-primary finalize-btn">Finalize Session</button>
       </div>
     `;
     
@@ -1147,7 +1146,6 @@
       setTimeout(() => overlay.remove(), 250);
     };
 
-    modal.querySelector(".close-modal-btn").onclick = close;
     overlay.onclick = (e) => {
       if (e.target === overlay) close();
     };
