@@ -3450,21 +3450,97 @@ function renderTestReview() {
     // Sort groups by most recent miss date
     const groupedList = [...grouped.values()].sort((a, b) => b.mostRecentDate - a.mostRecentDate);
 
+    // Calculate analytics on ALL mistakes so filters don't affect the overall breakdown
+    const tagCounts = {};
+    let totalTagged = 0;
+    allMistakes.forEach(r => {
+      if (r.tags && r.tags.length > 0) {
+        r.tags.forEach(t => {
+          tagCounts[t] = (tagCounts[t] || 0) + 1;
+          totalTagged++;
+        });
+      }
+    });
+
+    const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+    const topTags = sortedTags.slice(0, 4); // show top 4 tags
+
+    const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6'];
+
+    let barsHtml = '';
+    if (topTags.length === 0) {
+       barsHtml = `<div style="font-size: 14px; color: var(--ink-muted);">No tagged mistakes yet. Expand a mistake to add tags.</div>`;
+    } else {
+       barsHtml = topTags.map(([tag, count], idx) => {
+         const pct = Math.round((count / (totalTagged || 1)) * 100);
+         const color = colors[idx % colors.length];
+         return `
+            <div style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.05em;">${escapeHtml(tag)}</span>
+                    <span style="font-size: 12px; font-weight: 700; color: var(--ink);">${pct}%</span>
+                </div>
+                <div style="width: 100%; background: var(--line-light); border-radius: 999px; height: 8px;">
+                    <div style="width: ${pct}%; background: ${color}; height: 8px; border-radius: 999px;"></div>
+                </div>
+            </div>
+         `;
+       }).join('');
+    }
+
+    let insightHtml = `You haven't tagged enough mistakes yet. Add tags to get insights.`;
+    if (sortedTags.length > 0) {
+      const topTag = sortedTags[0][0];
+      if (topTag === "Conceptual error") {
+        insightHtml = `Most of your errors are conceptual. Focus on reviewing core principles before taking another practice test.`;
+      } else if (topTag === "Time crunch") {
+        insightHtml = `Time management seems to be your biggest hurdle. Try pacing yourself and skipping difficult questions.`;
+      } else if (topTag === "Silly mistake") {
+        insightHtml = `You're making silly mistakes. Double-check your work and read the questions carefully!`;
+      } else {
+        insightHtml = `Your most common mistake is <strong>${escapeHtml(topTag)}</strong>. Focus on improving in this area.`;
+      }
+    }
+
     return `
-      <div id="mistakes-log-container">
-        <div class="shadcn-card" style="margin-bottom: 24px;">
-          <div class="shadcn-card-header">
-            <div class="shadcn-card-title" style="font-size: 1.5rem;">Mistakes Log</div>
-            <div class="shadcn-card-description">Review your past mistakes, add personal notes, and tag them to identify patterns.</div>
-          </div>
-          <div class="shadcn-card-content">
-            <div class="shadcn-filters-row" style="margin-bottom: 16px;">
-              <select class="styled-select" data-action="ml-change-subject">
+      <div id="mistakes-log-container" style="max-width: var(--max-content-width, 1200px); margin: 0 auto; padding-bottom: 48px; padding-top: 24px;">
+        <!-- Header Section -->
+        <div style="margin-bottom: 24px; padding: 0 16px;">
+            <h2 style="font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Mistakes Log</h2>
+            <p style="font-size: 16px; color: var(--ink-muted); max-width: 42rem;">Review and analyze your incorrect answers to identify patterns and improve your performance.</p>
+        </div>
+        
+        <!-- Analytics Dashboard -->
+        <div class="card-shadow" style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 32px; margin-left: 16px; margin-right: 16px;">
+            <h3 style="font-weight: 600; font-size: 20px; color: var(--ink); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                Mistake Analysis
+            </h3>
+            <div style="display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 250px;">
+                    ${barsHtml}
+                </div>
+                <div style="flex: 1; padding: 16px; background: var(--surface-main); border: 1px dashed var(--line); border-radius: 8px;">
+                    <p style="font-size: 14px; font-weight: 500; margin-bottom: 8px; color: var(--ink);">💡 Insight:</p>
+                    <p style="font-size: 14px; color: var(--ink-muted);">${insightHtml}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="card-shadow" style="border-radius: 12px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: var(--panel); padding: 16px; margin-bottom: 32px; margin-left: 16px; margin-right: 16px; border: 1px solid var(--line);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ink-muted);"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                <span style="font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink);">Filters</span>
+            </div>
+            <div style="width: 1px; height: 24px; background: var(--line);"></div>
+            <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+              <select class="styled-select" data-action="ml-change-subject" style="border-radius: 8px; padding: 6px 12px; height: auto;">
                 <option value="all">All Subjects</option>
                 ${subjects.filter(s => s !== "all").map(s => `<option value="${s}" ${state.mistakesLog.filterSubject === s ? 'selected' : ''}>${SUBJECTS[s] || s}</option>`).join("")}
               </select>
               ${state.mistakesLog.filterSubject !== "all" ? `
-              <select class="styled-select" data-action="ml-change-domain">
+              <select class="styled-select" data-action="ml-change-domain" style="border-radius: 8px; padding: 6px 12px; height: auto;">
                 <option value="all">All Domains</option>
                 ${domains.filter(d => d !== "all").map(d => {
                   const fallback = DOMAIN_FALLBACKS[state.mistakesLog.filterSubject]?.find(f => f.code === d);
@@ -3474,7 +3550,7 @@ function renderTestReview() {
               </select>
               ` : ''}
               ${state.mistakesLog.filterSubject !== "all" && state.mistakesLog.filterDomain !== "all" ? `
-              <select class="styled-select" data-action="ml-change-skill">
+              <select class="styled-select" data-action="ml-change-skill" style="border-radius: 8px; padding: 6px 12px; height: auto;">
                 <option value="all">All Sub-domains</option>
                 ${skills.filter(s => s !== "all").map(s => {
                   const label = baseForSkills.find(r => r.skillCode === s)?.skill || s;
@@ -3482,29 +3558,29 @@ function renderTestReview() {
                 }).join("")}
               </select>
               ` : ''}
-              <select class="styled-select" data-action="ml-change-type">
+              <select class="styled-select" data-action="ml-change-type" style="border-radius: 8px; padding: 6px 12px; height: auto;">
                 <option value="all" ${state.mistakesLog.filterType === 'all' || !state.mistakesLog.filterType ? 'selected' : ''}>Mix (All)</option>
                 <option value="incorrect" ${state.mistakesLog.filterType === 'incorrect' ? 'selected' : ''}>Incorrect Only</option>
                 <option value="omitted" ${state.mistakesLog.filterType === 'omitted' ? 'selected' : ''}>Omitted Only</option>
               </select>
             </div>
-            <div class="shadcn-filters-row">
-              ${Array.from(allUsedTags).map(tag => `
-                <button type="button" data-action="ml-filter-tag" data-tag="${tag}" class="tag-badge ${state.mistakesLog.filterTags.has(tag) ? 'active' : ''}">
-                  ${escapeHtml(tag)}
-                  ${!MISTAKE_TAGS.includes(tag) ? `<span data-action="ml-delete-custom-tag" data-tag="${tag}" style="margin-left: 6px; opacity: 0.6;">&times;</span>` : ''}
-                </button>
-              `).join("")}
+            
+            <div style="width: 1px; height: 24px; background: var(--line);"></div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                ${Array.from(allUsedTags).map(tag => `
+                  <button type="button" data-action="ml-filter-tag" data-tag="${tag}" class="tag-badge ${state.mistakesLog.filterTags.has(tag) ? 'active' : ''}">
+                    ${escapeHtml(tag)}
+                    ${!MISTAKE_TAGS.includes(tag) ? `<span data-action="ml-delete-custom-tag" data-tag="${tag}" style="margin-left: 6px; opacity: 0.6;">&times;</span>` : ''}
+                  </button>
+                `).join("")}
             </div>
-          </div>
         </div>
 
-        <div class="shadcn-card">
-        <div class="shadcn-card-content" style="padding-top: 1.5rem;">
-          <div class="shadcn-accordion">
+        <!-- Bento Grid Layout for Cards (1 column) -->
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; padding: 0 16px;">
             ${groupedList.length === 0 ? `
-              <div class="empty-state" style="padding: 2rem 0; text-align: center;">
-                <p class="shadcn-card-description">No mistakes found matching your filters.</p>
+              <div style="padding: 3rem 0; text-align: center; border: 1px dashed var(--line); border-radius: 12px;">
+                <p style="color: var(--ink-muted);">No mistakes found matching your filters.</p>
               </div>
             ` : groupedList.map(group => {
               const r = group.attempts[0];
@@ -3529,104 +3605,154 @@ function renderTestReview() {
                 if (d.startsWith("m")) return "#f59e0b";
                 return "#10b981";
               };
+              
+              const diffBg = q.difficulty?.toLowerCase().startsWith("h") ? "#fef2f2" : (q.difficulty?.toLowerCase().startsWith("m") ? "#fffbeb" : "#ecfdf5");
+              const diffColor = getDiffColor(q.difficulty);
+              
+              const borderColor = diffColor;
 
-              const headerHtml = `
-                <button type="button" class="shadcn-accordion-trigger" data-action="ml-toggle-card" data-id="${r.id}" aria-expanded="${isExpanded}">
-                  <span style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;">
-                    <span style="font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                      <span class="tag-badge" style="font-size:0.75em; padding:2px 6px; font-weight: bold; background: var(--red); color: #fff; border: none;">Missed ${group.attempts.length} time${group.attempts.length > 1 ? 's' : ''}</span>
-                      ${titleText}
-                      ${q.difficulty && q.difficulty !== "Unspecified" ? `<span class="tag-badge" style="font-size:0.75em; padding:2px 8px; font-weight: bold; background: ${getDiffColor(q.difficulty)}; color: #fff; border: none;">${DIFFICULTIES[q.difficulty] || q.difficulty}</span>` : ''}
-                    </span>
-                    <span style="font-size: 0.8em; color: var(--ink-muted); font-weight: 400;">
-                      ${group.attempts.filter(a => a.isAnswered !== false).length} incorrect · ${group.attempts.filter(a => a.isAnswered === false).length} omitted
-                    </span>
-                    <span style="font-size: 0.8em; color: var(--ink-muted); font-weight: 400;">Most recent: ${dateStr}</span>
-                    ${(!isExpanded && unionTags.length > 0) ? `
-                      <span style="display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;">
-                        ${unionTags.map(t => `<span class="tag-badge" style="font-size:0.75em; padding:2px 6px;">${t}</span>`).join("")}
-                      </span>
-                    ` : ""}
-                  </span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-              `;
-
-              let expandedHtml = "";
-              if (isExpanded) {
-                const isAnswerShown = state.mistakesLog.showAnswer && state.mistakesLog.showAnswer.has(r.id);
-                expandedHtml = `
-                  <div class="shadcn-accordion-content" ${state.mistakesLog.justToggled !== r.id ? 'style="animation: none;"' : ''}>
-                    <div class="shadcn-accordion-content-inner">
-                      <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
-                        <button type="button" class="ghost-btn" data-action="ml-toggle-answer" data-id="${r.id}" style="font-size: 0.85em; height: 32px; padding: 0 12px;">
-                          ${isAnswerShown ? "Hide Answer" : "Show Answer"}
-                        </button>
+              return `
+              <!-- Card -->
+              <div class="card-shadow ml-card-item ${isExpanded ? 'ml-expanded-card' : ''}" id="card-${r.id}" style="border-radius: 12px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; display: flex; flex-direction: column; position: relative; transition: all 0.3s ease;">
+                  <div style="width: 4px; height: 100%; position: absolute; left: 0; top: 0; background: ${borderColor};"></div>
+                  
+                  <!-- Clickable collapsed area -->
+                  <div data-action="ml-toggle-card" data-id="${r.id}" style="padding: 16px 20px; padding-left: 24px; flex: 1; cursor: pointer;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                          <div style="display: flex; flex-direction: column; gap: 4px;">
+                              <span style="font-size: 10px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.05em;">${titleText}</span>
+                              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                  <span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: var(--surface-main); color: var(--ink-muted); font-family: monospace;">
+                                      ID: ${q.id}
+                                  </span>
+                                  ${q.difficulty && q.difficulty !== "Unspecified" ? `<span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: ${diffBg}; color: ${diffColor};">${DIFFICULTIES[q.difficulty] || q.difficulty}</span>` : ''}
+                                  <span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: var(--line-light); color: var(--ink-secondary); display: flex; align-items: center; gap: 4px;">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                                      Missed ${group.attempts.length} time${group.attempts.length > 1 ? 's' : ''}
+                                  </span>
+                                  ${r.isMastered ? `<span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #dcfce7; color: #166534;">Mastered</span>` : ''}
+                              </div>
+                          </div>
                       </div>
-                      <div class="question-content" style="margin-bottom: 16px; margin-top: 0;">
+                      
+                      <div style="margin-bottom: 12px;">
+                          <div style="font-size: 14px; color: var(--ink); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 12px;">
+                              ${!isExpanded ? sanitizeHtml(q.prompt) : ''}
+                          </div>
+                          
+                          ${!isExpanded ? `
+                          <div style="padding: 8px 12px; border-radius: 6px; background: #fef2f2; border: 1px solid #fecaca; display: flex; align-items: center; gap: 10px;">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                              <div>
+                                  <span style="font-size: 10px; font-weight: 600; color: var(--ink-muted); display: block; margin-bottom: 2px;">Your Answer:</span>
+                                  <span style="font-size: 14px; color: var(--ink); font-weight: 500;">${escapeHtml(r.answer) || "Omitted"}</span>
+                              </div>
+                          </div>
+                          ` : ''}
+                      </div>
+
+                      ${(!isExpanded && (r.notes || unionTags.length > 0)) ? `
+                      <div style="background: var(--surface-main); border-radius: 8px; padding: 12px; border: 1px dashed var(--line);">
+                          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                              <span style="font-size: 11px; font-weight: 600; color: var(--ink-muted); display: flex; align-items: center; gap: 6px;">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> 
+                                  Personal Note
+                              </span>
+                          </div>
+                          ${r.notes ? `<p style="font-size: 13px; color: var(--ink); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0;">${escapeHtml(r.notes)}</p>` : ''}
+                          <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
+                              ${unionTags.map(t => `<span style="padding: 2px 8px; background: var(--surface-hover); border: 1px solid var(--line); border-radius: 999px; font-size: 10px; font-weight: 600; color: var(--ink-main);">${t}</span>`).join("")}
+                          </div>
+                      </div>
+                      ` : ''}
+                  </div>
+
+                  <!-- Expanded Details -->
+                  ${isExpanded ? `
+                  <div style="padding: 24px; border-top: 1px solid var(--line); background: var(--panel);">
+                      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 16px;">
+                          <button type="button" class="${r.isMastered ? 'primary-btn' : 'ghost-btn'}" data-action="ml-toggle-mastered" data-id="${r.id}" style="border: 1px solid var(--line); border-radius: 8px; font-weight: 500; font-size: 13px; padding: 6px 12px; color: ${r.isMastered ? 'var(--panel)' : 'var(--ink)'}; background: ${r.isMastered ? 'var(--ink)' : 'transparent'};">
+                              ${r.isMastered ? 'Mastered ✓' : 'Mark Mastered'}
+                          </button>
+                          <button type="button" class="primary-btn" data-action="ml-retry-question" data-qid="${q.id}" style="border-radius: 8px; font-weight: 600; font-size: 13px; padding: 6px 16px; background: var(--ink); color: var(--panel);">
+                              Retry Question
+                          </button>
+                      </div>
+                      <div class="question-content" style="margin-bottom: 24px; margin-top: 0;">
                         ${q.stimulus ? sanitizeHtml(q.stimulus) + '<br><br>' : ''}
                         ${sanitizeHtml(q.prompt)}
                       </div>
-                      ${renderAnswerArea(q, r.answer, r, { hideAnswer: !isAnswerShown, isMistakesLog: true })}
-                      ${isAnswerShown ? renderImmediateExplanation(q, r) : ""}
+                      ${renderAnswerArea(q, r.answer, r, { hideAnswer: false, isMistakesLog: true })}
                       
+                      <!-- Explanation Box -->
+                      <div style="margin-top: 24px; padding: 20px; background: var(--surface-main); border: 1px solid var(--line); border-radius: 8px;">
+                          <h4 style="font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v4"/><path d="M18 5v17"/><path d="M6 5v17"/><circle cx="12" cy="9" r="2"/></svg>
+                              Explanation
+                          </h4>
+                          <div class="html-content rationale" style="font-size: 14px; color: var(--ink); line-height: 1.6; margin-top: 12px;">
+                              ${sanitizeHtml(q.rationale || "No explanation included in this export.")}
+                          </div>
+                      </div>
+
                       ${renderQuestionMeta(q, { hideSkillDomain: true })}
                       
-                      <div style="margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px;">
-                        <h4 style="font-size: 0.85em; font-weight: 600; margin-bottom: 8px; color: var(--ink-muted);">Attempt History</h4>
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                      <!-- Attempt History -->
+                      <div style="margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px;">
+                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--ink-muted);">Attempt History</h4>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
                           ${group.attempts.map(attempt => {
                             const date = attempt.answeredAt ? new Date(attempt.answeredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
                             const status = attempt.isAnswered === false ? 'Omitted' : 'Incorrect';
                             const answerText = attempt.answer ? `Answered: ${escapeHtml(attempt.answer)}` : '';
                             const time = attempt.timeSpentSeconds ? `${attempt.timeSpentSeconds}s` : '—';
                             const mode = attempt.mode === 'full' ? 'Full Test' : attempt.mode === 'custom' ? 'Custom' : attempt.mode || '—';
-                            return `<div style="display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 0.8em; color: var(--ink-muted); padding: 4px 0; align-items: baseline;">
-                              <span style="white-space: nowrap;">${date}</span>
+                            return `<div style="display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--ink-muted); padding: 6px 12px; background: var(--surface-main); border-radius: 6px; align-items: baseline;">
+                              <span style="white-space: nowrap; font-weight: 500;">${date}</span>
                               <span style="white-space: nowrap;">${mode}</span>
-                              <span style="white-space: nowrap; color: ${status === 'Omitted' ? 'var(--ink-secondary)' : 'var(--red)'}">${status}</span>
+                              <span style="white-space: nowrap; font-weight: 600; color: ${status === 'Omitted' ? 'var(--ink-secondary)' : '#ef4444'}">${status}</span>
                               <span style="flex: 1 1 100px; word-break: break-word;">${answerText}</span>
                               <span style="margin-left: auto; white-space: nowrap;">${time}</span>
                             </div>`;
                           }).join('')}
                         </div>
                       </div>
-                      
-                      <div class="ml-notes-section" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                          <h4 style="font-size: 0.9em; font-weight: 600; margin: 0;">Personal Notes & Tags</h4>
+
+                      <!-- Notes Section -->
+                      <div class="ml-notes-section" style="margin-top: 32px; padding-top: 24px; border-top: 1px dashed var(--line);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                          <h4 style="font-size: 16px; font-weight: 600; margin: 0;">Personal Notes & Tags</h4>
                         </div>
-                        <div class="ml-note-empty-state" data-id="${r.id}" style="display: ${!(r.notes || (r.tags && r.tags.length > 0)) ? 'flex' : 'none'}; justify-content: center; padding: 12px 0;">
-                          <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="border-radius: 6px; background-color: transparent; color: var(--ink); border: 1px dashed var(--line); width: 100%; height: 48px; transition: background-color 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.backgroundColor='color-mix(in srgb, var(--line) 30%, transparent)'" onmouseout="this.style.backgroundColor='transparent'">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                        
+                        <div class="ml-note-empty-state" data-id="${r.id}" style="display: ${!(r.notes || (r.tags && r.tags.length > 0)) ? 'flex' : 'none'}; justify-content: center; padding: 16px 0;">
+                          <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="border-radius: 8px; background-color: transparent; color: var(--ink); border: 2px dashed var(--line); width: 100%; height: 56px; font-weight: 600; transition: background-color 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.backgroundColor='var(--surface-hover)'" onmouseout="this.style.backgroundColor='transparent'">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
                             Add Note
                           </button>
                         </div>
 
                         <div class="ml-note-view-area" data-id="${r.id}" style="display: ${(r.notes || (r.tags && r.tags.length > 0)) ? 'block' : 'none'}; margin-bottom: 16px;">
-                          <div style="border-radius: 8px; border: 1px solid var(--line); background-color: var(--paper); color: var(--ink); box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden;">
-                            <div style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
-                              
+                          <div style="border-radius: 8px; border: 1px solid var(--line); background-color: var(--surface-main); color: var(--ink); overflow: hidden;">
+                            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
                               ${(r.tags && r.tags.length > 0) ? `
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                   ${r.tags.map(t => `
-                                    <span style="display: inline-flex; align-items: center; border-radius: 9999px; border: 1px solid transparent; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; background-color: var(--ink); color: var(--paper);">
+                                    <span style="display: inline-flex; align-items: center; border-radius: 9999px; border: 1px solid transparent; padding: 4px 12px; font-size: 12px; font-weight: 600; background-color: var(--ink); color: var(--panel);">
                                       ${t}
                                     </span>
                                   `).join("")}
                                 </div>
                               ` : ''}
-
                               ${r.notes ? `
-                                <div style="font-size: 0.875rem; line-height: 1.5; color: var(--ink); white-space: pre-wrap; font-weight: 400;">${escapeHtml(r.notes).replace(/\n/g, '<br>')}</div>
+                                <div style="font-size: 14px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; font-weight: 400;">${escapeHtml(r.notes).replace(/\\n/g, '<br>')}</div>
                               ` : ''}
                             </div>
-                            
-                            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--line); background-color: color-mix(in srgb, var(--line) 30%, transparent);">
-                              <button type="button" class="ghost-btn" data-action="ml-delete-notes" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 0.875rem; font-weight: 500; border-radius: 6px; color: var(--ink); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='var(--line)'" onmouseout="this.style.backgroundColor='transparent'">
-                                Delete
+                            <!-- Note Actions exactly at the bottom -->
+                            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line); background-color: var(--panel);">
+                              <button type="button" class="ghost-btn" data-action="ml-delete-notes" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 14px; font-weight: 500; border-radius: 6px; color: var(--ink); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='var(--surface-hover)'" onmouseout="this.style.backgroundColor='transparent'">
+                                Delete Note
                               </button>
-                              <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 0.875rem; font-weight: 500; border-radius: 6px; background-color: var(--ink); color: var(--paper);">
+                              <button type="button" class="primary-btn" data-action="ml-edit-notes-toggle" data-id="${r.id}" style="height: 36px; padding: 0 16px; font-size: 14px; font-weight: 500; border-radius: 6px; background-color: var(--ink); color: var(--panel);">
                                 Edit Note
                               </button>
                             </div>
@@ -3634,7 +3760,7 @@ function renderTestReview() {
                         </div>
 
                         <div class="ml-note-edit-area" data-id="${r.id}" style="display: none;">
-                          <div class="shadcn-filters-row" style="margin-bottom: 12px;">
+                          <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px;">
                             ${Array.from(allUsedTags).map(tag => `
                               <button type="button" data-action="ml-toggle-tag" data-id="${r.id}" data-tag="${tag}" class="tag-badge ${(r.tags || []).includes(tag) ? 'active' : ''}">
                                 ${escapeHtml(tag)}
@@ -3645,29 +3771,26 @@ function renderTestReview() {
                               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add Tag
                             </button>
                           </div>
-                          <textarea class="ml-note-input" data-action="ml-note-input" data-id="${r.id}" data-original="${escapeHtml(r.notes || "")}" placeholder="Why did you get this wrong? What will you do differently next time?" style="width: 100%; min-height: 80px; padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-family: inherit; resize: vertical; margin-bottom: 12px; transition: opacity 0.2s, background 0.2s;">${r.notes || ""}</textarea>
-                          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 12px;">
-                            <span class="ml-error-msg" id="ml-error-${r.id}" style="color: var(--red); font-size: 0.85em; display: none;">Please select at least one tag.</span>
-                            <button type="button" class="primary-btn" data-action="ml-save-notes" data-id="${r.id}">Save Note</button>
+                          <textarea class="ml-note-input" data-action="ml-note-input" data-id="${r.id}" data-original="${escapeHtml(r.notes || "")}" placeholder="Why did you get this wrong? What will you do differently next time?" style="width: 100%; min-height: 100px; padding: 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-family: inherit; font-size: 14px; resize: vertical; margin-bottom: 16px;">${r.notes || ""}</textarea>
+                          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 16px;">
+                            <span class="ml-error-msg" id="ml-error-${r.id}" style="color: #ef4444; font-size: 13px; display: none;">Please select at least one tag.</span>
+                            <button type="button" class="primary-btn" data-action="ml-save-notes" data-id="${r.id}" style="height: 40px; padding: 0 20px; font-size: 14px; font-weight: 600;">Save Note</button>
                           </div>
                         </div>
                       </div>
-                    </div>
                   </div>
-                `;
-              }
-
-              return `<div class="shadcn-accordion-item ${isExpanded ? 'expanded' : ''}">${headerHtml}${expandedHtml}</div>`;
+                  ` : ''}
+              </div>
+              `;
             }).join("")}
-          </div>
         </div>
       </div>
       <button class="primary-btn scroll-top-btn" type="button" data-action="scroll-top" aria-label="Scroll to top">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
       </button>
-      </div>
     `;
   }
+
 
   /* ---- Dashboard Sub-Components ---- */
 
@@ -4392,6 +4515,24 @@ function renderTestReview() {
       if (state.mistakesLog.filterTags.has(tag)) state.mistakesLog.filterTags.delete(tag);
       else state.mistakesLog.filterTags.add(tag);
       updateMistakesLogUI();
+    }
+    if (action === "ml-toggle-mastered") {
+      const id = event.currentTarget.dataset.id;
+      const response = state.responses.find(x => x.id === id);
+      if (response) {
+        response.isMastered = !response.isMastered;
+        DB.put("responses", response).then(() => {
+          updateMistakesLogUI();
+          if (window.SevSync?.isLinked()) window.SevSync.sync();
+        }).catch(console.error);
+      }
+    }
+    if (action === "ml-retry-question") {
+      const qid = event.currentTarget.dataset.qid;
+      const q = state.questions.find(x => x.id === qid);
+      if (q) {
+        startCustomPractice({ subject: q.subject || "both", limit: 1, isRetry: true }, [q]);
+      }
     }
     if (action === "ml-toggle-card") {
       const id = event.currentTarget.closest("[data-id]").dataset.id;
