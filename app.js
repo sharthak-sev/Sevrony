@@ -3503,7 +3503,7 @@ function renderTestReview() {
     }
 
     return `
-      <div id="mistakes-log-container" style="max-width: var(--max-content-width, 1200px); margin: 0 auto; padding-bottom: 48px; padding-top: 24px;">
+      <div id="mistakes-log-container" class="opacity-0 animate-fade-in-up" style="max-width: var(--max-content-width, 1200px); margin: 0 auto; padding-bottom: 48px; padding-top: 24px;">
         <!-- Header Section -->
         <div style="margin-bottom: 24px; padding: 0 16px;">
             <h2 style="font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Mistakes Log</h2>
