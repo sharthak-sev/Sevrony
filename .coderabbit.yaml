@@ -1,0 +1,19 @@
+# .coderabbit.yaml
+language: "en-US"
+tone_instructions: "Be direct, technical, and actionable. Focus on security and performance."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  
+  # Enabling AST-based analysis and security scanners
+  tools:
+    ast-grep:
+      enabled: true
+      essential_rules: true
+    eslint:
+      enabled: true
+
+# This configures CodeRabbit to pay extra attention to security vulnerabilities
+chat:
+  auto_reply: true
