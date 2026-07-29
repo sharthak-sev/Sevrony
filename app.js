@@ -4620,9 +4620,16 @@ function renderTestReview() {
               tagBtn.dataset.id = id;
               tagBtn.dataset.tag = cleanTag;
               tagBtn.className = "tag-badge";
-              tagBtn.innerHTML = `${escapeHtml(cleanTag)} <span data-action="ml-delete-custom-tag" data-tag="${cleanTag}" style="margin-left: 6px; opacity: 0.6;">&times;</span>`;
+              tagBtn.textContent = cleanTag + " ";
+              const closeSpan = document.createElement("span");
+              closeSpan.dataset.action = "ml-delete-custom-tag";
+              closeSpan.dataset.tag = cleanTag;
+              closeSpan.style.marginLeft = "6px";
+              closeSpan.style.opacity = "0.6";
+              closeSpan.textContent = "×";
+              tagBtn.appendChild(closeSpan);
               tagBtn.addEventListener("click", handleHomeAction);
-              tagBtn.querySelector("span").addEventListener("click", handleHomeAction);
+              closeSpan.addEventListener("click", handleHomeAction);
               container.insertBefore(tagBtn, target);
             }
             tagBtn.classList.add("active");
@@ -7855,7 +7862,7 @@ ${(() => {
           const text = el.textContent || "";
           // Map special chars that might appear in mi
           if (text.length === 1 && SPECIAL_CHARS[text]) return SPECIAL_CHARS[text];
-          return text.replace(/%/g, "\\%");
+          return text.replace(/\\/g, "\\\\").replace(/%/g, "\\%");
         }
 
         case "mo": {
@@ -7871,13 +7878,13 @@ ${(() => {
               text === "." || text === "!" || text === ":" ||
               text === ";") return text;
           if (text === "\u2223" || text === "\u2225") return "\\mid ";
-          return text.replace(/%/g, "\\%");
+          return text.replace(/\\/g, "\\\\").replace(/%/g, "\\%");
         }
 
         case "mtext": {
           const text = el.textContent || "";
           if (!text.trim()) return "\\; ";
-          return "\\text{" + text.replace(/%/g, "\\%") + "}";
+          return "\\text{" + text.replace(/\\/g, "\\\\").replace(/%/g, "\\%") + "}";
         }
 
         case "mspace":
@@ -8115,7 +8122,7 @@ ${(() => {
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
   function uid(prefix) {
-    return crypto.randomUUID ? `${prefix}-${crypto.randomUUID()}` : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return crypto.randomUUID ? `${prefix}-${crypto.randomUUID()}` : `${prefix}-${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0].toString(16)}`;
   }
 
   function letterAt(i) { return String.fromCharCode(65 + i); }

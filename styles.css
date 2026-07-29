@@ -3784,6 +3784,7 @@ html[data-transition="drill"]::view-transition-new(root) {
 /* Sentence Checker */
 .vocab-sentence-card {
   display: flex;
+  align-items: center;
   gap: 16px;
   padding: 8px;
   border-radius: 100px;

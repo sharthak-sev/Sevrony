@@ -652,7 +652,7 @@
       <div class="choice-list" style="max-width: 600px; margin: 0 auto;">
         ${options.map((opt, i) => {
           let extraClass = "";
-          let clickHandler = vocabState.mcqSelected ? "" : `onclick="window.Vocab.selectMCQ('${opt.replace(/'/g, "\\'")}')"`;
+          let clickHandler = vocabState.mcqSelected ? "" : `onclick="window.Vocab.selectMCQ(decodeURIComponent('${encodeURIComponent(opt)}'))"`;
 
           if (vocabState.mcqSelected) {
             if (opt === vocabState.mcqCorrectValue) {
@@ -749,7 +749,7 @@
             else if (isWrongLeft) stateClass = "wrong";
             else if (isSelected) stateClass = "selected";
 
-            return `<button class="vocab-match-btn ${stateClass}" onclick="window.Vocab.matchSelect('left', '${w.id.replace(/'/g, "\\'")}')">
+            return `<button class="vocab-match-btn ${stateClass}" onclick="window.Vocab.matchSelect('left', decodeURIComponent('${encodeURIComponent(w.id)}'))">
               <span>${w.word}</span>
             </button>`;
           }).join('')}
@@ -768,7 +768,7 @@
             else if (isWrongRight) stateClass = "wrong";
             else if (isSelected) stateClass = "selected-right";
 
-            return `<button class="vocab-match-btn text-small ${stateClass}" onclick="window.Vocab.matchSelect('right', '${m.id.replace(/'/g, "\\'")}')">
+            return `<button class="vocab-match-btn text-small ${stateClass}" onclick="window.Vocab.matchSelect('right', decodeURIComponent('${encodeURIComponent(m.id)}'))">
               <span>${m.meaning}</span>
             </button>`;
           }).join('')}
@@ -825,7 +825,7 @@
       <h2 style="font-size: 28px; margin-bottom: 12px; font-weight: 800; letter-spacing: -0.02em;">${wordObj.word}</h2>
       <p class="muted" style="margin-bottom: 32px; font-size: 16px;">${wordObj.meaning}</p>
       
-      <div class="vocab-sentence-card card">
+      <div class="vocab-sentence-card">
         <input type="text" id="vocab-sentence-input" class="vocab-sentence-input" placeholder="Type your sentence here..." autocomplete="off">
         <button id="vocab-check-btn" class="primary-btn large" style="border-radius: var(--radius-pill); flex-shrink: 0; padding: 0 32px;" onclick="window.Vocab.checkSentence()">Check</button>
       </div>
