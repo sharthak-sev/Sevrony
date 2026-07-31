@@ -4,7 +4,7 @@ export default {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*", // You can restrict this to your frontend URL in production
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, X-API-Key, Authorization",
     };
 
     if (request.method === "OPTIONS") {
@@ -23,6 +23,18 @@ export default {
     }
 
     try {
+      // --- API Key Authentication ---
+      const expectedApiKey = env.WORKER_API_KEY;
+      const clientApiKey = request.headers.get("X-API-Key") || request.headers.get("Authorization")?.replace("Bearer ", "");
+      
+      // Only enforce if the secret is configured in the environment
+      if (expectedApiKey && clientApiKey !== expectedApiKey) {
+        return new Response(JSON.stringify({ error: "Unauthorized. Invalid API Key." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const urlObj = new URL(request.url);
 
       // --- Rate Limiting (In-Memory per Edge Server) ---
@@ -132,14 +144,42 @@ export default {
       } else {
         // Default: Vocabulary AI checking
         const body = await request.json();
-        const { word, meaning, sentence } = body;
+        const { word, meaning, sentence, "cf-turnstile-response": token } = body;
 
-        if (!word || !meaning || !sentence) {
-          return new Response(JSON.stringify({ error: "Missing parameters" }), {
+        if (!word || !meaning || !sentence || !token) {
+          return new Response(JSON.stringify({ error: "Missing parameters or security token" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+
+        // --- Turnstile Verification ---
+        const turnstileSecret = env.TURNSTILE_SECRET;
+        if (!turnstileSecret) {
+          return new Response(JSON.stringify({ error: "Turnstile secret not configured" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const turnstileFormData = new FormData();
+        turnstileFormData.append("secret", turnstileSecret);
+        turnstileFormData.append("response", token);
+        turnstileFormData.append("remoteip", ip);
+
+        const turnstileRes = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+          method: "POST",
+          body: turnstileFormData
+        });
+
+        const turnstileData = await turnstileRes.json();
+        if (!turnstileData.success) {
+          return new Response(JSON.stringify({ error: "Security check failed", details: turnstileData["error-codes"] }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
 
         if (sentence.length < 5 || sentence.length > 500) {
           return new Response(

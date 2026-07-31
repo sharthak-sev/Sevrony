@@ -874,7 +874,7 @@
     nextQuestion(passed, 'mcq');
   }
 
-  async function callBackend(word, meaning, sentence) {
+  async function callBackend(word, meaning, sentence, turnstileToken) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
 
@@ -882,9 +882,10 @@
       const response = await fetch(vocabState.backendEndpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-API-Key': 'YOUR_CLIENT_API_KEY' // TODO: Replace this with your actual key
         },
-        body: JSON.stringify({ word, meaning, sentence }),
+        body: JSON.stringify({ word, meaning, sentence, 'cf-turnstile-response': turnstileToken }),
         signal: controller.signal
       });
       
@@ -955,8 +956,20 @@
     vocabState.lastSentenceSubmitted = input;
 
     try {
+      const token = window.turnstile ? window.turnstile.getResponse() : null;
+      if (!token && window.turnstile) {
+        feedbackDiv.innerHTML = '<p class="error" style="color: var(--amber);">Security check not ready. Please wait a moment and try again.</p>';
+        if (checkBtn) {
+          checkBtn.disabled = false;
+          checkBtn.innerText = checkBtn.dataset.originalText;
+          checkBtn.style.opacity = "1";
+        }
+        return;
+      }
+
       if (vocabState.backendEndpoint) {
-        const result = await callBackend(wordObj.word, wordObj.meaning, input);
+        const result = await callBackend(wordObj.word, wordObj.meaning, input, token);
+        if (window.turnstile) setTimeout(() => window.turnstile.reset(), 0);
         isValid = result.isValid;
         feedback = result.feedback;
         modelUsed = 'AI Evaluated';
@@ -975,6 +988,8 @@
         modelUsed = 'Basic Checks';
       }
     } catch (e) {
+      console.error("Sentence check error:", e);
+      if (window.turnstile) setTimeout(() => window.turnstile.reset(), 0);
       if (e.message && e.message.includes('429')) {
         isRateLimited = true;
         feedback = "Too many attempts. Please wait a few seconds before trying again.";
