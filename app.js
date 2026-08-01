@@ -860,6 +860,25 @@ window.updateSelectAllButtons = function() {
 
   function loadSentry() {
     if (window.Sentry) return Promise.resolve(true);
+    
+    window.Sentry = window.Sentry || {};
+    window.Sentry.onLoad = window.Sentry.onLoad || function(cb) {
+      (window.Sentry.onLoad.q = window.Sentry.onLoad.q || []).push(cb);
+    };
+    
+    window.Sentry.onLoad(function() {
+      window.Sentry.init({
+        integrations: [
+          window.Sentry.browserTracingIntegration(),
+          window.Sentry.replayIntegration(),
+        ],
+        tracesSampleRate: 1.0,
+        tracePropagationTargets: ["localhost", /^https:\/\/sharthak-sev\.github\.io/],
+        replaysSessionSampleRate: 0.1,
+        replaysOnErrorSampleRate: 1.0,
+      });
+    });
+
     return loadScriptOnce("sentry-loader", SENTRY_LOADER_URL);
   }
 

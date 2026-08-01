@@ -874,6 +874,47 @@
     nextQuestion(passed, 'mcq');
   }
 
+  function getTurnstileToken() {
+    return new Promise((resolve, reject) => {
+      if (!window.turnstile) {
+        return reject(new Error("Security script blocked. Please disable your ad-blocker or tracking protection for this site."));
+      }
+      
+      const containerId = 'cf-turnstile-dynamic';
+      let container = document.getElementById(containerId);
+      if (!container) {
+        container = document.createElement('div');
+        container.id = containerId;
+        container.style.display = 'none';
+        document.body.appendChild(container);
+      } else {
+        container.innerHTML = '';
+      }
+
+      let widgetId;
+      try {
+        widgetId = window.turnstile.render(container, {
+          sitekey: '0x4AAAAAAEC6PoP81MryKKvo',
+          action: 'check_sentence',
+          callback: function(token) {
+            setTimeout(() => window.turnstile.remove(widgetId), 500);
+            resolve(token);
+          },
+          'error-callback': function() {
+            setTimeout(() => window.turnstile.remove(widgetId), 500);
+            reject(new Error("Security check failed (600010). Please refresh and try again."));
+          },
+          'timeout-callback': function() {
+            setTimeout(() => window.turnstile.remove(widgetId), 500);
+            reject(new Error("Security check timed out. Please try again."));
+          }
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
   async function callBackend(word, meaning, sentence, turnstileToken) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
@@ -956,20 +997,10 @@
     vocabState.lastSentenceSubmitted = input;
 
     try {
-      const token = window.turnstile ? window.turnstile.getResponse() : null;
-      if (!token && window.turnstile) {
-        feedbackDiv.innerHTML = '<p class="error" style="color: var(--amber);">Security check not ready. Please wait a moment and try again.</p>';
-        if (checkBtn) {
-          checkBtn.disabled = false;
-          checkBtn.innerText = checkBtn.dataset.originalText;
-          checkBtn.style.opacity = "1";
-        }
-        return;
-      }
+      const token = await getTurnstileToken();
 
       if (vocabState.backendEndpoint) {
         const result = await callBackend(wordObj.word, wordObj.meaning, input, token);
-        if (window.turnstile) setTimeout(() => window.turnstile.reset(), 0);
         isValid = result.isValid;
         feedback = result.feedback;
         modelUsed = 'AI Evaluated';
@@ -989,7 +1020,6 @@
       }
     } catch (e) {
       console.error("Sentence check error:", e);
-      if (window.turnstile) setTimeout(() => window.turnstile.reset(), 0);
       if (e.message && e.message.includes('429')) {
         isRateLimited = true;
         feedback = "Too many attempts. Please wait a few seconds before trying again.";
