@@ -885,9 +885,19 @@
       if (!container) {
         container = document.createElement('div');
         container.id = containerId;
-        container.style.display = 'none';
+        // Do not use display: none; browsers throttle it and cause the widget to hang.
+        container.style.position = 'absolute';
+        container.style.opacity = '0';
+        container.style.pointerEvents = 'none';
+        container.style.width = '0px';
+        container.style.height = '0px';
         document.body.appendChild(container);
       } else {
+        if (container.dataset.widgetId) {
+          try {
+            window.turnstile.remove(container.dataset.widgetId);
+          } catch (e) {}
+        }
         container.innerHTML = '';
       }
 
@@ -897,18 +907,25 @@
           sitekey: '0x4AAAAAAEC6PoP81MryKKvo',
           action: 'check_sentence',
           callback: function(token) {
-            setTimeout(() => window.turnstile.remove(widgetId), 500);
+            setTimeout(() => {
+              try { window.turnstile.remove(widgetId); } catch(e) {}
+            }, 500);
             resolve(token);
           },
           'error-callback': function() {
-            setTimeout(() => window.turnstile.remove(widgetId), 500);
+            setTimeout(() => {
+              try { window.turnstile.remove(widgetId); } catch(e) {}
+            }, 500);
             reject(new Error("Security check failed (600010). Please refresh and try again."));
           },
           'timeout-callback': function() {
-            setTimeout(() => window.turnstile.remove(widgetId), 500);
+            setTimeout(() => {
+              try { window.turnstile.remove(widgetId); } catch(e) {}
+            }, 500);
             reject(new Error("Security check timed out. Please try again."));
           }
         });
+        container.dataset.widgetId = widgetId;
       } catch (e) {
         reject(e);
       }
