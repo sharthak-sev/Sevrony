@@ -838,7 +838,7 @@ window.updateSelectAllButtons = function() {
         capture_pageview: false,
         capture_pageleave: false,
         capture_dead_clicks: false,
-        disable_session_recording: true,
+        disable_session_recording: false,
         disable_surveys: true,
         enable_heatmaps: false,
         mask_all_text: true,
@@ -1570,7 +1570,7 @@ font-family: inherit !important;
               Optional Telemetry
             </h2>
             <p style="line-height: 1.6; color: var(--muted-foreground);">
-              Telemetry is off until you accept it. If accepted, the hosted app loads <strong>PostHog</strong> for product analytics and <strong>Sentry</strong> for crash/error reports. Autocapture and session recording are disabled, and events avoid file names, answers, question text, and exact scores.
+              Telemetry is off until you accept it. If accepted, the hosted app loads <strong>PostHog</strong> for product analytics and <strong>Sentry</strong> for crash/error reports. Autocapture is disabled, and events avoid file names, answers, question text, and exact scores.
             </p>
             <ul style="line-height: 1.6; color: var(--muted-foreground); margin-top: 8px; padding-left: 20px;">
               <li><strong>Email Tracking (Cross-device analytics):</strong> If you consent to telemetry <em>and</em> link your Google Drive for Cloud Sync, your Google email address is securely sent to PostHog. This helps us understand how the app is used across different devices.</li>

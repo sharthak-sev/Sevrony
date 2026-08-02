@@ -1,0 +1,77 @@
+{
+  "nodes": [
+    {
+      "id": "index.html",
+      "under_the_hood": "Static application entry point. It loads styles.css and tailwind.css, includes the Cloudflare Turnstile script for bot protection, then defers db.js, sync.js, vocab.js, and app.js in that dependency order. All local asset URLs use the v2.1.5 cache key, and the page registers sw.js after load."
+    },
+    {
+      "id": "app.js",
+      "under_the_hood": "Primary UI and route orchestrator. It hydrates question-bank data from IndexedDB, renders the SPA shell and SAT practice flows (including tracking omitted custom test responses, option toggling, and RW passage text highlighting with boundary clamping, as well as the Mistakes Log), and owns onboarding, history, backup, tutorial, and hash/popstate routing. Vocabulary is an independent route: an active window.Vocab session restores #vocab on startup, bypasses question-bank onboarding, and counts as restorable data when a returning account is synced. app.js exposes window.renderHome so vocab.js can request a UI refresh. It also conditionally loads PostHog and Sentry upon telemetry consent, initializing both with Session Replay, and Sentry with Distributed Tracing."
+    },
+    {
+      "id": "db.js",
+      "under_the_hood": "IndexedDB wrapper exposed as window.SatPracticeDB. It provides promise-based get, getAll, put, putMany, remove, and clear operations for questionBanks, questions, sessions, responses, appConfig, and vocabWords."
+    },
+    {
+      "id": "vocab.js",
+      "under_the_hood": "Vocabulary SRS module. It seeds vocabWords from dsat_vocabulary.json, manages learn and flashcard sessions, and persists resumable session state in localStorage under sat_vocab_state. It exposes isSessionActive(), reloadState(), and rendering/session methods through window.Vocab. Progress updates are written to IndexedDB and optionally synced through SevSync. Includes dynamic Cloudflare Turnstile integration with safe unmounting and offscreen positioning to avoid display-none throttling while securing AI sentence validation endpoints."
+    },
+    {
+      "id": "sync.js",
+      "under_the_hood": "Optional Google Drive appData sync module exposed as window.SevSync. It stores link metadata and short-lived access tokens in localStorage, merges local and remote records with last-write-wins rules, and syncs both vocabWords and sat_vocab_state. Background syncing runs only with a valid cached token; manual sync renews the Google session when needed."
+    },
+    {
+      "id": "sw.js",
+      "under_the_hood": "Network-first service worker with cache fallback for GET requests. It precaches the v2.1.5 application asset set in sat-practice-cache-v2.1.5, bypasses the browser HTTP cache during install, activates immediately, and deletes older named caches."
+    },
+    {
+      "id": "styles.css",
+      "under_the_hood": "Hand-authored responsive application styles, including the sidebar, modals, loading states, SAT practice UI, and vocabulary session/flashcard layouts."
+    },
+    {
+      "id": "tailwind.css",
+      "under_the_hood": "Committed, precompiled Tailwind utility stylesheet used alongside styles.css."
+    },
+    {
+      "id": "dsat_vocabulary.json",
+      "under_the_hood": "Static vocabulary seed data fetched by vocab.js when the vocabWords store is empty."
+    },
+    {
+      "id": "cloudflare-worker.js",
+      "under_the_hood": "Cloudflare Worker backend for AI vocabulary sentence validation and feedback submission. Enforces Cloudflare Turnstile siteverify and CORS to protect against unauthorized bots."
+    },
+    {
+      "id": "manifest.json",
+      "under_the_hood": "PWA manifest defining the install name, colors, display mode, start URL, and logo icon."
+    },
+    {
+      "id": "logo.svg",
+      "under_the_hood": "Primary application and PWA icon, referenced by the page, manifest, and service-worker cache list."
+    }
+  ],
+  "edges": [
+    { "source": "index.html", "target": "styles.css", "relationship": "loads" },
+    { "source": "index.html", "target": "tailwind.css", "relationship": "loads" },
+    { "source": "index.html", "target": "db.js", "relationship": "loads first" },
+    { "source": "index.html", "target": "sync.js", "relationship": "loads" },
+    { "source": "index.html", "target": "vocab.js", "relationship": "loads before app.js" },
+    { "source": "index.html", "target": "app.js", "relationship": "loads" },
+    { "source": "index.html", "target": "sw.js", "relationship": "registers" },
+    { "source": "index.html", "target": "manifest.json", "relationship": "references" },
+    { "source": "app.js", "target": "db.js", "relationship": "hydrates and persists SAT practice data" },
+    { "source": "app.js", "target": "sync.js", "relationship": "links and syncs accounts" },
+    { "source": "app.js", "target": "vocab.js", "relationship": "routes to and renders vocabulary UI" },
+    { "source": "vocab.js", "target": "db.js", "relationship": "reads and updates vocabWords" },
+    { "source": "vocab.js", "target": "sync.js", "relationship": "requests progress sync when linked" },
+    { "source": "vocab.js", "target": "dsat_vocabulary.json", "relationship": "seeds empty vocabulary storage" },
+    { "source": "vocab.js", "target": "app.js", "relationship": "calls window.renderHome" },
+    { "source": "vocab.js", "target": "cloudflare-worker.js", "relationship": "submits sentence validation requests" },
+    { "source": "sync.js", "target": "db.js", "relationship": "merges local stores with Drive data" },
+    { "source": "sw.js", "target": "index.html", "relationship": "precaches" },
+    { "source": "sw.js", "target": "app.js", "relationship": "precaches" },
+    { "source": "sw.js", "target": "db.js", "relationship": "precaches" },
+    { "source": "sw.js", "target": "sync.js", "relationship": "precaches" },
+    { "source": "sw.js", "target": "vocab.js", "relationship": "precaches" },
+    { "source": "manifest.json", "target": "logo.svg", "relationship": "uses as icon" }
+  ]
+}
