@@ -841,8 +841,10 @@ window.updateSelectAllButtons = function() {
         disable_session_recording: false,
         disable_surveys: true,
         enable_heatmaps: false,
-        mask_all_text: true,
-        mask_all_element_attributes: true,
+        session_recording: {
+          maskAllInputs: true,
+          maskTextSelector: "*"
+        },
         advanced_disable_feature_flags: true,
         property_denylist: ["name", "filename", "answer", "correctAnswers", "question", "prompt", "stimulus", "rationale"],
         secure_cookie: location.protocol === "https:",
