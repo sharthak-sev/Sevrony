@@ -2,99 +2,76 @@
   "use strict";
 
   const DB_NAME = "sat-interactive-practice";
-  const DB_VERSION = 4;
+  const DB_VERSION = 5;
+  const CONSENT_KEY = "sevrony.telemetryConsent";
+  const CONSENT_ACCEPTED = "accepted";
+  const LEGACY_MIGRATION_KEY = "sevrony.db.plaintextMigration.v1";
   let dbPromise = null;
 
-  // --- ENCRYPTION LOGIC ---
-  const SENSITIVE_STORES = ["questions", "sessions", "responses", "questionStudyState"];
-  const SENSITIVE_FIELDS = ["prompt", "passage", "choices", "correctAnswer", "rationale", "history", "answer", "highlights", "mistakeLog"];
-
-  async function getCryptoKey() {
-    const isDemo = localStorage.getItem('sat_demo_mode') === 'true';
-    const rawKey = isDemo ? "demo_mode_dummy_key_999999999999" : localStorage.getItem('app_encryption_key');
-    if (!rawKey) throw new Error("Privacy Policy not accepted. Master key missing.");
-    const enc = new TextEncoder();
-    return await crypto.subtle.importKey(
-      "raw",
-      enc.encode(rawKey.padEnd(32, '0').slice(0, 32)),
-      { name: "AES-GCM" },
-      false,
-      ["encrypt", "decrypt"]
-    );
+  function hasConsent() {
+    return localStorage.getItem("sat_demo_mode") === "true" ||
+      localStorage.getItem(CONSENT_KEY) === CONSENT_ACCEPTED;
   }
 
-  async function encryptPayload(data) {
-    const key = await getCryptoKey();
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const enc = new TextEncoder();
-    const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: iv },
-      key,
-      enc.encode(JSON.stringify(data))
-    );
-    return {
-      __encrypted: true,
-      iv: Array.from(iv),
-      data: Array.from(new Uint8Array(encrypted))
-    };
-  }
-
-  async function decryptPayload(encryptedObj) {
-    if (!encryptedObj || !encryptedObj.__encrypted) return encryptedObj;
-    const key = await getCryptoKey();
-    const iv = new Uint8Array(encryptedObj.iv);
-    const data = new Uint8Array(encryptedObj.data);
-    const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: iv },
-      key,
-      data
-    );
-    const dec = new TextDecoder();
-    return JSON.parse(dec.decode(decrypted));
-  }
-
-  async function encryptObject(storeName, obj) {
-    if (!obj || !SENSITIVE_STORES.includes(storeName)) return obj;
-    
-    // Create a copy to avoid mutating the original before saving
-    const secureObj = { ...obj };
-    let hasSensitive = false;
-    const securePayload = {};
-    
-    for (const field of SENSITIVE_FIELDS) {
-      if (secureObj[field] !== undefined) {
-        securePayload[field] = secureObj[field];
-        delete secureObj[field];
-        hasSensitive = true;
-      }
+  function requireConsent() {
+    if (!hasConsent()) {
+      throw new Error("Accept the Privacy Policy before saving or importing practice data.");
     }
-    
-    if (hasSensitive) {
-      secureObj._secure = await encryptPayload(securePayload);
-    }
-    return secureObj;
   }
 
-  async function decryptObject(storeName, obj) {
-    if (!obj || !SENSITIVE_STORES.includes(storeName) || !obj._secure) return obj;
-    try {
-      const decrypted = await decryptPayload(obj._secure);
-      for (const key in decrypted) {
-        obj[key] = decrypted[key];
-      }
-      delete obj._secure;
-    } catch (e) {
-      console.error("Decryption failed for object in", storeName, obj);
-      throw new Error("Data decryption failed. Invalid App Key.");
+  // Encryption used to turn every large question/session into an array of JS
+  // numbers.  That multiplied IndexedDB transfer work and caused long main
+  // thread tasks during every sync.  Existing encrypted records are rewritten
+  // once by db-worker.js before this API serves any request.
+  function migrateLegacyEncryption() {
+    if (localStorage.getItem(LEGACY_MIGRATION_KEY) === "done") {
+      return Promise.resolve();
     }
-    return obj;
+
+    return new Promise((resolve, reject) => {
+      const worker = new Worker("db-worker.js?v=2.2.0");
+      const timer = setTimeout(() => {
+        worker.terminate();
+        reject(new Error("Timed out migrating local practice data."));
+      }, 120000);
+
+      worker.onmessage = event => {
+        const message = event.data || {};
+        if (message.type === "complete") {
+          clearTimeout(timer);
+          worker.terminate();
+          localStorage.setItem(LEGACY_MIGRATION_KEY, "done");
+          // The old key is no longer needed once every legacy record is plain.
+          localStorage.removeItem("app_encryption_key");
+          resolve();
+        } else if (message.type === "error") {
+          clearTimeout(timer);
+          worker.terminate();
+          reject(new Error(message.error || "Could not migrate local practice data."));
+        }
+      };
+      worker.onerror = event => {
+        clearTimeout(timer);
+        worker.terminate();
+        reject(event.error || new Error("Local data migration worker failed."));
+      };
+      worker.postMessage({
+        type: "migrate",
+        dbName: DB_NAME,
+        dbVersion: DB_VERSION,
+        legacyKey: localStorage.getItem("app_encryption_key")
+      });
+    });
   }
-  // ------------------------
+
+  const ready = migrateLegacyEncryption().catch(error => {
+    // Do not silently serve encrypted records as if they were valid data.
+    console.error("Local data migration failed:", error);
+    throw error;
+  });
 
   function open() {
-    if (dbPromise) {
-      return dbPromise;
-    }
+    if (dbPromise) return dbPromise;
 
     dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -106,20 +83,17 @@
           const banks = db.createObjectStore("questionBanks", { keyPath: "id" });
           banks.createIndex("importedAt", "importedAt", { unique: false });
         }
-
         if (!db.objectStoreNames.contains("questions")) {
           const questions = db.createObjectStore("questions", { keyPath: "id" });
           questions.createIndex("subject", "subject", { unique: false });
           questions.createIndex("domainCode", "domainCode", { unique: false });
           questions.createIndex("difficultyCode", "difficultyCode", { unique: false });
         }
-
         if (!db.objectStoreNames.contains("sessions")) {
           const sessions = db.createObjectStore("sessions", { keyPath: "id" });
           sessions.createIndex("completedAt", "completedAt", { unique: false });
           sessions.createIndex("mode", "mode", { unique: false });
         }
-
         if (!db.objectStoreNames.contains("responses")) {
           const responses = db.createObjectStore("responses", { keyPath: "id" });
           responses.createIndex("sessionId", "sessionId", { unique: false });
@@ -127,17 +101,14 @@
           responses.createIndex("subject", "subject", { unique: false });
           responses.createIndex("domainCode", "domainCode", { unique: false });
         }
-
         if (!db.objectStoreNames.contains("appConfig")) {
           db.createObjectStore("appConfig", { keyPath: "key" });
         }
-
         if (!db.objectStoreNames.contains("vocabWords")) {
           const vocabWords = db.createObjectStore("vocabWords", { keyPath: "word" });
           vocabWords.createIndex("status", "status", { unique: false });
           vocabWords.createIndex("nextReviewDate", "nextReviewDate", { unique: false });
         }
-
         if (!db.objectStoreNames.contains("questionStudyState")) {
           db.createObjectStore("questionStudyState", { keyPath: "id" });
         }
@@ -146,22 +117,19 @@
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-
     return dbPromise;
   }
 
   async function withStore(storeName, mode, callback) {
+    await ready;
     const db = await open();
-
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(storeName, mode);
       const store = transaction.objectStore(storeName);
       let callbackResult;
-
       transaction.oncomplete = () => resolve(callbackResult);
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
-
       callbackResult = callback(store);
     });
   }
@@ -173,36 +141,32 @@
     });
   }
 
-  async function getAll(storeName) {
-    const records = await withStore(storeName, "readonly", store => requestToPromise(store.getAll()));
-    if (!records) return records;
-    return Promise.all(records.map(r => decryptObject(storeName, r)));
+  function getAll(storeName) {
+    return withStore(storeName, "readonly", store => requestToPromise(store.getAll()));
   }
 
-  async function get(storeName, key) {
-    const record = await withStore(storeName, "readonly", store => requestToPromise(store.get(key)));
-    return decryptObject(storeName, record);
+  function get(storeName, key) {
+    return withStore(storeName, "readonly", store => requestToPromise(store.get(key)));
   }
 
-  async function put(storeName, value) {
-    const encryptedValue = await encryptObject(storeName, value);
+  function put(storeName, value) {
+    requireConsent();
     return withStore(storeName, "readwrite", store => {
-      store.put(encryptedValue);
+      store.put(value);
       return value;
     });
   }
 
-  async function putMany(storeName, values) {
-    const encryptedValues = await Promise.all(values.map(v => encryptObject(storeName, v)));
+  function putMany(storeName, values) {
+    requireConsent();
     return withStore(storeName, "readwrite", store => {
-      for (const val of encryptedValues) {
-        store.put(val);
-      }
+      for (const value of values) store.put(value);
       return values.length;
     });
   }
 
-  async function clear(storeName) {
+  function clear(storeName) {
+    requireConsent();
     return withStore(storeName, "readwrite", store => {
       store.clear();
       return true;
@@ -218,32 +182,29 @@
     await clear("questionStudyState");
   }
 
-  async function remove(storeName, key) {
+  function remove(storeName, key) {
+    requireConsent();
     return withStore(storeName, "readwrite", store => {
       store.delete(key);
       return true;
     });
   }
 
-  async function removeMany(storeName, keys) {
+  function removeMany(storeName, keys) {
+    requireConsent();
     return withStore(storeName, "readwrite", store => {
-      for (const key of keys) {
-        store.delete(key);
-      }
+      for (const key of keys) store.delete(key);
       return keys.length;
     });
   }
 
-  async function getAllByIndex(storeName, indexName, key) {
-    const records = await withStore(storeName, "readonly", store => {
-      const index = store.index(indexName);
-      return requestToPromise(index.getAll(key));
-    });
-    if (!records) return records;
-    return Promise.all(records.map(r => decryptObject(storeName, r)));
+  function getAllByIndex(storeName, indexName, key) {
+    return withStore(storeName, "readonly", store => requestToPromise(store.index(indexName).getAll(key)));
   }
 
   window.SatPracticeDB = {
+    ready,
+    hasConsent,
     getAll,
     getAllByIndex,
     get,

@@ -22,6 +22,10 @@
 
   const DB = window.SatPracticeDB;
 
+  function hasPrivacyConsent() {
+    return DB.hasConsent?.() !== false;
+  }
+
   function notifyStateChange() {
     if (onSyncStateChange) onSyncStateChange();
   }
@@ -458,6 +462,7 @@
   // ─── Background Sync (visibility + polling) ─────────────────
 
   function startBackgroundSync() {
+    if (!hasPrivacyConsent()) return;
     stopBackgroundSync();
     // Poll every 15s while tab is visible
     periodicTimer = setInterval(() => {
@@ -486,7 +491,7 @@
    * If remote has changes, pulls them and notifies the app.
    */
   async function backgroundSyncOnce() {
-    if (syncing || !isLinked() || !navigator.onLine) return;
+    if (syncing || !hasPrivacyConsent() || !isLinked() || !navigator.onLine) return;
     if (!getCachedToken()) {
       notifyStateChange();
       return; // expired token → can't sync silently
@@ -505,6 +510,7 @@
   // ─── Public API ──────────────────────────────────────────────
 
   async function link() {
+    if (!hasPrivacyConsent()) throw new Error("consent_required");
     await loadGIS();
     return new Promise((resolve, reject) => {
       initTokenClient((token, err) => {
@@ -539,6 +545,7 @@
 
   async function sync(isManual = false, options = {}) {
     if (localStorage.getItem("sat_demo_mode") === "true") return { ok: false, reason: "demo_mode" };
+    if (!hasPrivacyConsent()) return { ok: false, reason: "consent_required" };
     if (!isLinked()) return { ok: false, reason: "not_linked" };
     if (!navigator.onLine) return { ok: false, reason: "offline" };
     
@@ -642,7 +649,7 @@
   // ─── Init ────────────────────────────────────────────────────
 
   // If already linked and token is valid, start background sync immediately
-  if (isLinked() && getCachedToken()) {
+  if (hasPrivacyConsent() && isLinked() && getCachedToken()) {
     startBackgroundSync();
   }
 

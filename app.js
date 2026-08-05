@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.1.5";
+  const APP_VERSION = "v2.2.0";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -730,6 +730,13 @@ window.updateSelectAllButtons = function() {
     return state.telemetryConsent === TELEMETRY_ACCEPTED;
   }
 
+  function requirePrivacyConsent() {
+    if (isDemoMode() || DB.hasConsent?.()) return true;
+    showNotice("Accept the Privacy Policy before importing data or connecting cloud sync.", "error");
+    renderTelemetryBanner();
+    return false;
+  }
+
   function setTelemetryConsent(value) {
     if (value !== TELEMETRY_ACCEPTED) return;
     state.telemetryConsent = value;
@@ -789,11 +796,11 @@ window.updateSelectAllButtons = function() {
         if (!res.ok) throw new Error("Verification failed");
         
         const data = await res.json();
-        if (data.key) {
-          localStorage.setItem('app_encryption_key', data.key);
+        if (data.success) {
           setTelemetryConsent(TELEMETRY_ACCEPTED);
           captureTelemetry("Telemetry Consent Accepted");
-          window.location.reload(); // Reload to initialize DB with the key
+          await window.Vocab?.init?.();
+          renderHome();
         } else {
           throw new Error("Invalid server response");
         }
@@ -838,7 +845,9 @@ window.updateSelectAllButtons = function() {
         capture_pageview: false,
         capture_pageleave: false,
         capture_dead_clicks: false,
-        disable_session_recording: false,
+        // Session replay snapshots were a second major source of long tasks in
+        // the supplied trace. Keep product analytics, but do not record the UI.
+        disable_session_recording: true,
         disable_surveys: true,
         enable_heatmaps: false,
         session_recording: {
@@ -870,14 +879,9 @@ window.updateSelectAllButtons = function() {
     
     window.Sentry.onLoad(function() {
       window.Sentry.init({
-        integrations: [
-          window.Sentry.browserTracingIntegration(),
-          window.Sentry.replayIntegration(),
-        ],
-        tracesSampleRate: 1.0,
+        integrations: [window.Sentry.browserTracingIntegration()],
+        tracesSampleRate: 0.1,
         tracePropagationTargets: ["localhost", /^https:\/\/sharthak-sev\.github\.io/],
-        replaysSessionSampleRate: 0.1,
-        replaysOnErrorSampleRate: 1.0,
       });
     });
 
@@ -4134,6 +4138,7 @@ function renderTestReview() {
       renderHome();
       return;
     }
+    if (!requirePrivacyConsent()) return;
     if (!window.SevSync) {
       showNotice("Cloud sync is unavailable. Check your connection and try again.", "error");
       renderHome();
@@ -4438,7 +4443,7 @@ function renderTestReview() {
 
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
     if (action === "returning-sign-in") { await syncLinkedAccount({ returningUser: true }); return; }
-    if (action === "import-bluebook") { fileInput.click(); return; }
+    if (action === "import-bluebook") { if (requirePrivacyConsent()) fileInput.click(); return; }
     if (action === "privacy-back") {
       if (state.questions.length === 0) {
         window.history.back();
@@ -5299,6 +5304,7 @@ function renderTestReview() {
   }
 
   async function restoreBackup() {
+    if (!requirePrivacyConsent()) return;
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json";
@@ -5381,6 +5387,7 @@ function renderTestReview() {
     const files = Array.from(event.target.files || []);
     event.target.value = "";
     if (!files.length) return;
+    if (!requirePrivacyConsent()) return;
     setBusy("Importing practice data", `Preparing ${files.length} file${files.length === 1 ? "" : "s"} for your dashboard.`, "import");
     await nextPaint();
     
