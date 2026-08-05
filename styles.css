@@ -4300,3 +4300,72 @@ mark.sev-highlight:focus {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+/* ── Monochrome Pagination ── */
+.ml-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.ml-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ml-pagination-btn:hover:not(:disabled) {
+  background: var(--line-light);
+  color: var(--ink);
+}
+
+.ml-pagination-btn.active {
+  background: var(--ink);
+  color: var(--panel);
+  font-weight: 600;
+  border: 1px solid var(--ink);
+}
+
+.ml-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ml-pagination-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ml-pagination-nav-btn:hover:not(:disabled) {
+  background: var(--line-light);
+  color: var(--ink);
+}
+
+.ml-pagination-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+

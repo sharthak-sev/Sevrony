@@ -3821,13 +3821,11 @@ function renderTestReview() {
         </div>
 
         ${totalPages > 1 ? `
-        <!-- Pagination Controls (shadcn-inspired boxed design) -->
+        <!-- Pagination Controls (Monochrome Design) -->
         <nav role="navigation" aria-label="pagination" style="display: flex; justify-content: center; padding: 32px 16px 8px;">
-          <ul style="display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 10px; padding: 4px; background: var(--panel);">
+          <ul class="ml-pagination">
             <li style="list-style: none;">
-              <button type="button" data-action="ml-change-page" data-page="${Math.max(1, state.mistakesLog.currentPage - 1)}" ${state.mistakesLog.currentPage === 1 ? 'disabled' : ''}
-                aria-label="Go to previous page"
-                style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; border: none; background: transparent; color: ${state.mistakesLog.currentPage === 1 ? 'var(--ink-muted)' : 'var(--ink)'}; font-size: 13px; font-weight: 500; cursor: ${state.mistakesLog.currentPage === 1 ? 'default' : 'pointer'}; opacity: ${state.mistakesLog.currentPage === 1 ? '0.5' : '1'}; transition: background 0.15s;">
+              <button type="button" class="ml-pagination-nav-btn" data-action="ml-change-page" data-page="${Math.max(1, state.mistakesLog.currentPage - 1)}" ${state.mistakesLog.currentPage === 1 ? 'disabled' : ''} aria-label="Go to previous page">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 <span style="display: none;" class="ml-pg-label">Prev</span>
               </button>
@@ -3854,13 +3852,12 @@ function renderTestReview() {
                   return '<li style="list-style: none;"><span aria-hidden="true" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-size: 13px; color: var(--ink-muted);">···</span></li>';
                 }
                 var isActive = p === cp;
-                return '<li style="list-style: none;"><button type="button" data-action="ml-change-page" data-page="' + p + '" aria-label="Go to page ' + p + '" aria-current="' + (isActive ? 'page' : 'false') + '" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; border: ' + (isActive ? '1px solid var(--line)' : '1px solid transparent') + '; background: ' + (isActive ? 'var(--surface-main)' : 'transparent') + '; color: var(--ink); font-size: 13px; font-weight: ' + (isActive ? '700' : '500') + '; cursor: pointer; transition: all 0.15s;">' + p + '</button></li>';
+                var btnClass = isActive ? 'ml-pagination-btn active' : 'ml-pagination-btn';
+                return '<li style="list-style: none;"><button type="button" class="' + btnClass + '" data-action="ml-change-page" data-page="' + p + '" aria-label="Go to page ' + p + '" aria-current="' + (isActive ? 'page' : 'false') + '">' + p + '</button></li>';
               }).join('');
             })()}
             <li style="list-style: none;">
-              <button type="button" data-action="ml-change-page" data-page="${Math.min(totalPages, state.mistakesLog.currentPage + 1)}" ${state.mistakesLog.currentPage === totalPages ? 'disabled' : ''}
-                aria-label="Go to next page"
-                style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; border: none; background: transparent; color: ${state.mistakesLog.currentPage === totalPages ? 'var(--ink-muted)' : 'var(--ink)'}; font-size: 13px; font-weight: 500; cursor: ${state.mistakesLog.currentPage === totalPages ? 'default' : 'pointer'}; opacity: ${state.mistakesLog.currentPage === totalPages ? '0.5' : '1'}; transition: background 0.15s;">
+              <button type="button" class="ml-pagination-nav-btn" data-action="ml-change-page" data-page="${Math.min(totalPages, state.mistakesLog.currentPage + 1)}" ${state.mistakesLog.currentPage === totalPages ? 'disabled' : ''} aria-label="Go to next page">
                 <span style="display: none;" class="ml-pg-label">Next</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </button>
