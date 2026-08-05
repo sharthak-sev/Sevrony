@@ -1,3 +1,15 @@
 my-session.json
 implementation_plan.md
 my-session*.json
+
+# Dependencies
+node_modules/
+
+# Build and Temp
+dist/
+.DS_Store
+*.db
+*.sql
+temp_*.txt
+*.json.gz
+.agents/
