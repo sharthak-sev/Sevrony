@@ -4,14 +4,12 @@
   const CLIENT_ID =
     "484594093767-7cnbosef6mfj8e60mvdhp2sphbmvui68.apps.googleusercontent.com";
   const SCOPES = "https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email";
-  const SYNC_FILENAME = "sevrony-sync.json";
   const TOKEN_KEY = "sevrony.syncToken";
   const SYNC_META_KEY = "sevrony.syncMeta"; // { email, lastSynced }
   const FILE_ID_KEY = "sevrony.syncFileId"; // cached Drive file ID
 
   let tokenClient = null;
   let accessToken = null;
-  let fileId = null;
   let syncing = false;
   let foregroundSyncing = false;
   let syncTimeout = null;
@@ -137,328 +135,6 @@
     });
   }
 
-  // ─── Drive API ───────────────────────────────────────────────
-
-  async function driveRequest(url, options = {}) {
-    const res = await fetch(url, {
-      cache: "no-store",
-      ...options,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        ...(options.headers || {}),
-      },
-    });
-    if (!res.ok && res.status === 401) {
-      accessToken = null;
-      localStorage.removeItem(TOKEN_KEY);
-      throw new Error("auth_expired");
-    }
-    return res;
-  }
-
-  /**
-   * Resolve the Drive file ID. Trusts the localStorage cache without
-   * making a verification API call. If the cached ID turns out stale
-   * (404 on read/write), callers clear it and retry.
-   */
-  async function resolveFileId() {
-    if (fileId) return fileId;
-    const cached = localStorage.getItem(FILE_ID_KEY);
-    if (cached) { fileId = cached; return fileId; }
-    // No cache — search for it (1 API call, only happens on first sync)
-    const res = await driveRequest(
-      `https://www.googleapis.com/drive/v3/files?` +
-        `spaces=appDataFolder&q=name='${SYNC_FILENAME}'&fields=files(id)`
-    );
-    const data = await res.json();
-    const id = data.files?.[0]?.id || null;
-    if (id) { fileId = id; localStorage.setItem(FILE_ID_KEY, id); }
-    return id;
-  }
-
-  function invalidateFileId() {
-    fileId = null;
-    localStorage.removeItem(FILE_ID_KEY);
-  }
-
-  async function readSyncFile() {
-    const id = await resolveFileId();
-    if (!id) return null;
-
-    const res = await driveRequest(
-      `https://www.googleapis.com/drive/v3/files/${id}?alt=media`
-    );
-    if (res.status === 404) { invalidateFileId(); return null; }
-    if (!res.ok) return null;
-    return res.json();
-  }
-
-  async function writeSyncFile(payload) {
-    const body = JSON.stringify(payload);
-    const id = await resolveFileId();
-
-    if (id) {
-      const res = await driveRequest(
-        `https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`,
-        { method: "PATCH", headers: { "Content-Type": "application/json" }, body }
-      );
-      if (res.status === 404) {
-        // Stale cache — clear and create a fresh file
-        invalidateFileId();
-        return writeSyncFile(payload);
-      }
-    } else {
-      // Create new file
-      const metadata = { name: SYNC_FILENAME, parents: ["appDataFolder"] };
-      const form = new FormData();
-      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-      form.append("file", new Blob([body], { type: "application/json" }));
-      const res = await driveRequest(
-        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        { method: "POST", body: form }
-      );
-      const created = await res.json();
-      fileId = created.id;
-      localStorage.setItem(FILE_ID_KEY, fileId);
-    }
-  }
-
-  // ─── Bidirectional Merge ────────────────────────────────────
-
-  /**
-   * Best available timestamp from a record for merge comparison.
-   * Numeric epoch millis only — no JSON.stringify, no deep comparison.
-   */
-  function getRecordTimestamp(record) {
-    if (!record) return 0;
-    if (record.updatedAt) return record.updatedAt;
-    if (record.deletedAt) return record.deletedAt;
-    if (record.completedAt) return new Date(record.completedAt).getTime() || 0;
-    if (record.importedAt) return new Date(record.importedAt).getTime() || 0;
-    if (record.answeredAt) return new Date(record.answeredAt).getTime() || 0;
-    return 0;
-  }
-
-  /**
-   * Merges two record sets using last-write-wins on timestamps.
-   * Pure timestamp comparison — no JSON.stringify (that was killing perf).
-   */
-  function mergeRecordSets(localRecords, remoteRecords, idField = "id") {
-    const localMap = new Map(localRecords.map(r => [r[idField], r]));
-    const remoteMap = new Map((remoteRecords || []).map(r => [r[idField], r]));
-    const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
-    const merged = [];
-    const localUpdates = [];
-    let remoteNeedsUpdate = false;
-
-    for (const id of allIds) {
-      const local = localMap.get(id);
-      const remote = remoteMap.get(id);
-
-      if (local && !remote) {
-        // Only exists locally → push to cloud
-        merged.push(local);
-        remoteNeedsUpdate = true;
-      } else if (!local && remote) {
-        // Only exists remotely → pull to local
-        merged.push(remote);
-        localUpdates.push(remote);
-      } else {
-        // Both exist
-        const localTs = getRecordTimestamp(local);
-        const remoteTs = getRecordTimestamp(remote);
-        if (remoteTs > localTs) {
-          merged.push(remote);
-          localUpdates.push(remote);
-        } else if (localTs > remoteTs) {
-          merged.push(local);
-          remoteNeedsUpdate = true;
-        } else {
-          // Exactly equal timestamps, keep remote
-          merged.push(remote);
-        }
-      }
-    }
-
-    return { merged, localUpdates, remoteNeedsUpdate };
-  }
-
-  function mergeVocabWords(localRecords, remoteRecords) {
-    const localMap = new Map(localRecords.map(r => [r.word, r]));
-    const remoteMap = new Map((remoteRecords || []).map(r => [r.word, r]));
-    const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
-    const merged = [];
-    const localUpdates = [];
-    let remoteNeedsUpdate = false;
-
-    const progressValue = (status) => {
-      if (status === "Mastered") return 2;
-      if (status === "Learning") return 1;
-      return 0; // "New" or undefined
-    };
-
-    for (const id of allIds) {
-      const local = localMap.get(id);
-      const remote = remoteMap.get(id);
-
-      if (local && !remote) {
-        merged.push(local);
-        remoteNeedsUpdate = true;
-      } else if (!local && remote) {
-        merged.push(remote);
-        localUpdates.push(remote);
-      } else {
-        const localProg = progressValue(local.status);
-        const remoteProg = progressValue(remote.status);
-        
-        const localTs = getRecordTimestamp(local);
-        const remoteTs = getRecordTimestamp(remote);
-
-        if (remote.status === "New" && local.status !== "New" && remoteTs > localTs) {
-          // Explicit reset from remote
-          merged.push(remote);
-          localUpdates.push(remote);
-        } else if (local.status === "New" && remote.status !== "New" && localTs > remoteTs) {
-          // Explicit reset from local
-          merged.push(local);
-          remoteNeedsUpdate = true;
-        } else if (remoteProg > localProg) {
-          merged.push(remote);
-          localUpdates.push(remote);
-        } else if (localProg > remoteProg) {
-          merged.push(local);
-          remoteNeedsUpdate = true;
-        } else {
-          // Equal progress status, fall back to timestamp
-          if (remoteTs > localTs) {
-            merged.push(remote);
-            localUpdates.push(remote);
-          } else if (localTs > remoteTs) {
-            merged.push(local);
-            remoteNeedsUpdate = true;
-          } else {
-            merged.push(remote);
-          }
-        }
-      }
-    }
-
-    return { merged, localUpdates, remoteNeedsUpdate };
-  }
-
-  /**
-   * Core sync: read local + remote → merge → write cloud → update local.
-   * Returns true if local DB was modified.
-   */
-  async function bidirectionalSync(options = {}) {
-    // Read local (IndexedDB — instant)
-    const [localBanks, localQuestions, localSessions, localResponses, localVocabWords, localStudyStates] = await Promise.all([
-      DB.getAll("questionBanks"),
-      DB.getAll("questions"),
-      DB.getAll("sessions"),
-      DB.getAll("responses"),
-      DB.getAll("vocabWords"),
-      DB.getAll("questionStudyState"),
-    ]);
-
-    const filteredSessions = localSessions.filter(s => s.id !== "__active_test__");
-
-    // If forcePush is enabled (e.g. from a backup restore), write local directly to cloud and skip merge
-    if (options.forcePush) {
-      const localVocabStateStr = localStorage.getItem('sat_vocab_state');
-      const localVocabState = localVocabStateStr ? JSON.parse(localVocabStateStr) : null;
-      await writeSyncFile({
-        syncedAt: new Date().toISOString(),
-        questionBanks: localBanks,
-        questions: localQuestions,
-        sessions: filteredSessions,
-        responses: localResponses,
-        vocabWords: localVocabWords,
-        questionStudyState: localStudyStates,
-        vocabState: localVocabState,
-      });
-      return false; // Local DB was not changed by this sync
-    }
-
-    // Read remote (1 API call)
-    const remote = await readSyncFile();
-
-    // Merge each store (pure CPU, no I/O, no JSON.stringify)
-    const banks = mergeRecordSets(localBanks, remote?.questionBanks);
-    const questions = mergeRecordSets(localQuestions, remote?.questions);
-    const sessions = mergeRecordSets(filteredSessions, remote?.sessions);
-    const responses = mergeRecordSets(localResponses, remote?.responses);
-    const vocabWords = mergeVocabWords(localVocabWords, remote?.vocabWords);
-    const studyStates = mergeRecordSets(localStudyStates, remote?.questionStudyState);
-
-    const localVocabStateStr = localStorage.getItem('sat_vocab_state');
-    const localVocabState = localVocabStateStr ? JSON.parse(localVocabStateStr) : null;
-    let mergedVocabState = localVocabState;
-    let vocabStateLocalChanged = false;
-    let vocabStateRemoteNeedsUpdate = false;
-
-    if (remote?.vocabState) {
-       const remoteTs = remote.vocabState.updatedAt || 0;
-       const localTs = localVocabState ? (localVocabState.updatedAt || 0) : 0;
-       if (remoteTs > localTs) {
-          mergedVocabState = remote.vocabState;
-          vocabStateLocalChanged = true;
-       } else if (localTs > remoteTs) {
-          mergedVocabState = localVocabState;
-          vocabStateRemoteNeedsUpdate = true;
-       } else {
-          mergedVocabState = remote.vocabState;
-       }
-    } else if (localVocabState) {
-       vocabStateRemoteNeedsUpdate = true;
-    }
-
-    const hasLocalUpdates = banks.localUpdates.length > 0 || questions.localUpdates.length > 0 || sessions.localUpdates.length > 0 || responses.localUpdates.length > 0 || vocabWords.localUpdates.length > 0 || studyStates.localUpdates.length > 0 || vocabStateLocalChanged;
-    const remoteNeedsUpdate = !remote || banks.remoteNeedsUpdate || questions.remoteNeedsUpdate || sessions.remoteNeedsUpdate || responses.remoteNeedsUpdate || vocabWords.remoteNeedsUpdate || studyStates.remoteNeedsUpdate || vocabStateRemoteNeedsUpdate;
-
-    // If we're in a silent background sync but found new data to pull,
-    // light up the UI indicator so the user sees it's actively pulling changes.
-    if (hasLocalUpdates && !foregroundSyncing) {
-      foregroundSyncing = true;
-      notifyStateChange();
-      // Ensure the UI indicator is visible for at least 1 second
-      await new Promise(r => setTimeout(r, 1000));
-    }
-
-    // Write merged state to cloud only if there are local-newer changes (skips redundant API calls)
-    if (remoteNeedsUpdate) {
-      await writeSyncFile({
-        syncedAt: new Date().toISOString(),
-        questionBanks: banks.merged,
-        questions: questions.merged,
-        sessions: sessions.merged,
-        responses: responses.merged,
-        vocabWords: vocabWords.merged,
-        questionStudyState: studyStates.merged,
-        vocabState: mergedVocabState,
-      });
-    }
-
-    // Write only remote-newer records to local DB
-    let localChanged = false;
-    if (banks.localUpdates.length) { await DB.putMany("questionBanks", banks.localUpdates); localChanged = true; }
-    if (questions.localUpdates.length) { await DB.putMany("questions", questions.localUpdates); localChanged = true; }
-    if (sessions.localUpdates.length) { await DB.putMany("sessions", sessions.localUpdates); localChanged = true; }
-    if (responses.localUpdates.length) { await DB.putMany("responses", responses.localUpdates); localChanged = true; }
-    if (vocabWords.localUpdates.length) { await DB.putMany("vocabWords", vocabWords.localUpdates); localChanged = true; }
-    if (studyStates.localUpdates.length) { await DB.putMany("questionStudyState", studyStates.localUpdates); localChanged = true; }
-
-    if (vocabStateLocalChanged && mergedVocabState) {
-        localStorage.setItem('sat_vocab_state', JSON.stringify(mergedVocabState));
-        if (window.Vocab && window.Vocab.reloadState) {
-            window.Vocab.reloadState();
-        }
-        localChanged = true;
-    }
-
-    return localChanged;
-  }
-
   // ─── Background Sync (visibility + polling) ─────────────────
 
   function startBackgroundSync() {
@@ -536,7 +212,6 @@
   async function unlink() {
     stopBackgroundSync();
     accessToken = null;
-    fileId = null;
     tokenClient = null;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(SYNC_META_KEY);
@@ -581,6 +256,16 @@
     });
   }
 
+  /**
+   * doSync — thin wrapper that delegates all heavy work to sync-worker.js.
+   *
+   * 1. Obtains a valid token (may show GIS popup if isManual).
+   * 2. Reads localStorage values the worker can't access.
+   * 3. Posts them to the worker.
+   * 4. Awaits the worker's response.
+   * 5. Updates localStorage with any new fileId / vocabState.
+   * 6. Terminates the worker.
+   */
   async function doSync(isManual, options = {}) {
     if (syncing && !options.fromDebounce) {
       return { ok: false, reason: "already_syncing" };
@@ -600,7 +285,55 @@
     notifyStateChange();
 
     try {
-      const localChanged = await bidirectionalSync(options);
+      // Gather everything the worker needs from localStorage
+      const fileId = localStorage.getItem(FILE_ID_KEY) || null;
+      const vocabStateStr = localStorage.getItem("sat_vocab_state");
+      const vocabState = vocabStateStr ? JSON.parse(vocabStateStr) : null;
+
+      // Spawn worker and await result
+      const result = await new Promise((resolve, reject) => {
+        const worker = new Worker("sync-worker.js?v=2.2.0");
+        const timer = setTimeout(() => {
+          worker.terminate();
+          reject(new Error("Sync worker timed out"));
+        }, 120000);
+
+        worker.onmessage = (event) => {
+          clearTimeout(timer);
+          worker.terminate();
+          const msg = event.data || {};
+          if (msg.type === "error") {
+            reject(new Error(msg.error || "Sync worker failed"));
+          } else {
+            resolve(msg);
+          }
+        };
+
+        worker.onerror = (event) => {
+          clearTimeout(timer);
+          worker.terminate();
+          reject(event.error || new Error("Sync worker crashed"));
+        };
+
+        worker.postMessage({
+          token,
+          fileId,
+          vocabState,
+          options: { forcePush: options.forcePush || false },
+        });
+      });
+
+      // Update localStorage with any values the worker couldn't write itself
+      if (result.newFileId) {
+        localStorage.setItem(FILE_ID_KEY, result.newFileId);
+      }
+
+      if (result.mergedVocabState) {
+        localStorage.setItem("sat_vocab_state", JSON.stringify(result.mergedVocabState));
+        if (window.Vocab && window.Vocab.reloadState) {
+          window.Vocab.reloadState();
+        }
+      }
 
       const meta = JSON.parse(localStorage.getItem(SYNC_META_KEY) || "{}");
       meta.lastSynced = new Date().toISOString();
@@ -613,7 +346,7 @@
       // Ensure background sync is running after a successful sync
       if (!periodicTimer) startBackgroundSync();
 
-      return { ok: true, localChanged };
+      return { ok: true, localChanged: result.localChanged };
     } catch (err) {
       syncing = false;
       foregroundSyncing = false;

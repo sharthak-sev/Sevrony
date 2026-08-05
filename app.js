@@ -3411,8 +3411,10 @@ function renderTestReview() {
       filterDomain: "all",
       filterSkill: "all",
       filterTags: new Set(),
-      filterType: "all"
+      filterType: "all",
+      currentPage: 1
     };
+    if (!state.mistakesLog.currentPage) state.mistakesLog.currentPage = 1;
     if (!state.mistakesLog.showAnswer) state.mistakesLog.showAnswer = new Set();
 
     const MISTAKE_TAGS = ["Silly mistake", "Time crunch", "Conceptual error", "Misread question", "Calculation error", "Guessed"];
@@ -3474,6 +3476,13 @@ function renderTestReview() {
     }
     // Sort groups by most recent miss date
     const groupedList = [...grouped.values()].sort((a, b) => b.mostRecentDate - a.mostRecentDate);
+
+    // Pagination logic
+    const ITEMS_PER_PAGE = 20;
+    const totalPages = Math.ceil(groupedList.length / ITEMS_PER_PAGE);
+    if (state.mistakesLog.currentPage > totalPages && totalPages > 0) state.mistakesLog.currentPage = totalPages;
+    if (state.mistakesLog.currentPage < 1) state.mistakesLog.currentPage = 1;
+    const pagedList = groupedList.slice((state.mistakesLog.currentPage - 1) * ITEMS_PER_PAGE, state.mistakesLog.currentPage * ITEMS_PER_PAGE);
 
     // Calculate analytics on ALL mistakes so filters don't affect the overall breakdown
     const tagCounts = {};
@@ -3608,7 +3617,7 @@ function renderTestReview() {
               <div style="padding: 3rem 0; text-align: center; border: 1px dashed var(--line); border-radius: 12px;">
                 <p style="color: var(--ink-muted);">No mistakes found matching your filters.</p>
               </div>
-            ` : groupedList.map(group => {
+            ` : pagedList.map(group => {
               const r = group.attempts[0];
               const q = questionsMap.get(r.questionId);
               const isExpanded = state.mistakesLog.expanded.has(r.id);
@@ -3663,7 +3672,7 @@ function renderTestReview() {
                       
                       <div style="margin-bottom: 12px;">
                           <div style="font-size: 14px; color: var(--ink); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 12px;">
-                              ${!isExpanded ? sanitizeHtml(q.prompt) : ''}
+                              ${!isExpanded ? sanitizeHtml(q.prompt.replace(/<svg[\s\S]*?<\/svg>/gi, '').replace(/<img[^>]*>/gi, '')) : ''}
                           </div>
                           
                           ${!isExpanded ? `
@@ -3810,6 +3819,56 @@ function renderTestReview() {
               `;
             }).join("")}
         </div>
+
+        ${totalPages > 1 ? `
+        <!-- Pagination Controls (shadcn-inspired boxed design) -->
+        <nav role="navigation" aria-label="pagination" style="display: flex; justify-content: center; padding: 32px 16px 8px;">
+          <ul style="display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 10px; padding: 4px; background: var(--panel);">
+            <li style="list-style: none;">
+              <button type="button" data-action="ml-change-page" data-page="${Math.max(1, state.mistakesLog.currentPage - 1)}" ${state.mistakesLog.currentPage === 1 ? 'disabled' : ''}
+                aria-label="Go to previous page"
+                style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; border: none; background: transparent; color: ${state.mistakesLog.currentPage === 1 ? 'var(--ink-muted)' : 'var(--ink)'}; font-size: 13px; font-weight: 500; cursor: ${state.mistakesLog.currentPage === 1 ? 'default' : 'pointer'}; opacity: ${state.mistakesLog.currentPage === 1 ? '0.5' : '1'}; transition: background 0.15s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                <span style="display: none;" class="ml-pg-label">Prev</span>
+              </button>
+            </li>
+            ${(function() {
+              var pages = [];
+              var cp = state.mistakesLog.currentPage;
+              var tp = totalPages;
+              if (tp <= 7) {
+                for (var i = 1; i <= tp; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                if (cp > 3) pages.push('...');
+                var start = Math.max(2, cp - 1);
+                var end = Math.min(tp - 1, cp + 1);
+                if (cp <= 3) { start = 2; end = 4; }
+                if (cp >= tp - 2) { start = tp - 3; end = tp - 1; }
+                for (var j = start; j <= end; j++) pages.push(j);
+                if (cp < tp - 2) pages.push('...');
+                pages.push(tp);
+              }
+              return pages.map(function(p) {
+                if (p === '...') {
+                  return '<li style="list-style: none;"><span aria-hidden="true" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-size: 13px; color: var(--ink-muted);">···</span></li>';
+                }
+                var isActive = p === cp;
+                return '<li style="list-style: none;"><button type="button" data-action="ml-change-page" data-page="' + p + '" aria-label="Go to page ' + p + '" aria-current="' + (isActive ? 'page' : 'false') + '" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; border: ' + (isActive ? '1px solid var(--line)' : '1px solid transparent') + '; background: ' + (isActive ? 'var(--surface-main)' : 'transparent') + '; color: var(--ink); font-size: 13px; font-weight: ' + (isActive ? '700' : '500') + '; cursor: pointer; transition: all 0.15s;">' + p + '</button></li>';
+              }).join('');
+            })()}
+            <li style="list-style: none;">
+              <button type="button" data-action="ml-change-page" data-page="${Math.min(totalPages, state.mistakesLog.currentPage + 1)}" ${state.mistakesLog.currentPage === totalPages ? 'disabled' : ''}
+                aria-label="Go to next page"
+                style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; border: none; background: transparent; color: ${state.mistakesLog.currentPage === totalPages ? 'var(--ink-muted)' : 'var(--ink)'}; font-size: 13px; font-weight: 500; cursor: ${state.mistakesLog.currentPage === totalPages ? 'default' : 'pointer'}; opacity: ${state.mistakesLog.currentPage === totalPages ? '0.5' : '1'}; transition: background 0.15s;">
+                <span style="display: none;" class="ml-pg-label">Next</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </li>
+          </ul>
+        </nav>
+        <div style="text-align: center; font-size: 12px; color: var(--ink-muted); padding-bottom: 8px;">Page ${state.mistakesLog.currentPage} of ${totalPages} · ${groupedList.length} question${groupedList.length !== 1 ? 's' : ''}</div>
+        ` : (groupedList.length > 0 ? `<div style="text-align: center; font-size: 12px; color: var(--ink-muted); padding: 16px 0;">${groupedList.length} question${groupedList.length !== 1 ? 's' : ''}</div>` : '')}
         </div>
         <button class="primary-btn scroll-top-btn" type="button" data-action="scroll-top" aria-label="Scroll to top">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
@@ -4522,26 +4581,40 @@ function renderTestReview() {
         state.mistakesLog.filterSubject = newVal;
         state.mistakesLog.filterDomain = "all";
         state.mistakesLog.filterSkill = "all";
+        state.mistakesLog.currentPage = 1;
         updateMistakesLogUI();
       }
     }
     if (action === "ml-change-domain") {
       state.mistakesLog.filterDomain = event.currentTarget.value || event.target.value;
       state.mistakesLog.filterSkill = "all";
+      state.mistakesLog.currentPage = 1;
       updateMistakesLogUI();
     }
     if (action === "ml-change-skill") {
       state.mistakesLog.filterSkill = event.currentTarget.value || event.target.value;
+      state.mistakesLog.currentPage = 1;
       updateMistakesLogUI();
     }
     if (action === "ml-change-type") {
       state.mistakesLog.filterType = event.currentTarget.value || event.target.value;
+      state.mistakesLog.currentPage = 1;
       updateMistakesLogUI();
+    }
+    if (action === "ml-change-page") {
+      const newPage = parseInt(event.currentTarget.dataset.page, 10);
+      if (newPage && newPage !== state.mistakesLog.currentPage) {
+        state.mistakesLog.currentPage = newPage;
+        updateMistakesLogUI();
+        const container = document.getElementById("mistakes-log-container");
+        if (container) container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
     if (action === "ml-filter-tag") {
       const tag = event.currentTarget.dataset.tag || event.target.dataset.tag;
       if (state.mistakesLog.filterTags.has(tag)) state.mistakesLog.filterTags.delete(tag);
       else state.mistakesLog.filterTags.add(tag);
+      state.mistakesLog.currentPage = 1;
       updateMistakesLogUI();
     }
     if (action === "ml-toggle-mastered") {
@@ -8161,6 +8234,41 @@ ${(() => {
     const tpl = document.createElement("template");
     tpl.innerHTML = String(v || "");
     return tpl.content.textContent || "";
+  }
+
+  function stripHtmlToText(html) {
+    if (!html) return "";
+    var s = String(html);
+    // Remove SVG elements entirely (inline icons/graphs)
+    s = s.replace(/<svg[\s\S]*?<\/svg>/gi, '');
+    // Remove style blocks
+    s = s.replace(/<style[\s\S]*?<\/style>/gi, '');
+    // Remove all HTML tags
+    s = s.replace(/<[^>]*>?/gm, '');
+    // Decode common HTML entities
+    s = s.replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#039;/gi, "'");
+    // Clean up LaTeX: \text{content} → content
+    s = s.replace(/\\text\{([^}]*)\}/g, '$1');
+    // \textbf{content} → content
+    s = s.replace(/\\textbf\{([^}]*)\}/g, '$1');
+    // \textit{content} → content
+    s = s.replace(/\\textit\{([^}]*)\}/g, '$1');
+    // \frac{a}{b} → a/b
+    s = s.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '$1/$2');
+    // \sqrt{x} → √x
+    s = s.replace(/\\sqrt\{([^}]*)\}/g, '√$1');
+    // \left, \right, \cdot, \times, \div, \pm, \leq, \geq, \neq
+    s = s.replace(/\\left/g, '').replace(/\\right/g, '');
+    s = s.replace(/\\cdot/g, '·').replace(/\\times/g, '×').replace(/\\div/g, '÷');
+    s = s.replace(/\\pm/g, '±').replace(/\\leq/g, '≤').replace(/\\geq/g, '≥').replace(/\\neq/g, '≠');
+    s = s.replace(/\\pi/g, 'π').replace(/\\infty/g, '∞');
+    // Remove remaining \command sequences (e.g. \overline, \mathbb, etc.)
+    s = s.replace(/\\[a-zA-Z]+/g, '');
+    // Remove leftover braces from LaTeX
+    s = s.replace(/[{}]/g, '');
+    // Collapse whitespace
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
   }
 
   function escapeHtml(v) {

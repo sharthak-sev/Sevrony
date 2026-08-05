@@ -9,6 +9,7 @@
   let dbPromise = null;
 
   function hasConsent() {
+    if (typeof localStorage === 'undefined') return true; // Worker context — main thread already verified consent
     return localStorage.getItem("sat_demo_mode") === "true" ||
       localStorage.getItem(CONSENT_KEY) === CONSENT_ACCEPTED;
   }
@@ -24,6 +25,9 @@
   // thread tasks during every sync.  Existing encrypted records are rewritten
   // once by db-worker.js before this API serves any request.
   function migrateLegacyEncryption() {
+    // Workers can't access localStorage or spawn nested workers.
+    // sync-worker.js only runs after the main thread has already completed migration.
+    if (typeof localStorage === 'undefined') return Promise.resolve();
     if (localStorage.getItem(LEGACY_MIGRATION_KEY) === "done") {
       return Promise.resolve();
     }
@@ -202,7 +206,7 @@
     return withStore(storeName, "readonly", store => requestToPromise(store.index(indexName).getAll(key)));
   }
 
-  window.SatPracticeDB = {
+  (typeof window !== 'undefined' ? window : self).SatPracticeDB = {
     ready,
     hasConsent,
     getAll,

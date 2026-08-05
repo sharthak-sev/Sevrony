@@ -8,6 +8,7 @@ const ASSETS_TO_CACHE = [
   "./db.js?v=2.2.0",
   "./db-worker.js?v=2.2.0",
   "./sync.js?v=2.2.0",
+  "./sync-worker.js?v=2.2.0",
   "./vocab.js?v=2.2.0",
   "./logo.svg"
 ];
