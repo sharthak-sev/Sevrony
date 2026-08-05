@@ -7744,6 +7744,14 @@ ${(() => {
     fixGraphColors(tpl.content);
     namespaceSVGs(tpl.content);
     
+    // Wrap tables in a responsive container to avoid vertical scrollbar clipping
+    for (const table of tpl.content.querySelectorAll("table")) {
+      const responsiveWrapper = document.createElement("div");
+      responsiveWrapper.className = "table-responsive";
+      table.parentNode.insertBefore(responsiveWrapper, table);
+      responsiveWrapper.appendChild(table);
+    }
+    
     const wrapper = document.createElement("div");
     wrapper.appendChild(tpl.content);
     renderMath(wrapper);

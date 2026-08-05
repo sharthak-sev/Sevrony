@@ -1435,13 +1435,16 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
 }
 
 .html-content img, .html-content svg:not(.katex svg) { height: auto; max-width: 100%; }
-.html-content table {
-  border-collapse: collapse;
-  display: block;
+
+.html-content .table-responsive {
   max-width: 100%;
   overflow-x: auto;
-  width: max-content;
   -webkit-overflow-scrolling: touch;
+}
+.html-content table {
+  border-collapse: collapse;
+  width: max-content;
+  max-width: none;
 }
 .html-content > :first-child, .choice-content > :first-child { margin-top: 0; }
 .html-content > :last-child, .choice-content > :last-child { margin-bottom: 0; }
