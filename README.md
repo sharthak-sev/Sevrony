@@ -1,106 +1,110 @@
 # Sevrony
 
-Sevrony is a browser-based SAT practice environment for imported `.sat-test` question banks. It runs as a static frontend on GitHub Pages and stores your practice data in your browser.
+Sevrony is a local-first SAT practice app for question banks that you import yourself. It runs in the browser, stores practice data in IndexedDB, and can optionally sync that data through your own Google Drive.
 
-> **Disclaimer:** Sevrony is a personal educational project. It is not affiliated with, endorsed by, or associated with College Board. SAT is a trademark registered by College Board. This repository does not distribute, contain, or host any College Board question content. It is designed solely to provide a practice environment using the user's own authenticated data.
+> **Disclaimer:** Sevrony is a personal educational project and is not affiliated with, endorsed by, or associated with College Board. SAT is a College Board trademark. This repository does not distribute or host College Board question content.
 
-> **Required input:** Sevrony is a sub-application and is NOT functional on its own. It strictly requires a `.sat-test` question bank file, which must be exported using the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) Chrome extension directly from your own authenticated College Board Student Question Bank session.
+## What it does
 
-## What It Does
+- Import `.sat-test` question banks and Bluebook result exports.
+- Run custom Math, Reading & Writing, full-test, and retry-mistakes practice sessions.
+- Review answers, timings, mistakes, custom tags, highlights, and personal notes.
+- Track practice history, accuracy, pacing, and streaks locally.
+- Build vocabulary with spaced repetition, flashcards, multiple choice, matching, and AI-assisted sentence checks.
+- Export and restore local backups.
+- Optionally sync question banks, progress, responses, study state, and vocabulary progress across devices through Google Drive.
+- Install as a PWA with best-effort offline access after the app has been loaded once.
 
-- **Full SAT Simulation**: Import `.sat-test` files, store them locally via IndexedDB, and run adaptive-style test flows (Math and R&W) built on a custom 7-band Item Response Theory (IRT) model.
-- **Advanced Mistakes Log**: An interactive journal with custom tagging, personal notes, cross-session filtering, and Shadcn UI-inspired Accordion interface. Easily toggle answers or filter by granular sub-domains.
-- **Vocabulary Builder**: A built-in Spaced Repetition System (SRS) featuring Flashcards, Multiple Choice, Match, and AI-validated "Use in a Sentence" activities.
-- **Granular Analytics**: Dashboard with Sessions Overview, an animated gamified Streak Widget, and data-dense visualizations.
-- **Custom Practice & Retries**: Run single-subject practices or retry missed/skipped questions with extensive granular sub-domain filtering.
-- **Modern UI & Offline Access**: Installable as a Progressive Web App (PWA) with a responsive layout, seamless dark mode, integrated Desmos calculator, KaTeX math rendering, and fluid Lottie animations. 
-- **Seamless Data Backup**: Back up and restore your local data with manual JSON exports or the File System Access API where supported.
+## Getting started
 
-## Use The App
+1. Open [Sevrony](https://sharthak-sev.github.io/).
+2. Read and accept the in-app Privacy Policy. Acceptance is required before importing, restoring a backup, or linking Google Drive.
+3. Import a `.sat-test` file, or import a supported Bluebook result export from Past Tests.
+4. Start a practice session from the dashboard, or use the Vocabulary section without importing a question bank.
 
-1. Install or load the [sat-qb-exporter](https://github.com/sharthak-sev/sat-qb-exporter) extension.
-2. Export your question bank as an interactive `.sat-test` file directly from your College Board Student Question Bank session.
-3. Open [Sevrony on GitHub Pages](https://sharthak-sev.github.io/).
-4. Import the `.sat-test` file.
-5. Start a custom practice session or a full adaptive-style test.
+Sevrony accepts broad file types in its picker for iOS compatibility, but validates the file contents during import.
 
-On iOS, the file picker may not show custom `.sat-test` files unless the app accepts broader file types. Sevrony intentionally keeps a broad file picker accept value for compatibility, then validates the selected file after import.
+## Data and privacy
 
-## Privacy And Telemetry
+### Local data
 
-Sevrony is primarily local-first. Your imported questions, answer history, timings, sessions, and backups are stored locally in your browser.
+Practice data is stored in this browser's IndexedDB database. This includes imported questions, sessions, responses, highlights, notes, configuration, and vocabulary progress.
 
-The hosted GitHub Pages app includes optional telemetry:
+Current records are stored as normal IndexedDB objects for responsiveness. Older encrypted records are migrated once in a dedicated browser worker, then rewritten locally without affecting the UI thread. Clearing browser site data removes local progress unless you have a backup or have enabled Google Drive sync.
 
-- Telemetry is off until you accept the privacy/telemetry banner.
-- If accepted, Sevrony loads **PostHog** for product analytics and **Sentry** for crash/error reports.
-- **Email tracking (Cross-device analytics):** If you consent to telemetry *and* link your Google Drive for Cloud Sync, your Google email address is securely sent to PostHog. This helps us understand how the app is used across different devices, track recurring usage, and improve the product.
-- **Sentry is anonymous:** Error reports sent to Sentry do NOT include your email address. They only contain error stack traces, device/browser info, and basic usage breadcrumbs.
-- Autocapture and session recording are disabled.
-- Telemetry events explicitly avoid collecting file names, your specific answers, question text, rationales, and exact test scores.
-- If you decline telemetry, the practice app still works. Question reports become manual/local instead of being sent automatically through Sentry.
+### Consent and telemetry
 
-For more details, please view the Privacy Policy directly inside the app. Your telemetry choice is stored in `localStorage` as `sevrony.telemetryConsent`.
+The app records an accepted privacy choice in local storage and gates imports, backup restore, IndexedDB mutations, and Google Drive sync on that choice. This is a product-flow gate, not a security boundary: browser-side code and local storage can always be modified by someone using developer tools.
 
-## Network And Offline Behavior
+After acceptance, the app may load:
 
-The core app is a static site and caches its own files with a service worker after first load. However, the hosted page still uses some remote assets:
+- **PostHog** for explicit product analytics events. Autocapture, heatmaps, surveys, and session recording are disabled.
+- **Sentry** for errors and sampled performance tracing. Session Replay is disabled.
 
-- Google Fonts for typography.
-- KaTeX from jsDelivr for math rendering.
-- Desmos for the graphing calculator.
-- Ko-fi image assets in the support section.
-- PostHog and Sentry only after telemetry consent.
+If Google Drive sync is linked, the app identifies that linked email in PostHog. Do not import, back up, or sync question material you are not allowed to store.
 
-Because of those remote assets, "offline" should be understood as best-effort core app caching, not a guarantee that every visual asset or online-only feature will work without network access. Your imported study data remains local in your browser.
+## Google Drive sync
 
-## Run Locally
+Cloud sync is optional and disabled by default. When linked, Sevrony uses the Google Drive `appDataFolder` scope and stores one app-private sync file in the linked account.
 
-Serve the repository with any static server:
+- Data goes directly between the browser and Google Drive; the Sevrony Cloudflare Worker is not part of this sync path.
+- The app performs timestamp-based bidirectional merges. Vocabulary uses progress-aware conflict resolution so mastered words are not accidentally downgraded.
+- Sync runs after local changes, when the app becomes visible, and while a visible tab has a valid cached Google token.
+- Unlinking stops sync and removes local OAuth metadata; it does not delete either local data or the Drive file.
+
+Cloud sync is not a replacement for backups. Download a backup before clearing browser data or moving devices.
+
+## Offline behavior
+
+The service worker uses a network-first cache fallback and precaches the main application files, including the IndexedDB migration worker. Imported data stays local, so previously loaded study data can remain usable offline.
+
+Some features still need the network:
+
+- Google Drive sync and sign-in
+- AI vocabulary sentence validation
+- Telemetry, when accepted
+- Remote fonts, KaTeX, Desmos, and Cloudflare Turnstile assets
+
+Offline support is therefore best-effort, not a guarantee that every asset or feature is available.
+
+## Run locally
+
+Serve the repository from a local HTTP origin:
 
 ```bash
 python3 -m http.server 4173
 ```
 
-Then open `http://localhost:4173`.
+Then open `http://localhost:4173`. Do not rely on `file://`: service workers, browser storage behavior, and some browser APIs require an HTTP(S) origin.
 
-Opening `index.html` directly with `file://` may work for basic use, but service workers and the File System Access API require a proper local or hosted origin.
+## Deployment
 
-## Browser Notes
+### Static app
 
-- **Chrome / Edge:** Best support, including the File System Access API for automatic backup folders.
-- **Brave:** The File System Access API may be disabled by default. Enable it in `brave://flags/#file-system-access-api` if you want automatic folder backups.
-- **Firefox:** Manual JSON backup and restore should work, but the File System Access API is not available.
-- **iOS / iPadOS:** Import works best through the broad file picker compatibility path. **CRITICAL WARNING:** Apple's iOS has a strict 7-day inactivity data wipe policy for all browsers. To prevent your local study data from being deleted, you **must** either enable Cloud Sync (via Google Drive) or install the app as a PWA using the "Add to Home Screen" option in your browser (Safari recommended for PWA support).
+Deploy the repository's static app files to the host that serves `index.html` (currently GitHub Pages). `db-worker.js` must be deployed beside `db.js`; it is a browser worker, not a Cloudflare Worker.
 
-## Data Safety
+When updating the app, deploy the matching `index.html`, `sw.js`, `db.js`, `db-worker.js`, `sync.js`, `vocab.js`, and `app.js` together so the versioned service-worker cache remains consistent.
 
-`.sat-test` files can include answer keys and explanations. Treat them as private study material. Do not publish or redistribute exported question banks.
+### Cloudflare Worker
 
-Use **Data & Backups** in the app to download a manual backup before clearing browser data, changing devices, or experimenting with browser storage settings.
+`cloudflare-worker.js` is a separate server-side Worker used for privacy-consent acknowledgement, feedback submission, and AI vocabulary sentence validation. Deploy it to Cloudflare when changing that file and configure its required secrets there (for example, Turnstile and Gemini credentials). Never place those secrets in this repository or the static frontend.
 
-## Cloud Sync
+## Browser notes
 
-Sevrony offers optional cloud sync to keep your data in sync across devices:
+- Chrome and Edge provide the best support for the File System Access API used by automatic backup folders.
+- Firefox supports manual backup and restore, but not the File System Access API.
+- iOS/iPadOS may evict browser storage after long inactivity. Install the app as a PWA and maintain a Drive/manual backup if the data matters.
 
-- Cloud sync is off by default. You enable it by linking your Google account in Data & Backups.
-- When enabled, Sevrony stores a sync file in your Google Drive's app-specific folder. Only Sevrony can access this folder — it is not visible in your regular Drive files.
-- Your data never passes through Sevrony's servers. It goes directly from your browser to your own Google Drive.
-- **Offline-First & Bidirectional Merge:** All changes (importing tests, answering questions) are saved to your local device *instantly*. If you close the tab before it syncs to the cloud, the data remains safe locally. When you reopen the app, it downloads the cloud state and performs a timestamp-based bidirectional merge, flawlessly combining unsynced local data with any new data pushed from other devices.
-- **Responsive Background Sync:** The app quietly polls for changes every 15 seconds in the background and instantly when you switch back to the tab. If you update a test on your laptop, it will automatically pop up on your phone moments later.
-- **Comprehensive Data Sync:** Synchronizes test history, mistakes, custom tags, and in-progress vocabulary sessions. Vocabulary sync features progress-based conflict resolution to prevent accidental loss of mastered words.
-- Unlinking your account stops sync and removes the stored credentials. Your local data is not deleted.
-- You can delete the sync data from your Google Drive at any time via Google's [app permissions page](https://myaccount.google.com/permissions).
 ## Support
 
-If you found this tool helpful for your SAT prep, consider supporting the project! ❤️
+If Sevrony helps your SAT prep, you can support the project.
 
-<img src="qr.svg" alt="Payment QR Code" width="220" style="border-radius: 8px; border: 1px solid #ddd; margin: 10px 0;"/>
+<img src="qr.svg" alt="Payment QR Code" width="220" style="border-radius: 8px; border: 1px solid #ddd; margin: 10px 0;" />
 
-**UPI ID**: `sharthak-jaiswal@fam`
+**UPI ID:** `sharthak-jaiswal@fam`
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/sevrony)
+[![Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/sevrony)
 
 ## License
 
-Sevrony is released under the [MIT License](LICENSE). It is provided as-is, without warranty.
+Sevrony is released under the [MIT License](LICENSE) and is provided as-is, without warranty.
