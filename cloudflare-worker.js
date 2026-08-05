@@ -63,13 +63,11 @@ export default {
           return new Response("Method not allowed", { status: 405, headers: corsHeaders });
         }
         
-        // In a real app, you might log the IP to a KV store or external DB here
-        // For now, we just return the master key required to unlock the local database
-        const appKey = env.APP_ENCRYPTION_KEY || "sevrony_fallback_master_key_9312";
-        
+        // Consent is a product-state acknowledgement. Never return a client
+        // encryption key here: any value delivered to browser JavaScript can be
+        // read or replayed through DevTools and does not protect local data.
         return new Response(JSON.stringify({ 
           success: true, 
-          key: appKey,
           message: "Consent logged successfully."
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
