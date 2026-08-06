@@ -116,14 +116,29 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
   width: 76px;
 }
 
+.sidebar .nav-label,
+.sidebar .nav-heading,
+.brand-mark .nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 250px;
+  max-height: 48px;
+  opacity: 1;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .sidebar-collapsed .sidebar .nav-label,
 .sidebar-collapsed .sidebar .nav-heading,
 .sidebar-collapsed .brand-mark .nav-label {
   opacity: 0;
+  max-width: 0;
   pointer-events: none;
   visibility: hidden;
-  transition: opacity 0.1s;
-  position: absolute;
+}
+
+.sidebar-collapsed .sidebar .nav-heading {
+  max-height: 0;
+  margin: 0;
 }
 
 .sidebar-collapsed .sidebar-header {
@@ -141,12 +156,22 @@ button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice
 }
 
 .sidebar-collapsed .brand-mark {
-  display: none; /* Let's just hide the brand mark and only show the toggle button when collapsed */
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.brand-mark {
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 200px; /* enough for logo + text */
 }
 
 .sidebar-collapsed .nav-item {
   justify-content: center;
   padding: 12px;
+  gap: 0;
 }
 .sidebar-collapsed .nav-item svg {
   margin: 0;
