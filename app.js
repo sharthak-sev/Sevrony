@@ -5582,7 +5582,14 @@ function renderTestReview() {
         const externalId = q.questionId || q.vaultId || `${bankId}:${sequenceCounter}`;
         const id = String(externalId);
         
-        const answerOptions = normalizeAnswerOptions(Object.entries(q.choices || {}).map(([letter, content]) => ({ letter, content })));
+        const answerOptions = normalizeAnswerOptions(Object.entries(q.choices || {}).map(([key, content], i) => {
+          const isLetter = /^[A-Z]$/i.test(key);
+          return {
+            id: isLetter ? "" : key,
+            letter: isLetter ? key.toUpperCase() : String.fromCharCode(65 + i),
+            content
+          };
+        }));
         const type = answerOptions.length ? "mcq" : "spr";
         const correctAnswers = normalizeCorrectAnswers(q.correctAnswer, answerOptions, type);
         
@@ -5635,9 +5642,13 @@ function renderTestReview() {
         if (!finalAnswer || finalAnswer.toLowerCase() === "omitted" || finalAnswer === "") {
           isAnswered = false;
           finalAnswer = "";
+        } else if (type === "mcq") {
+          const letterMatch = /^[A-Z]$/i.test(finalAnswer) ? finalAnswer.toUpperCase() : findLetterByOptionId(answerOptions, finalAnswer);
+          if (letterMatch) {
+            finalAnswer = letterMatch;
+          }
         }
-        
-        const isCorrect = q.isCorrect === true;
+        const isCorrect = q.isCorrect === true || String(q.isCorrect).toLowerCase() === "true" || (finalAnswer ? scoreAnswer(question, finalAnswer).isCorrect : false);
         
         if (isAnswered) {
           totalAnswered++;
@@ -7575,7 +7586,7 @@ ${(() => {
 
     const answered = answeredResponses.length;
     return {
-      bank, overall: { answered, correct, incorrect: questions.length - correct, accuracy: questions.length ? correct / questions.length : 0, avgTime: timedAnswered ? totalTime / timedAnswered : 0 },
+      bank, overall: { answered, correct, incorrect: answered - correct, accuracy: answered ? correct / answered : 0, avgTime: timedAnswered ? totalTime / timedAnswered : 0 },
       subjects, domains: [...domainMap.values()].sort((a, b) => String(a.subject).localeCompare(String(b.subject)) || String(a.label).localeCompare(String(b.label)))
     };
   }
