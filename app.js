@@ -8296,12 +8296,18 @@ ${(() => {
   function stripHtmlToText(html) {
     if (!html) return "";
     var s = String(html);
-    // Remove SVG elements entirely (inline icons/graphs)
-    s = s.replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, '');
-    // Remove style blocks
-    s = s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
-    // Remove all HTML tags
-    s = s.replace(/<[^>]+>/gm, '');
+    
+    let prev;
+    do {
+      prev = s;
+      // Remove SVG elements entirely (inline icons/graphs)
+      s = s.replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, '');
+      // Remove style blocks
+      s = s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+      // Remove all HTML tags
+      s = s.replace(/<[^>]+>/gm, '');
+    } while (s !== prev);
+
     // Decode common HTML entities safely in one pass to avoid double-unescaping
     const entities = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#039;': "'" };
     s = s.replace(/&(?:nbsp|amp|lt|gt|quot|#039);/gi, m => entities[m.toLowerCase()] || m);
