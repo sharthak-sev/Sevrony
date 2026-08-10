@@ -8302,8 +8302,16 @@ ${(() => {
       prev = s;
       // Remove SVG elements entirely (inline icons/graphs)
       s = s.replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, '');
+    } while (s !== prev);
+
+    do {
+      prev = s;
       // Remove style blocks
       s = s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+    } while (s !== prev);
+
+    do {
+      prev = s;
       // Remove all HTML tags
       s = s.replace(/<[^>]+>/gm, '');
     } while (s !== prev);
