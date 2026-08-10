@@ -3016,17 +3016,6 @@ html[data-transition="drill"]::view-transition-new(root) {
   transition: opacity 0.2s ease;
 }
 
-/* Review List CSS Filtering */
-.review-list.filter-incorrect:not(.filter-skipped) .review-card:not([data-status="incorrect"]),
-.review-list.filter-skipped:not(.filter-incorrect) .review-card:not([data-status="skipped"]),
-.review-list.filter-incorrect.filter-skipped .review-card:not([data-status="incorrect"]):not([data-status="skipped"]) {
-  display: none !important;
-}
-
-.review-list.filter-subject-rw .review-card:not([data-subject="rw"]),
-.review-list.filter-subject-math .review-card:not([data-subject="math"]) {
-  display: none !important;
-}
 
 .modal-overlay.visible {
   opacity: 1;

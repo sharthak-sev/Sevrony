@@ -3005,6 +3005,45 @@ function renderTestReview() {
     const totalWrong = mathWrong + rwWrong;
     const totalOmitted = mathOmitted + rwOmitted;
 
+    let filteredResponses = allResponses;
+    if (state.reviewFilterSubject && state.reviewFilterSubject !== "both") {
+      filteredResponses = filteredResponses.filter(r => r.subject === state.reviewFilterSubject);
+    }
+    
+    if (state.reviewFilterIncorrect && state.reviewFilterSkipped) {
+      filteredResponses = filteredResponses.filter(r => !r.isCorrect);
+    } else if (state.reviewFilterIncorrect) {
+      filteredResponses = filteredResponses.filter(r => !r.isCorrect && isAnsweredResponse(r));
+    } else if (state.reviewFilterSkipped) {
+      filteredResponses = filteredResponses.filter(r => !isAnsweredResponse(r));
+    }
+
+    state.reviewPage = state.reviewPage || 1;
+    let pages = [];
+    if ((session.mode === "bluebook" || session.mode === "full") && state.reviewFilterSubject !== "both") {
+      const moduleMap = new Map();
+      const modules = [];
+      for (const r of filteredResponses) {
+        const title = r.moduleTitle || "Module";
+        if (!moduleMap.has(title)) {
+          moduleMap.set(title, []);
+          modules.push(title);
+        }
+        moduleMap.get(title).push(r);
+      }
+      pages = modules.map(t => moduleMap.get(t));
+    } else {
+      const CHUNK_SIZE = 20;
+      for (let i = 0; i < filteredResponses.length; i += CHUNK_SIZE) {
+        pages.push(filteredResponses.slice(i, i + CHUNK_SIZE));
+      }
+    }
+    if (pages.length === 0) pages = [[]];
+
+    const totalPages = pages.length;
+    if (state.reviewPage > totalPages) state.reviewPage = totalPages;
+    const pagedResponses = pages[state.reviewPage - 1] || [];
+
     let summaryHtml = "";
     if (state.reviewFilterSubject === "both" && mathTotal > 0 && rwTotal > 0) {
       summaryHtml = `<div class="review-summary">
@@ -3019,9 +3058,6 @@ function renderTestReview() {
     } else {
       summaryHtml = `<p class="review-summary-single">${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted · ${allResponses.length} questions</p>`;
     }
-    
-    // Store these totals globally for the filter script to use without recalculating
-    window._reviewTotals = { mathTotal, mathCorrect, mathWrong, mathOmitted, rwTotal, rwCorrect, rwWrong, rwOmitted, totalCorrect, totalWrong, totalOmitted, total: allResponses.length };
 
     return `
       <section class="review-heading panel">
@@ -3053,12 +3089,59 @@ function renderTestReview() {
           </label>
         </div>
       </section>
-      <section class="review-list ${state.reviewFilterIncorrect ? 'filter-incorrect' : ''} ${state.reviewFilterSkipped ? 'filter-skipped' : ''} ${state.reviewFilterSubject && state.reviewFilterSubject !== 'both' ? 'filter-subject-' + state.reviewFilterSubject : ''}">
-        ${allResponses.length ? allResponses.map((r, i) => renderReviewedQuestion(questionMap.get(r.questionId), r, i, session)).join("") : `
-          <article class="panel empty-message">No questions were answered.</article>
+      
+      <section class="review-list">
+        ${pagedResponses.length ? pagedResponses.map((r, i) => renderReviewedQuestion(questionMap.get(r.questionId), r, i, session)).join("") : `
+          <article class="panel empty-message">${allResponses.length > 0 ? "No questions match those filters." : "No questions were answered."}</article>
         `}
-        <article class="panel empty-message css-empty-message" style="display: none;">No questions match those filters.</article>
       </section>
+      
+      ${totalPages > 1 ? `
+        <!-- Pagination Controls (Monochrome Design) -->
+        <nav role="navigation" aria-label="pagination" style="display: flex; justify-content: center; padding: 32px 16px 8px;">
+          <ul class="ml-pagination">
+            <li style="list-style: none;">
+              <button type="button" class="ml-pagination-nav-btn" data-action="review-change-page" data-page="${Math.max(1, state.reviewPage - 1)}" ${state.reviewPage === 1 ? 'disabled' : ''} aria-label="Go to previous page">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                <span style="display: none;" class="ml-pg-label">Prev</span>
+              </button>
+            </li>
+            ${(function() {
+              var pages = [];
+              var cp = state.reviewPage;
+              var tp = totalPages;
+              if (tp <= 7) {
+                for (var i = 1; i <= tp; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                if (cp > 3) pages.push('...');
+                var start = Math.max(2, cp - 1);
+                var end = Math.min(tp - 1, cp + 1);
+                if (cp <= 3) { start = 2; end = 4; }
+                if (cp >= tp - 2) { start = tp - 3; end = tp - 1; }
+                for (var j = start; j <= end; j++) pages.push(j);
+                if (cp < tp - 2) pages.push('...');
+                pages.push(tp);
+              }
+              return pages.map(function(p) {
+                if (p === '...') {
+                  return '<li style="list-style: none;"><span aria-hidden="true" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-size: 13px; color: var(--ink-muted);">···</span></li>';
+                }
+                var isActive = p === cp;
+                var btnClass = isActive ? 'ml-pagination-btn active' : 'ml-pagination-btn';
+                return '<li style="list-style: none;"><button type="button" class="' + btnClass + '" data-action="review-change-page" data-page="' + p + '" aria-label="Go to page ' + p + '" aria-current="' + (isActive ? 'page' : 'false') + '">' + p + '</button></li>';
+              }).join('');
+            })()}
+            <li style="list-style: none;">
+              <button type="button" class="ml-pagination-nav-btn" data-action="review-change-page" data-page="${Math.min(totalPages, state.reviewPage + 1)}" ${state.reviewPage === totalPages ? 'disabled' : ''} aria-label="Go to next page">
+                <span style="display: none;" class="ml-pg-label">Next</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </li>
+          </ul>
+        </nav>
+        <div style="text-align: center; font-size: 12px; color: var(--ink-muted); padding-bottom: 32px;">Page ${state.reviewPage} of ${totalPages} · ${filteredResponses.length} question${filteredResponses.length !== 1 ? 's' : ''}</div>
+      ` : ''}
       
       <button class="primary-btn scroll-top-btn" type="button" data-action="scroll-top" aria-label="Scroll to top">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
@@ -4921,87 +5004,29 @@ function renderTestReview() {
       state.reviewFilterIncorrect = false;
       state.reviewFilterSkipped = false;
       state.reviewFilterSubject = "both";
+      state.reviewPage = 1;
       state.view = "review";
       app.innerHTML = `<div class="shadcn-spinner-container"><div class="shadcn-loader"></div></div>`;
       setTimeout(() => renderHome(), 10);
     }
     if (action === "review-subject-filter") {
-      const subject = event.currentTarget.dataset.subject || "both";
-      state.reviewFilterSubject = subject;
-      
-      const list = app.querySelector(".review-list");
-      if (list) {
-        list.classList.remove("filter-subject-rw", "filter-subject-math");
-        if (subject !== "both") {
-          list.classList.add("filter-subject-" + subject);
-        }
-        
-        app.querySelectorAll('[data-action="review-subject-filter"]').forEach(btn => {
-          btn.classList.toggle("active", btn.dataset.subject === subject);
-        });
-
-        // Update summary HTML
-        const summaryContainer = app.querySelector('#review-summary-container');
-        if (summaryContainer && window._reviewTotals) {
-          const t = window._reviewTotals;
-          let summaryHtml = "";
-          if (subject === "both" && t.mathTotal > 0 && t.rwTotal > 0) {
-            summaryHtml = `<div class="review-summary">
-                 <p class="review-summary-row"><span class="review-summary-label">Math:</span><span>${t.mathCorrect} correct · ${t.mathWrong} wrong · ${t.mathOmitted} omitted</span></p>
-                 <p class="review-summary-row"><span class="review-summary-label">R&W:</span><span>${t.rwCorrect} correct · ${t.rwWrong} wrong · ${t.rwOmitted} omitted</span></p>
-                 <p class="review-summary-row"><span class="review-summary-label">Total:</span><span>${t.totalCorrect} correct · ${t.totalWrong} wrong · ${t.totalOmitted} omitted</span></p>
-               </div>`;
-          } else if (subject === "math" || (t.mathTotal > 0 && t.rwTotal === 0)) {
-            summaryHtml = `<p class="review-summary-single">${t.mathCorrect} correct · ${t.mathWrong} wrong · ${t.mathOmitted} omitted · ${t.mathTotal} questions</p>`;
-          } else if (subject === "rw" || (t.rwTotal > 0 && t.mathTotal === 0)) {
-            summaryHtml = `<p class="review-summary-single">${t.rwCorrect} correct · ${t.rwWrong} wrong · ${t.rwOmitted} omitted · ${t.rwTotal} questions</p>`;
-          } else {
-            summaryHtml = `<p class="review-summary-single">${t.totalCorrect} correct · ${t.totalWrong} wrong · ${t.totalOmitted} omitted · ${t.total} questions</p>`;
-          }
-          summaryContainer.innerHTML = summaryHtml;
-        }
-
-        // Check if list is empty based on filters
-        const emptyMsg = list.querySelector(".css-empty-message");
-        if (emptyMsg) {
-          const inc = state.reviewFilterIncorrect;
-          const skp = state.reviewFilterSkipped;
-          const subjSelector = subject === "both" ? "" : `[data-subject="${subject}"]`;
-          
-          let hasVisible = false;
-          if (inc && skp) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}, .review-card[data-status="skipped"]${subjSelector}`);
-          else if (inc) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}`);
-          else if (skp) hasVisible = !!list.querySelector(`.review-card[data-status="skipped"]${subjSelector}`);
-          else hasVisible = !!list.querySelector(`.review-card${subjSelector}`);
-          
-          emptyMsg.style.display = hasVisible ? "none" : "block";
-        }
-      }
+      state.reviewFilterSubject = event.currentTarget.dataset.subject || "both";
+      state.reviewPage = 1;
+      renderHome();
     }
     if (action === "review-wrong-toggle") {
       const type = event.currentTarget.dataset.type;
       if (type === "incorrect") state.reviewFilterIncorrect = event.currentTarget.checked;
       if (type === "skipped") state.reviewFilterSkipped = event.currentTarget.checked;
-      
-      const list = app.querySelector(".review-list");
-      if (list) {
-        list.classList.toggle("filter-incorrect", state.reviewFilterIncorrect);
-        list.classList.toggle("filter-skipped", state.reviewFilterSkipped);
-        
-        const emptyMsg = list.querySelector(".css-empty-message");
-        if (emptyMsg) {
-          const inc = state.reviewFilterIncorrect;
-          const skp = state.reviewFilterSkipped;
-          const subject = state.reviewFilterSubject || "both";
-          const subjSelector = subject === "both" ? "" : `[data-subject="${subject}"]`;
-          
-          let hasVisible = false;
-          if (inc && skp) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}, .review-card[data-status="skipped"]${subjSelector}`);
-          else if (inc) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}`);
-          else if (skp) hasVisible = !!list.querySelector(`.review-card[data-status="skipped"]${subjSelector}`);
-          else hasVisible = !!list.querySelector(`.review-card${subjSelector}`);
-          emptyMsg.style.display = hasVisible ? "none" : "block";
-        }
+      state.reviewPage = 1;
+      renderHome();
+    }
+    if (action === "review-change-page") {
+      const page = parseInt(event.currentTarget.dataset.page, 10);
+      if (!isNaN(page) && page !== state.reviewPage) {
+        state.reviewPage = page;
+        renderHome();
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
       }
     }
     if (action === "import") { fileInput.click(); }
