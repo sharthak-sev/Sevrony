@@ -3023,6 +3023,11 @@ html[data-transition="drill"]::view-transition-new(root) {
   display: none !important;
 }
 
+.review-list.filter-subject-rw .review-card:not([data-subject="rw"]),
+.review-list.filter-subject-math .review-card:not([data-subject="math"]) {
+  display: none !important;
+}
+
 .modal-overlay.visible {
   opacity: 1;
 }

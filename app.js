@@ -3005,11 +3005,6 @@ function renderTestReview() {
     const totalWrong = mathWrong + rwWrong;
     const totalOmitted = mathOmitted + rwOmitted;
 
-    if (!state.reviewFilterSubject) state.reviewFilterSubject = "both";
-    const responses = state.reviewFilterSubject === "both" 
-      ? allResponses 
-      : allResponses.filter(r => r.subject === state.reviewFilterSubject);
-
     let summaryHtml = "";
     if (state.reviewFilterSubject === "both" && mathTotal > 0 && rwTotal > 0) {
       summaryHtml = `<div class="review-summary">
@@ -3024,6 +3019,9 @@ function renderTestReview() {
     } else {
       summaryHtml = `<p class="review-summary-single">${totalCorrect} correct · ${totalWrong} wrong · ${totalOmitted} omitted · ${allResponses.length} questions</p>`;
     }
+    
+    // Store these totals globally for the filter script to use without recalculating
+    window._reviewTotals = { mathTotal, mathCorrect, mathWrong, mathOmitted, rwTotal, rwCorrect, rwWrong, rwOmitted, totalCorrect, totalWrong, totalOmitted, total: allResponses.length };
 
     return `
       <section class="review-heading panel">
@@ -3031,7 +3029,7 @@ function renderTestReview() {
           <div>
             <p class="eyebrow">${session.mode === "bluebook" ? "Bluebook test review" : session.mode === "full" ? "Full test review" : (session.config?.isRetry || session.subject === "both") ? "Retry Mistakes review" : "Subject test review"}</p>
             <h1>${session.mode === "bluebook" ? escapeHtml(session.title || "Bluebook Test") : escapeHtml(formatSessionDate(session.completedAt))}</h1>
-            ${summaryHtml}
+            <div id="review-summary-container">${summaryHtml}</div>
           </div>
         </div>
         <div class="review-filter-bar" style="display:flex; gap:20px; align-items:center; flex-wrap:wrap;">
@@ -3055,9 +3053,9 @@ function renderTestReview() {
           </label>
         </div>
       </section>
-      <section class="review-list ${state.reviewFilterIncorrect ? 'filter-incorrect' : ''} ${state.reviewFilterSkipped ? 'filter-skipped' : ''}">
-        ${responses.length ? responses.map((r, i) => renderReviewedQuestion(questionMap.get(r.questionId), r, i, session)).join("") : `
-          <article class="panel empty-message">${allResponses.length === 0 ? "No questions were answered." : "All questions were answered correctly!"}</article>
+      <section class="review-list ${state.reviewFilterIncorrect ? 'filter-incorrect' : ''} ${state.reviewFilterSkipped ? 'filter-skipped' : ''} ${state.reviewFilterSubject && state.reviewFilterSubject !== 'both' ? 'filter-subject-' + state.reviewFilterSubject : ''}">
+        ${allResponses.length ? allResponses.map((r, i) => renderReviewedQuestion(questionMap.get(r.questionId), r, i, session)).join("") : `
+          <article class="panel empty-message">No questions were answered.</article>
         `}
         <article class="panel empty-message css-empty-message" style="display: none;">No questions match those filters.</article>
       </section>
@@ -3095,7 +3093,7 @@ function renderTestReview() {
 
     if (!question) {
       return `
-        <article class="panel review-card" data-status="${status}">
+        <article class="panel review-card" data-status="${status}" data-subject="${escapeHtml(response.subject || "")}">
           <div class="review-card-header">
             <strong>Question ${num}</strong>
             ${pretestBadge}
@@ -3107,7 +3105,7 @@ function renderTestReview() {
     }
 
     return `
-      <article class="panel review-card" data-status="${status}">
+      <article class="panel review-card" data-status="${status}" data-subject="${escapeHtml(question.subject || response.subject || "")}">
         <div class="review-card-header">
           <div>
             <span class="question-number">Question ${num}</span>
@@ -4924,11 +4922,61 @@ function renderTestReview() {
       state.reviewFilterSkipped = false;
       state.reviewFilterSubject = "both";
       state.view = "review";
-      renderHome();
+      app.innerHTML = `<div class="shadcn-spinner-container"><div class="shadcn-loader"></div></div>`;
+      setTimeout(() => renderHome(), 10);
     }
     if (action === "review-subject-filter") {
-      state.reviewFilterSubject = event.currentTarget.dataset.subject || "both";
-      renderHome();
+      const subject = event.currentTarget.dataset.subject || "both";
+      state.reviewFilterSubject = subject;
+      
+      const list = app.querySelector(".review-list");
+      if (list) {
+        list.classList.remove("filter-subject-rw", "filter-subject-math");
+        if (subject !== "both") {
+          list.classList.add("filter-subject-" + subject);
+        }
+        
+        app.querySelectorAll('[data-action="review-subject-filter"]').forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.subject === subject);
+        });
+
+        // Update summary HTML
+        const summaryContainer = app.querySelector('#review-summary-container');
+        if (summaryContainer && window._reviewTotals) {
+          const t = window._reviewTotals;
+          let summaryHtml = "";
+          if (subject === "both" && t.mathTotal > 0 && t.rwTotal > 0) {
+            summaryHtml = `<div class="review-summary">
+                 <p class="review-summary-row"><span class="review-summary-label">Math:</span><span>${t.mathCorrect} correct · ${t.mathWrong} wrong · ${t.mathOmitted} omitted</span></p>
+                 <p class="review-summary-row"><span class="review-summary-label">R&W:</span><span>${t.rwCorrect} correct · ${t.rwWrong} wrong · ${t.rwOmitted} omitted</span></p>
+                 <p class="review-summary-row"><span class="review-summary-label">Total:</span><span>${t.totalCorrect} correct · ${t.totalWrong} wrong · ${t.totalOmitted} omitted</span></p>
+               </div>`;
+          } else if (subject === "math" || (t.mathTotal > 0 && t.rwTotal === 0)) {
+            summaryHtml = `<p class="review-summary-single">${t.mathCorrect} correct · ${t.mathWrong} wrong · ${t.mathOmitted} omitted · ${t.mathTotal} questions</p>`;
+          } else if (subject === "rw" || (t.rwTotal > 0 && t.mathTotal === 0)) {
+            summaryHtml = `<p class="review-summary-single">${t.rwCorrect} correct · ${t.rwWrong} wrong · ${t.rwOmitted} omitted · ${t.rwTotal} questions</p>`;
+          } else {
+            summaryHtml = `<p class="review-summary-single">${t.totalCorrect} correct · ${t.totalWrong} wrong · ${t.totalOmitted} omitted · ${t.total} questions</p>`;
+          }
+          summaryContainer.innerHTML = summaryHtml;
+        }
+
+        // Check if list is empty based on filters
+        const emptyMsg = list.querySelector(".css-empty-message");
+        if (emptyMsg) {
+          const inc = state.reviewFilterIncorrect;
+          const skp = state.reviewFilterSkipped;
+          const subjSelector = subject === "both" ? "" : `[data-subject="${subject}"]`;
+          
+          let hasVisible = false;
+          if (inc && skp) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}, .review-card[data-status="skipped"]${subjSelector}`);
+          else if (inc) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}`);
+          else if (skp) hasVisible = !!list.querySelector(`.review-card[data-status="skipped"]${subjSelector}`);
+          else hasVisible = !!list.querySelector(`.review-card${subjSelector}`);
+          
+          emptyMsg.style.display = hasVisible ? "none" : "block";
+        }
+      }
     }
     if (action === "review-wrong-toggle") {
       const type = event.currentTarget.dataset.type;
@@ -4944,11 +4992,14 @@ function renderTestReview() {
         if (emptyMsg) {
           const inc = state.reviewFilterIncorrect;
           const skp = state.reviewFilterSkipped;
+          const subject = state.reviewFilterSubject || "both";
+          const subjSelector = subject === "both" ? "" : `[data-subject="${subject}"]`;
+          
           let hasVisible = false;
-          if (inc && skp) hasVisible = !!list.querySelector('.review-card[data-status="incorrect"], .review-card[data-status="skipped"]');
-          else if (inc) hasVisible = !!list.querySelector('.review-card[data-status="incorrect"]');
-          else if (skp) hasVisible = !!list.querySelector('.review-card[data-status="skipped"]');
-          else hasVisible = !!list.querySelector('.review-card');
+          if (inc && skp) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}, .review-card[data-status="skipped"]${subjSelector}`);
+          else if (inc) hasVisible = !!list.querySelector(`.review-card[data-status="incorrect"]${subjSelector}`);
+          else if (skp) hasVisible = !!list.querySelector(`.review-card[data-status="skipped"]${subjSelector}`);
+          else hasVisible = !!list.querySelector(`.review-card${subjSelector}`);
           emptyMsg.style.display = hasVisible ? "none" : "block";
         }
       }
@@ -8221,13 +8272,14 @@ ${(() => {
     if (!html) return "";
     var s = String(html);
     // Remove SVG elements entirely (inline icons/graphs)
-    s = s.replace(/<svg[\s\S]*?<\/svg>/gi, '');
+    s = s.replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, '');
     // Remove style blocks
-    s = s.replace(/<style[\s\S]*?<\/style>/gi, '');
+    s = s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
     // Remove all HTML tags
-    s = s.replace(/<[^>]*>?/gm, '');
-    // Decode common HTML entities
-    s = s.replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#039;/gi, "'");
+    s = s.replace(/<[^>]+>/gm, '');
+    // Decode common HTML entities safely in one pass to avoid double-unescaping
+    const entities = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#039;': "'" };
+    s = s.replace(/&(?:nbsp|amp|lt|gt|quot|#039);/gi, m => entities[m.toLowerCase()] || m);
     // Clean up LaTeX: \text{content} → content
     s = s.replace(/\\text\{([^}]*)\}/g, '$1');
     // \textbf{content} → content
