@@ -1,7 +1,7 @@
 "use strict";
 importScripts('scoring.js?v=2.2.0');
 
-const CURRENT_GRADING_VERSION = 2;
+const CURRENT_GRADING_VERSION = 3;
 const SENSITIVE_STORES = ["questions", "sessions", "responses", "questionStudyState"];
 
 function requestToPromise(request) {

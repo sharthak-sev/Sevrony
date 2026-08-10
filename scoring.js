@@ -56,7 +56,7 @@ function scoreAnswer(question, answer) {
     answer = spr.sanitized;
   }
 
-  const expected = question.correctAnswers || [];
+  const expected = question.correctAnswers || (question.correctAnswer ? (Array.isArray(question.correctAnswer) ? question.correctAnswer : [question.correctAnswer]) : []);
   if (!expected.length) return { wasAnswered: true, isCorrect: false };
   if (question.type === "mcq" && question.answerOptions.length) {
     return { wasAnswered: true, isCorrect: expected.map(normalizeAnswerToken).includes(normalizeAnswerToken(answer)) };

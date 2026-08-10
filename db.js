@@ -28,7 +28,7 @@
     if (typeof localStorage === 'undefined') return Promise.resolve();
     
     const legacyDone = localStorage.getItem(LEGACY_MIGRATION_KEY) === "done";
-    const gradingDone = localStorage.getItem("sevrony.gradingVersion") === "2";
+    const gradingDone = localStorage.getItem("sevrony.gradingVersion") === "3";
     
     if (legacyDone && gradingDone) {
       return Promise.resolve();
@@ -47,7 +47,7 @@
           clearTimeout(timer);
           worker.terminate();
           localStorage.setItem(LEGACY_MIGRATION_KEY, "done");
-          localStorage.setItem("sevrony.gradingVersion", "2");
+          localStorage.setItem("sevrony.gradingVersion", "3");
           // The old key is no longer needed once every legacy record is plain.
           localStorage.removeItem("app_encryption_key");
           resolve();
