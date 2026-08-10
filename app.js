@@ -6355,39 +6355,22 @@ ${(() => {
      TEST EVENT HANDLING
      =========================================================== */
 
-  function sprSanitize(value) {
-    if (value == null) return { sanitized: "", isValid: false };
-    let clean = "";
-    let hasDecimal = false;
-    let hasSlash = false;
-    
-    for (const char of String(value).trim()) {
-      if (/[0-9]/.test(char)) {
-        clean += char;
-      } else if (char === '.' && !hasDecimal && !hasSlash) {
-        clean += char;
-        hasDecimal = true;
-      } else if (char === '/' && !hasSlash && !hasDecimal) {
-        clean += char;
-        hasSlash = true;
-      }
-    }
-    const isValid = /^\d+$|^\d*\.\d+$|^\d+\/\d+$/.test(clean);
-    return { sanitized: clean, isValid };
-  }
+
 
   function handleSprBeforeInput(e) {
     if (e.inputType === "insertText" && e.data) {
       const char = e.data;
       const currentVal = e.target.value;
+      const selStart = e.target.selectionStart;
       
-      const isValidChar = /[0-9\.\/]/.test(char);
+      const isValidChar = /[0-9\.\/\-]/.test(char);
       const isTooManyDec = char === '.' && currentVal.includes('.');
       const isTooManySlash = char === '/' && currentVal.includes('/');
       const isDecWithSlash = char === '.' && currentVal.includes('/');
       const isSlashWithDec = char === '/' && currentVal.includes('.');
+      const isInvalidMinus = char === '-' && (currentVal.includes('-') || selStart > 0);
       
-      if (!isValidChar || isTooManyDec || isTooManySlash || isDecWithSlash || isSlashWithDec) {
+      if (!isValidChar || isTooManyDec || isTooManySlash || isDecWithSlash || isSlashWithDec || isInvalidMinus) {
         e.preventDefault();
         const err = document.getElementById("sprFormatError");
         if (err) err.style.display = "block";
@@ -6905,22 +6888,7 @@ ${(() => {
     };
   }
 
-  function scoreAnswer(question, answer) {
-    if (!hasAnswer(answer)) return { wasAnswered: false, isCorrect: false };
-    
-    if (question.type === "spr" || (question.type !== "mcq" && (!question.answerOptions || !question.answerOptions.length))) {
-      const spr = sprSanitize(answer);
-      if (!spr.isValid) return { wasAnswered: false, isCorrect: false };
-      answer = spr.sanitized;
-    }
 
-    const expected = question.correctAnswers || [];
-    if (!expected.length) return { wasAnswered: true, isCorrect: false };
-    if (question.type === "mcq" && question.answerOptions.length) {
-      return { wasAnswered: true, isCorrect: expected.map(normalizeAnswerToken).includes(normalizeAnswerToken(answer)) };
-    }
-    return { wasAnswered: true, isCorrect: expected.map(normalizeFreeResponse).includes(normalizeFreeResponse(answer)) };
-  }
 
   /* Phase 1: Get IRT difficulty parameter from 7-band score_band or fallback to E/M/H */
   function getDifficultyParam(response) {
@@ -8200,10 +8168,7 @@ ${(() => {
     }
   }
   function findDomainLabel(subject, code) { return (DOMAIN_FALLBACKS[subject] || []).find(d => d.code === code)?.label || ""; }
-  function hasAnswer(value) { return String(value || "").trim().length > 0; }
   function isAnsweredResponse(r) { return r?.isAnswered !== false && hasAnswer(r?.answer); }
-  function normalizeAnswerToken(v) { return String(v || "").trim().toUpperCase(); }
-  function normalizeFreeResponse(v) { return String(v || "").trim().replace(/\s+/g, "").toLowerCase(); }
   function formatPercent(v) { return `${Math.round((v || 0) * 100)}%`; }
 
   function formatTimer(totalSeconds) {

@@ -25,10 +25,12 @@
   // thread tasks during every sync.  Existing encrypted records are rewritten
   // once by db-worker.js before this API serves any request.
   function migrateLegacyEncryption() {
-    // Workers can't access localStorage or spawn nested workers.
-    // sync-worker.js only runs after the main thread has already completed migration.
     if (typeof localStorage === 'undefined') return Promise.resolve();
-    if (localStorage.getItem(LEGACY_MIGRATION_KEY) === "done") {
+    
+    const legacyDone = localStorage.getItem(LEGACY_MIGRATION_KEY) === "done";
+    const gradingDone = localStorage.getItem("sevrony.gradingVersion") === "2";
+    
+    if (legacyDone && gradingDone) {
       return Promise.resolve();
     }
 
@@ -45,6 +47,7 @@
           clearTimeout(timer);
           worker.terminate();
           localStorage.setItem(LEGACY_MIGRATION_KEY, "done");
+          localStorage.setItem("sevrony.gradingVersion", "2");
           // The old key is no longer needed once every legacy record is plain.
           localStorage.removeItem("app_encryption_key");
           resolve();

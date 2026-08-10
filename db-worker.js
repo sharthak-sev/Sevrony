@@ -1,5 +1,7 @@
 "use strict";
+importScripts('scoring.js?v=2.2.0');
 
+const CURRENT_GRADING_VERSION = 2;
 const SENSITIVE_STORES = ["questions", "sessions", "responses", "questionStudyState"];
 
 function requestToPromise(request) {
@@ -113,11 +115,92 @@ async function migrate(db, rawKey) {
   return migrated;
 }
 
+async function migrateGrades(db) {
+  let config;
+  try {
+    const transaction = db.transaction("appConfig", "readonly");
+    const store = transaction.objectStore("appConfig");
+    config = await requestToPromise(store.get("gradingVersion"));
+  } catch (e) {
+    config = null;
+  }
+  
+  const version = config ? config.value : 0;
+  if (version >= CURRENT_GRADING_VERSION) return 0;
+  
+  let migrated = 0;
+  const questions = await readAll(db, "questions");
+  const questionMap = new Map(questions.map(q => [q.id, q]));
+  
+  const responses = await readAll(db, "responses");
+  const sessions = await readAll(db, "sessions");
+  const sessionMap = new Map(sessions.map(s => [s.id, s]));
+  
+  const modifiedResponses = [];
+  const modifiedSessions = new Set();
+  
+  for (const response of responses) {
+    if (!response.questionId) continue;
+    const question = questionMap.get(response.questionId);
+    if (!question) continue;
+    
+    if (response.isAnswered) {
+      const score = scoreAnswer(question, response.answer);
+      if (score.isCorrect !== response.isCorrect) {
+        response.isCorrect = score.isCorrect;
+        modifiedResponses.push(response);
+        
+        const session = sessionMap.get(response.sessionId);
+        if (session && !modifiedSessions.has(session.id)) {
+          modifiedSessions.add(session.id);
+        }
+      }
+    }
+  }
+  
+  if (modifiedResponses.length > 0) {
+    for (const sessionId of modifiedSessions) {
+      const session = sessionMap.get(sessionId);
+      if (session) {
+        const sessionResponses = responses.filter(r => r.sessionId === sessionId && r.isAnswered);
+        const totalCorrect = sessionResponses.filter(r => r.isCorrect).length;
+        session.totalCorrect = totalCorrect;
+        session.totalIncorrect = sessionResponses.length - totalCorrect;
+      }
+    }
+    
+    const sessionsToSave = Array.from(modifiedSessions).map(id => sessionMap.get(id));
+    
+    for (let start = 0; start < modifiedResponses.length; start += 50) {
+      await writeChunk(db, "responses", modifiedResponses.slice(start, start + 50));
+      await pause();
+    }
+    
+    for (let start = 0; start < sessionsToSave.length; start += 50) {
+      await writeChunk(db, "sessions", sessionsToSave.slice(start, start + 50));
+      await pause();
+    }
+    
+    migrated += modifiedResponses.length;
+  }
+  
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction("appConfig", "readwrite");
+    tx.objectStore("appConfig").put({ key: "gradingVersion", value: CURRENT_GRADING_VERSION });
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+  
+  return migrated;
+}
+
 self.onmessage = async event => {
   if (event.data?.type !== "migrate") return;
   try {
     const db = await openDatabase(event.data.dbName, event.data.dbVersion);
-    const migrated = await migrate(db, event.data.legacyKey);
+    let migrated = await migrate(db, event.data.legacyKey);
+    migrated += await migrateGrades(db);
     db.close();
     postMessage({ type: "complete", migrated });
   } catch (error) {
