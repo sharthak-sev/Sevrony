@@ -10,7 +10,12 @@ const ASSETS_TO_CACHE = [
   "./sync.js?v=2.2.0",
   "./sync-worker.js?v=2.2.0",
   "./vocab.js?v=2.2.0",
-  "./logo.svg"
+  "./scoring.js?v=2.2.0",
+  "./dsat_vocabulary.json",
+  "./manifest.json",
+  "./logo.svg",
+  "./favicon.ico",
+  "./apple-touch-icon.png"
 ];
 
 // Install Event

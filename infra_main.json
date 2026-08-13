@@ -2,7 +2,7 @@
   "nodes": [
     {
       "id": "index.html",
-      "under_the_hood": "Static application entry point. It loads styles.css and tailwind.css, includes the Cloudflare Turnstile script for bot protection, then defers db.js, sync.js, vocab.js, and app.js in that dependency order. All local asset URLs use the v2.1.5 cache key, and the page registers sw.js after load."
+      "under_the_hood": "Static application entry point. It loads styles.css and tailwind.css, includes the Cloudflare Turnstile script for bot protection, then defers db.js, sync.js, vocab.js, scoring.js, and app.js in that dependency order. All local asset URLs use the v2.2.0 cache key, and the page registers sw.js after load."
     },
     {
       "id": "app.js",
@@ -13,6 +13,14 @@
       "under_the_hood": "IndexedDB wrapper exposed as window.SatPracticeDB. It provides promise-based get, getAll, put, putMany, remove, and clear operations for questionBanks, questions, sessions, responses, appConfig, and vocabWords."
     },
     {
+      "id": "db-worker.js",
+      "under_the_hood": "Dedicated Web Worker for running background IndexedDB data migrations and legacy encryption conversions without blocking the main UI thread."
+    },
+    {
+      "id": "scoring.js",
+      "under_the_hood": "Pure deterministic scoring engine providing Student-Produced Response (SPR) sanitization, math expression/fraction normalization, and MCQ/SPR answer grading shared across the main thread and background workers."
+    },
+    {
       "id": "vocab.js",
       "under_the_hood": "Vocabulary SRS module. It seeds vocabWords from dsat_vocabulary.json, manages learn and flashcard sessions, and persists resumable session state in localStorage under sat_vocab_state. It exposes isSessionActive(), reloadState(), and rendering/session methods through window.Vocab. Progress updates are written to IndexedDB and optionally synced through SevSync. Includes dynamic Cloudflare Turnstile integration with safe unmounting and offscreen positioning to avoid display-none throttling while securing AI sentence validation endpoints."
     },
@@ -21,8 +29,12 @@
       "under_the_hood": "Optional Google Drive appData sync module exposed as window.SevSync. It stores link metadata and short-lived access tokens in localStorage, merges local and remote records with last-write-wins rules, and syncs both vocabWords and sat_vocab_state. Background syncing runs only with a valid cached token; manual sync renews the Google session when needed."
     },
     {
+      "id": "sync-worker.js",
+      "under_the_hood": "Dedicated Web Worker for off-thread Google Drive remote data diffing, delta merging, and storage synchronization."
+    },
+    {
       "id": "sw.js",
-      "under_the_hood": "Network-first service worker with cache fallback for GET requests. It precaches the v2.1.5 application asset set in sat-practice-cache-v2.1.5, bypasses the browser HTTP cache during install, activates immediately, and deletes older named caches."
+      "under_the_hood": "Network-first service worker with cache fallback for GET requests. It precaches the v2.2.0 application asset set in sat-practice-cache-v2.2.0, bypasses the browser HTTP cache during install, activates immediately, and deletes older named caches."
     },
     {
       "id": "styles.css",
@@ -42,7 +54,7 @@
     },
     {
       "id": "manifest.json",
-      "under_the_hood": "PWA manifest defining the install name, colors, display mode, start URL, and logo icon."
+      "under_the_hood": "PWA manifest defining the install name, colors, display mode, start URL, and logo icons."
     },
     {
       "id": "logo.svg",
@@ -54,24 +66,32 @@
     { "source": "index.html", "target": "tailwind.css", "relationship": "loads" },
     { "source": "index.html", "target": "db.js", "relationship": "loads first" },
     { "source": "index.html", "target": "sync.js", "relationship": "loads" },
-    { "source": "index.html", "target": "vocab.js", "relationship": "loads before app.js" },
+    { "source": "index.html", "target": "vocab.js", "relationship": "loads before scoring.js and app.js" },
+    { "source": "index.html", "target": "scoring.js", "relationship": "loads before app.js" },
     { "source": "index.html", "target": "app.js", "relationship": "loads" },
     { "source": "index.html", "target": "sw.js", "relationship": "registers" },
     { "source": "index.html", "target": "manifest.json", "relationship": "references" },
     { "source": "app.js", "target": "db.js", "relationship": "hydrates and persists SAT practice data" },
+    { "source": "app.js", "target": "scoring.js", "relationship": "evaluates user question answers and SPR inputs" },
     { "source": "app.js", "target": "sync.js", "relationship": "links and syncs accounts" },
     { "source": "app.js", "target": "vocab.js", "relationship": "routes to and renders vocabulary UI" },
+    { "source": "db.js", "target": "db-worker.js", "relationship": "delegates legacy data migration" },
     { "source": "vocab.js", "target": "db.js", "relationship": "reads and updates vocabWords" },
     { "source": "vocab.js", "target": "sync.js", "relationship": "requests progress sync when linked" },
     { "source": "vocab.js", "target": "dsat_vocabulary.json", "relationship": "seeds empty vocabulary storage" },
     { "source": "vocab.js", "target": "app.js", "relationship": "calls window.renderHome" },
     { "source": "vocab.js", "target": "cloudflare-worker.js", "relationship": "submits sentence validation requests" },
+    { "source": "sync.js", "target": "sync-worker.js", "relationship": "delegates remote drive diff and merge" },
     { "source": "sync.js", "target": "db.js", "relationship": "merges local stores with Drive data" },
     { "source": "sw.js", "target": "index.html", "relationship": "precaches" },
     { "source": "sw.js", "target": "app.js", "relationship": "precaches" },
     { "source": "sw.js", "target": "db.js", "relationship": "precaches" },
+    { "source": "sw.js", "target": "db-worker.js", "relationship": "precaches" },
     { "source": "sw.js", "target": "sync.js", "relationship": "precaches" },
+    { "source": "sw.js", "target": "sync-worker.js", "relationship": "precaches" },
     { "source": "sw.js", "target": "vocab.js", "relationship": "precaches" },
+    { "source": "sw.js", "target": "scoring.js", "relationship": "precaches" },
+    { "source": "sw.js", "target": "dsat_vocabulary.json", "relationship": "precaches" },
     { "source": "manifest.json", "target": "logo.svg", "relationship": "uses as icon" }
   ]
 }

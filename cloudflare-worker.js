@@ -189,8 +189,9 @@ export default {
           );
         }
 
-        const apiKey = env.GEMINI_API_KEY; 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
+        const apiKey = env.GEMINI_API_KEY;
+        const modelName = env.GEMINI_MODEL || "gemini-1.5-flash";
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
         const aiPrompt = `You are an English teacher evaluating a high school student's vocabulary practice. 
 The student was asked to use the word "${word}" in a sentence.
