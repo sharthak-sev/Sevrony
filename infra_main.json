@@ -2,15 +2,19 @@
   "nodes": [
     {
       "id": "index.html",
-      "under_the_hood": "Static application entry point. It loads styles.css and tailwind.css, includes the Cloudflare Turnstile script for bot protection, then defers db.js, sync.js, vocab.js, scoring.js, and app.js in that dependency order. All local asset URLs use the v2.2.0 cache key, and the page registers sw.js after load."
+      "under_the_hood": "Static application entry point. It loads styles.css and tailwind.css, includes the Cloudflare Turnstile script for bot protection, then defers api.js, db.js, sync.js, vocab.js, scoring.js, and app.js in that dependency order. api.js is first because it publishes window.SevApi.BASE, which vocab.js reads while building its config. All local asset URLs use the v2.3.0 cache key, and the page registers sw.js after load."
     },
     {
       "id": "app.js",
-      "under_the_hood": "Primary UI and route orchestrator. It hydrates question-bank data from IndexedDB, renders the SPA shell and SAT practice flows (including tracking omitted custom test responses, option toggling, and RW passage text highlighting with boundary clamping, as well as the Mistakes Log), and owns onboarding, history, backup, tutorial, and hash/popstate routing. Vocabulary is an independent route: an active window.Vocab session restores #vocab on startup, bypasses question-bank onboarding, and counts as restorable data when a returning account is synced. app.js exposes window.renderHome so vocab.js can request a UI refresh. It also conditionally loads PostHog and Sentry upon telemetry consent, initializing both with Session Replay, and Sentry with Distributed Tracing."
+      "under_the_hood": "Primary UI and route orchestrator. It hydrates question-bank data from IndexedDB, renders the SPA shell and SAT practice flows (including tracking omitted custom test responses, option toggling, and RW passage text highlighting with boundary clamping, as well as the Mistakes Log), and owns onboarding, history, backup, tutorial, and hash/popstate routing. Vocabulary is an independent route: an active window.Vocab session restores #vocab on startup, bypasses question-bank onboarding, and counts as restorable data when a returning account is synced. app.js exposes window.renderHome so vocab.js can request a UI refresh. It also conditionally loads PostHog and Sentry upon telemetry consent, initializing both with Session Replay, and Sentry with Distributed Tracing. It also owns the client half of the shared question catalog: normalizing downloaded payloads into IndexedDB (dropping the self-referential `raw` field, which would otherwise double what is stored), retiring banks the download emptied, resuming an interrupted download at boot and after a backup restore, and excluding catalog questions from exports and backups via buildPortablePayload()."
+    },
+    {
+      "id": "api.js",
+      "under_the_hood": "Single source of truth for the Cloudflare Worker origin, published as window.SevApi and loaded before every other script. Owns the catalog download driver: meta, Turnstile-backed ticket, keyset paging, retry with backoff, ticket re-minting when a long download outlives a 10-minute ticket, restart on a mid-download version change, and a resume cursor persisted to appConfig after every page. The caller injects the `store` callback, because normalizing a question and writing it to IndexedDB needs app.js internals that do not belong here."
     },
     {
       "id": "db.js",
-      "under_the_hood": "IndexedDB wrapper exposed as window.SatPracticeDB. It provides promise-based get, getAll, put, putMany, remove, and clear operations for questionBanks, questions, sessions, responses, appConfig, and vocabWords."
+      "under_the_hood": "IndexedDB wrapper exposed as window.SatPracticeDB. It provides promise-based get, getAll, put, putMany, remove, and clear operations for questionBanks, questions, sessions, responses, appConfig, and vocabWords. The appConfig store additionally holds the catalog download cursor under the key \"questionCatalog\", persisted after every page so an interrupted download costs at most one page."
     },
     {
       "id": "db-worker.js",
@@ -30,11 +34,11 @@
     },
     {
       "id": "sync-worker.js",
-      "under_the_hood": "Dedicated Web Worker for off-thread Google Drive remote data diffing, delta merging, and storage synchronization."
+      "under_the_hood": "Dedicated Web Worker for off-thread Google Drive remote data diffing, delta merging, and storage synchronization. Shared-catalog questions are stripped from both sides of the merge: they are re-downloadable from the worker, so keeping them out of the Drive blob is what takes a synced account from roughly 47 MB down to a few hundred KB. Stripping only the local side would make every remote copy look like a missing record and write the whole bank back into IndexedDB under its old bank id, so remote copies are matched by bank id *and* by the local catalog id set -- a blob written before the download carries the same questions under the original import's bank id. A blob that still holds them forces exactly one rewrite even when nothing else changed."
     },
     {
       "id": "sw.js",
-      "under_the_hood": "Network-first service worker with cache fallback for GET requests. It precaches the v2.2.0 application asset set in sat-practice-cache-v2.2.0, bypasses the browser HTTP cache during install, activates immediately, and deletes older named caches."
+      "under_the_hood": "Network-first service worker with cache fallback for GET requests. It precaches the v2.3.0 application asset set in sat-practice-cache-v2.3.0, bypasses the browser HTTP cache during install, activates immediately, and deletes older named caches. Every worker script that importScripts or `new Worker()`s another file pins the same v2.3.0 key, so a version bump has to be applied across index.html, sw.js, db.js, db-worker.js, sync.js and sync-worker.js together."
     },
     {
       "id": "styles.css",
@@ -49,8 +53,28 @@
       "under_the_hood": "Static vocabulary seed data fetched by vocab.js when the vocabWords store is empty."
     },
     {
-      "id": "cloudflare-worker.js",
-      "under_the_hood": "Cloudflare Worker backend for AI vocabulary sentence validation and feedback submission. Enforces Cloudflare Turnstile siteverify and CORS to protect against unauthorized bots."
+      "id": "worker/index.js",
+      "under_the_hood": "Cloudflare Worker HTTP entry point. Routing happens before method dispatch, so the GET banner is a fallback rather than a short-circuit that would shadow every catalog route. Owns the per-route rate-limit map, the X-Admin-Key check scoped to /api/admin/*, and the deliberate rule that a valid admin key also satisfies the download-ticket gate and exempts the caller from rate limits -- which is what lets tools/upload_catalog.py --verify read pages back through the real public route. Page requests get a deliberately generous budget because the ticket, not the page route, is the per-person cost gate: a tight page budget would not stop scraping but would break a computer lab whose 20 simultaneous downloads arrive from one NAT address."
+    },
+    {
+      "id": "worker/http.js",
+      "under_the_hood": "Shared HTTP helpers for the worker: a CORS origin allowlist (GitHub Pages, localhost, plus an optional ALLOWED_ORIGINS var) that emits Vary: Origin and no ACAO header at all for disallowed origins, a JSON response helper, integer parameter clamping, and base64url codecs."
+    },
+    {
+      "id": "worker/vocab.js",
+      "under_the_hood": "The endpoints that shipped before the catalog: consent acknowledgement, the Discord feedback relay, and Gemini-backed vocabulary sentence validation. Also exports the shared verifyTurnstile() used by the catalog ticket route, which enforces the token's `action` so a token minted for one endpoint cannot be replayed against another. WORKER_API_KEY is scoped to this handler rather than global."
+    },
+    {
+      "id": "worker/catalog.js",
+      "under_the_hood": "Read-only question catalog served out of D1 plus the admin ingestion routes. The read path never JSON.parses or JSON.stringifies a question payload -- a worker gets 10 ms of CPU per request, and re-serializing a 1 MB page would spend it all -- so a page body is assembled by concatenating D1's already-string payloads inside a hand-written envelope. Pagination is keyset over a contiguous seq column with an inclusive `since` cursor. Downloads are gated by an HMAC-SHA256 ticket that is bound to the catalog version and expires in 10 minutes; a version mismatch answers 409 so the client restarts rather than treating it as an auth failure. Whether the gate applies is declared in wrangler.toml rather than inferred from whether the secret exists, so a forgotten secret surfaces as a 503 instead of a silently ungated catalog. Missing tables read as an empty catalog so a created-but-uninitialised database does not answer 500."
+    },
+    {
+      "id": "wrangler.toml",
+      "under_the_hood": "Worker deployment config. Staging is the default environment so a bare `wrangler deploy` cannot reach production. Lists every secret the operator must set with `wrangler secret put` -- ADMIN_KEY, CATALOG_TICKET_KEY, TURNSTILE_SECRET, GEMINI_API_KEY, DISCORD_WEBHOOK_URL -- none of which are ever committed or exposed to the frontend."
+    },
+    {
+      "id": "sevrony-questions (D1)",
+      "under_the_hood": "Cloudflare D1 database holding the shared read-only question bank: a `questions` table keyed by College Board external id with a contiguous seq column for keyset pagination and the question JSON in a `payload` column, plus a `catalog_meta` key/value table carrying the version string and counts. Sized well inside the free tier's 500 MB per database and 2 MB per row."
     },
     {
       "id": "manifest.json",
@@ -59,39 +83,242 @@
     {
       "id": "logo.svg",
       "under_the_hood": "Primary application and PWA icon, referenced by the page, manifest, and service-worker cache list."
+    },
+    {
+      "id": "tools/",
+      "under_the_hood": "Operator and test tooling, not shipped to the browser. build_catalog_db.py turns a .sat-test export into catalog.sqlite (gitignored, ~23 MB). upload_catalog.py pushes it to the worker in 25-row batches, taking the admin key from an env var, a file or a prompt but never from argv, where it would land in shell history and ps output; it writes catalog_meta last so an interrupted upload leaves the old version string describing a complete catalog, and --verify walks every page back through the real public route. test_worker.mjs, test_catalog_client.mjs and test_sync_catalog.mjs run the worker, the download driver and the sync filter offline against the real catalog using node:sqlite as a D1 shim."
     }
   ],
   "edges": [
-    { "source": "index.html", "target": "styles.css", "relationship": "loads" },
-    { "source": "index.html", "target": "tailwind.css", "relationship": "loads" },
-    { "source": "index.html", "target": "db.js", "relationship": "loads first" },
-    { "source": "index.html", "target": "sync.js", "relationship": "loads" },
-    { "source": "index.html", "target": "vocab.js", "relationship": "loads before scoring.js and app.js" },
-    { "source": "index.html", "target": "scoring.js", "relationship": "loads before app.js" },
-    { "source": "index.html", "target": "app.js", "relationship": "loads" },
-    { "source": "index.html", "target": "sw.js", "relationship": "registers" },
-    { "source": "index.html", "target": "manifest.json", "relationship": "references" },
-    { "source": "app.js", "target": "db.js", "relationship": "hydrates and persists SAT practice data" },
-    { "source": "app.js", "target": "scoring.js", "relationship": "evaluates user question answers and SPR inputs" },
-    { "source": "app.js", "target": "sync.js", "relationship": "links and syncs accounts" },
-    { "source": "app.js", "target": "vocab.js", "relationship": "routes to and renders vocabulary UI" },
-    { "source": "db.js", "target": "db-worker.js", "relationship": "delegates legacy data migration" },
-    { "source": "vocab.js", "target": "db.js", "relationship": "reads and updates vocabWords" },
-    { "source": "vocab.js", "target": "sync.js", "relationship": "requests progress sync when linked" },
-    { "source": "vocab.js", "target": "dsat_vocabulary.json", "relationship": "seeds empty vocabulary storage" },
-    { "source": "vocab.js", "target": "app.js", "relationship": "calls window.renderHome" },
-    { "source": "vocab.js", "target": "cloudflare-worker.js", "relationship": "submits sentence validation requests" },
-    { "source": "sync.js", "target": "sync-worker.js", "relationship": "delegates remote drive diff and merge" },
-    { "source": "sync.js", "target": "db.js", "relationship": "merges local stores with Drive data" },
-    { "source": "sw.js", "target": "index.html", "relationship": "precaches" },
-    { "source": "sw.js", "target": "app.js", "relationship": "precaches" },
-    { "source": "sw.js", "target": "db.js", "relationship": "precaches" },
-    { "source": "sw.js", "target": "db-worker.js", "relationship": "precaches" },
-    { "source": "sw.js", "target": "sync.js", "relationship": "precaches" },
-    { "source": "sw.js", "target": "sync-worker.js", "relationship": "precaches" },
-    { "source": "sw.js", "target": "vocab.js", "relationship": "precaches" },
-    { "source": "sw.js", "target": "scoring.js", "relationship": "precaches" },
-    { "source": "sw.js", "target": "dsat_vocabulary.json", "relationship": "precaches" },
-    { "source": "manifest.json", "target": "logo.svg", "relationship": "uses as icon" }
+    {
+      "source": "index.html",
+      "target": "styles.css",
+      "relationship": "loads"
+    },
+    {
+      "source": "index.html",
+      "target": "tailwind.css",
+      "relationship": "loads"
+    },
+    {
+      "source": "index.html",
+      "target": "api.js",
+      "relationship": "loads first -- publishes window.SevApi.BASE"
+    },
+    {
+      "source": "index.html",
+      "target": "db.js",
+      "relationship": "loads after api.js"
+    },
+    {
+      "source": "index.html",
+      "target": "sync.js",
+      "relationship": "loads"
+    },
+    {
+      "source": "index.html",
+      "target": "vocab.js",
+      "relationship": "loads before scoring.js and app.js"
+    },
+    {
+      "source": "index.html",
+      "target": "scoring.js",
+      "relationship": "loads before app.js"
+    },
+    {
+      "source": "index.html",
+      "target": "app.js",
+      "relationship": "loads"
+    },
+    {
+      "source": "index.html",
+      "target": "sw.js",
+      "relationship": "registers"
+    },
+    {
+      "source": "index.html",
+      "target": "manifest.json",
+      "relationship": "references"
+    },
+    {
+      "source": "app.js",
+      "target": "db.js",
+      "relationship": "hydrates and persists SAT practice data"
+    },
+    {
+      "source": "app.js",
+      "target": "scoring.js",
+      "relationship": "evaluates user question answers and SPR inputs"
+    },
+    {
+      "source": "app.js",
+      "target": "sync.js",
+      "relationship": "links and syncs accounts"
+    },
+    {
+      "source": "app.js",
+      "target": "vocab.js",
+      "relationship": "routes to and renders vocabulary UI"
+    },
+    {
+      "source": "db.js",
+      "target": "db-worker.js",
+      "relationship": "delegates legacy data migration"
+    },
+    {
+      "source": "vocab.js",
+      "target": "db.js",
+      "relationship": "reads and updates vocabWords"
+    },
+    {
+      "source": "vocab.js",
+      "target": "sync.js",
+      "relationship": "requests progress sync when linked"
+    },
+    {
+      "source": "vocab.js",
+      "target": "dsat_vocabulary.json",
+      "relationship": "seeds empty vocabulary storage"
+    },
+    {
+      "source": "vocab.js",
+      "target": "app.js",
+      "relationship": "calls window.renderHome"
+    },
+    {
+      "source": "vocab.js",
+      "target": "worker/index.js",
+      "relationship": "submits sentence validation requests"
+    },
+    {
+      "source": "sync.js",
+      "target": "sync-worker.js",
+      "relationship": "delegates remote drive diff and merge"
+    },
+    {
+      "source": "sync.js",
+      "target": "db.js",
+      "relationship": "merges local stores with Drive data"
+    },
+    {
+      "source": "sw.js",
+      "target": "index.html",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "app.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "db.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "db-worker.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "sync.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "sync-worker.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "vocab.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "scoring.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "sw.js",
+      "target": "dsat_vocabulary.json",
+      "relationship": "precaches"
+    },
+    {
+      "source": "manifest.json",
+      "target": "logo.svg",
+      "relationship": "uses as icon"
+    },
+    {
+      "source": "api.js",
+      "target": "worker/index.js",
+      "relationship": "downloads the shared question catalog"
+    },
+    {
+      "source": "api.js",
+      "target": "db.js",
+      "relationship": "persists the catalog download cursor in appConfig"
+    },
+    {
+      "source": "app.js",
+      "target": "api.js",
+      "relationship": "resolves the worker origin and drives catalog downloads"
+    },
+    {
+      "source": "vocab.js",
+      "target": "api.js",
+      "relationship": "reads window.SevApi.BASE for the worker origin"
+    },
+    {
+      "source": "sw.js",
+      "target": "api.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "worker/index.js",
+      "target": "worker/http.js",
+      "relationship": "shares CORS and JSON helpers"
+    },
+    {
+      "source": "worker/index.js",
+      "target": "worker/vocab.js",
+      "relationship": "routes consent, feedback and vocabulary AI"
+    },
+    {
+      "source": "worker/index.js",
+      "target": "worker/catalog.js",
+      "relationship": "routes catalog reads and admin ingestion"
+    },
+    {
+      "source": "worker/catalog.js",
+      "target": "worker/vocab.js",
+      "relationship": "reuses verifyTurnstile for ticket issuance"
+    },
+    {
+      "source": "worker/catalog.js",
+      "target": "sevrony-questions (D1)",
+      "relationship": "reads question payloads and writes ingested rows"
+    },
+    {
+      "source": "wrangler.toml",
+      "target": "worker/index.js",
+      "relationship": "deploys as the worker entry point"
+    },
+    {
+      "source": "wrangler.toml",
+      "target": "sevrony-questions (D1)",
+      "relationship": "binds as QUESTIONS_DB"
+    },
+    {
+      "source": "tools/",
+      "target": "worker/index.js",
+      "relationship": "uploads the catalog and tests every route offline"
+    },
+    {
+      "source": "sync-worker.js",
+      "target": "api.js",
+      "relationship": "shares the sevrony-catalog bank id used to strip catalog questions"
+    }
   ]
 }

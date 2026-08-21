@@ -13,7 +13,7 @@
  */
 "use strict";
 
-importScripts("db.js?v=2.2.0");
+importScripts("db.js?v=2.3.0");
 
 const SYNC_FILENAME = "sevrony-sync.json";
 const DB = self.SatPracticeDB;
@@ -108,6 +108,51 @@ function getRecordTimestamp(record) {
   if (record.importedAt) return new Date(record.importedAt).getTime() || 0;
   if (record.answeredAt) return new Date(record.answeredAt).getTime() || 0;
   return 0;
+}
+
+/* ─── Shared question catalog ─────────────────────────────────
+   Catalog questions are re-downloadable from the worker, so they are kept out
+   of the Drive blob entirely — that is what takes a synced account from ~47 MB
+   down to a few hundred KB. They are stripped from BOTH sides of the merge:
+   dropping them only from the local side would make every remote copy look
+   like a record this device is missing, and mergeRecordSets would faithfully
+   write all 2,982 of them back into IndexedDB under their old bank id.
+   ───────────────────────────────────────────────────────────── */
+
+const CATALOG_BANK_ID = "sevrony-catalog";
+
+/**
+ * @returns {{syncable: object[], catalogIds: Set<string>}}
+ */
+function partitionCatalogQuestions(localQuestions) {
+  const syncable = [];
+  const catalogIds = new Set();
+  for (const q of localQuestions) {
+    if (q && q.bankId === CATALOG_BANK_ID) catalogIds.add(q.id);
+    else syncable.push(q);
+  }
+  return { syncable, catalogIds };
+}
+
+/**
+ * Drop catalog questions from a remote blob.
+ *
+ * `catalogIds` matters as much as the bankId check: a blob written before this
+ * device adopted the catalog still carries those same questions under whatever
+ * random bank id the original .sat-test import used.
+ *
+ * @returns {{kept: object[]|undefined, dropped: number}} `dropped > 0` means the
+ * remote file is stale and must be rewritten even if nothing else changed.
+ */
+function stripCatalogQuestions(remoteQuestions, catalogIds) {
+  if (!Array.isArray(remoteQuestions)) return { kept: remoteQuestions, dropped: 0 };
+  const kept = [];
+  let dropped = 0;
+  for (const q of remoteQuestions) {
+    if (q && (q.bankId === CATALOG_BANK_ID || catalogIds.has(q.id))) dropped++;
+    else kept.push(q);
+  }
+  return { kept, dropped };
 }
 
 function mergeRecordSets(localRecords, remoteRecords, idField = "id") {
@@ -221,6 +266,7 @@ async function bidirectionalSync(token, cachedFileId, vocabState, options = {}) 
   ]);
 
   const filteredSessions = localSessions.filter(s => s.id !== "__active_test__");
+  const { syncable: syncableQuestions, catalogIds } = partitionCatalogQuestions(localQuestions);
 
   // Resolve file ID (uses cached value from main thread, or searches Drive)
   let { id: currentFileId } = await resolveFileId(cachedFileId, token);
@@ -231,7 +277,7 @@ async function bidirectionalSync(token, cachedFileId, vocabState, options = {}) 
     const finalFileId = await writeSyncFile({
       syncedAt: new Date().toISOString(),
       questionBanks: localBanks,
-      questions: localQuestions,
+      questions: syncableQuestions,
       sessions: filteredSessions,
       responses: localResponses,
       vocabWords: localVocabWords,
@@ -247,8 +293,9 @@ async function bidirectionalSync(token, cachedFileId, vocabState, options = {}) 
   const remote = await readSyncFile(currentFileId, token);
 
   // Merge each store (pure CPU — exactly why we're in a worker)
+  const remoteQuestions = stripCatalogQuestions(remote?.questions, catalogIds);
   const banks = mergeRecordSets(localBanks, remote?.questionBanks);
-  const questions = mergeRecordSets(localQuestions, remote?.questions);
+  const questions = mergeRecordSets(syncableQuestions, remoteQuestions.kept);
   const sessions = mergeRecordSets(filteredSessions, remote?.sessions);
   const responses = mergeRecordSets(localResponses, remote?.responses);
   const vocabWords = mergeVocabWords(localVocabWords, remote?.vocabWords);
@@ -276,7 +323,9 @@ async function bidirectionalSync(token, cachedFileId, vocabState, options = {}) 
   }
 
   const hasLocalUpdates = banks.localUpdates.length > 0 || questions.localUpdates.length > 0 || sessions.localUpdates.length > 0 || responses.localUpdates.length > 0 || vocabWords.localUpdates.length > 0 || studyStates.localUpdates.length > 0 || vocabStateLocalChanged;
-  const remoteNeedsUpdate = !remote || banks.remoteNeedsUpdate || questions.remoteNeedsUpdate || sessions.remoteNeedsUpdate || responses.remoteNeedsUpdate || vocabWords.remoteNeedsUpdate || studyStates.remoteNeedsUpdate || vocabStateRemoteNeedsUpdate;
+  // remoteQuestions.dropped forces exactly one rewrite of a pre-catalog blob:
+  // without it an otherwise-idle account would keep its 47 MB file forever.
+  const remoteNeedsUpdate = !remote || remoteQuestions.dropped > 0 || banks.remoteNeedsUpdate || questions.remoteNeedsUpdate || sessions.remoteNeedsUpdate || responses.remoteNeedsUpdate || vocabWords.remoteNeedsUpdate || studyStates.remoteNeedsUpdate || vocabStateRemoteNeedsUpdate;
 
   // Write merged state to cloud only if there are local-newer changes
   if (remoteNeedsUpdate) {

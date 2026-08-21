@@ -292,7 +292,7 @@
 
       // Spawn worker and await result
       const result = await new Promise((resolve, reject) => {
-        const worker = new Worker("sync-worker.js?v=2.2.0");
+        const worker = new Worker("sync-worker.js?v=2.3.0");
         const timer = setTimeout(() => {
           worker.terminate();
           reject(new Error("Sync worker timed out"));

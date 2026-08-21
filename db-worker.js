@@ -1,5 +1,5 @@
 "use strict";
-importScripts('scoring.js?v=2.2.0');
+importScripts('scoring.js?v=2.3.0');
 
 const CURRENT_GRADING_VERSION = 3;
 const SENSITIVE_STORES = ["questions", "sessions", "responses", "questionStudyState"];

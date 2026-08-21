@@ -31,7 +31,9 @@
     loadingDbWords: false,
     dbWordsLoadError: null,
     // Backend API
-    backendEndpoint: 'https://divine-silence-6016.sharthakjaiswal50.workers.dev/', // Replace this with your actual deployed Cloudflare Worker URL
+    // Single source of truth for the worker origin lives in api.js, which is
+    // loaded before this file.
+    backendEndpoint: (window.SevApi?.BASE || 'https://divine-silence-6016.sharthakjaiswal50.workers.dev') + '/',
     showSettings: false,
   };
 

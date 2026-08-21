@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.2.0";
+  const APP_VERSION = "v2.3.0";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -577,7 +577,11 @@ window.updateSelectAllButtons = function() {
     // Auto cloud-sync on open (best-effort, non-blocking)
     if (window.SevSync?.isLinked() && !isDemoMode()) {
       SevSync.sync(false, { silent: true }).then(result => {
-        if (result.ok && result.localChanged) refreshLocalData().then(() => renderHome());
+        if (result.ok && result.localChanged) {
+          // A sync from another device brings the catalog bank record across
+          // but not its questions, which this device then has to fetch itself.
+          refreshLocalData().then(() => { renderHome(); resumeCatalogIfNeeded(); });
+        }
       });
     }
 
@@ -621,6 +625,12 @@ window.updateSelectAllButtons = function() {
       renderHome(false, !state._justEnteredDemo);
       delete state._justEnteredDemo;
       maybeStartTutorial();
+
+      // Deliberately not awaited: the dashboard is already painted, and in the
+      // common case this is a single /api/catalog/meta request that changes
+      // nothing. Skipped while a test is in progress so a resumed download can
+      // never put a busy overlay over someone's timed section.
+      resumeCatalogIfNeeded();
     }
   }
 
@@ -790,7 +800,7 @@ window.updateSelectAllButtons = function() {
       btn.disabled = true;
       
       try {
-        const res = await fetch("https://divine-silence-6016.sharthakjaiswal50.workers.dev/api/consent", {
+        const res = await fetch(SevApi.url("/api/consent"), {
           method: "POST"
         });
         if (!res.ok) throw new Error("Verification failed");
@@ -980,7 +990,11 @@ window.updateSelectAllButtons = function() {
     return {
       exportedAt: new Date().toISOString(),
       questionBanks: state.banks.filter(record => !isDeletedRecord(record)),
-      questions: state.questions.filter(record => !isDeletedRecord(record)),
+      // Catalog questions are re-downloadable from the server by id, so they are
+      // deliberately left out of exports and Drive backups. This is what takes a
+      // backup from ~47 MB down to ~0.3 MB. The catalog *bank* record still goes
+      // in, so a restore knows to fetch the questions again.
+      questions: state.questions.filter(record => !isDeletedRecord(record) && !isCatalogQuestion(record)),
       sessions: state.sessions.filter(record => !isDeletedRecord(record)),
       responses: dedupeResponses(state.responses),
       questionStudyState: Object.values(state.questionStudyState || {})
@@ -1692,9 +1706,23 @@ font-family: inherit !important;
           <div class="p-8 pt-6 space-y-8">
             <div class="text-center mb-8">
               <h2 class="text-2xl font-bold tracking-tight text-foreground" style="margin: 0;">New User Setup</h2>
-              <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 0 0;">Import your practice questions to begin.</p>
+              <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 0 0;">Download the question bank to begin.</p>
             </div>
-            
+
+            <!-- Primary path: the shared catalog -->
+            <div class="border border-border rounded-lg p-6 text-center" style="background: rgba(0,0,0,0.02);">
+              <div class="flex justify-center mb-3 text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+              </div>
+              <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">${CATALOG_QUESTION_COUNT_LABEL} official practice questions</h3>
+              <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 16px 0;">One download, straight from Sevrony. Your answers, sessions and progress stay in this browser.</p>
+              <button class="primary-btn large" type="button" data-action="download-catalog">Download question bank</button>
+            </div>
+
+            <details class="border border-border rounded-lg" style="margin-top: 16px;">
+              <summary class="p-4 text-sm font-medium text-foreground cursor-pointer select-none">Advanced: import your own .sat-test file</summary>
+              <div class="px-4 pb-4 space-y-8">
+
             <!-- Step 1 -->
             <div class="flex gap-4">
               <div class="flex flex-col items-center">
@@ -1752,6 +1780,9 @@ font-family: inherit !important;
                 </div>
               </div>
             </div>
+
+              </div>
+            </details>
 
           </div>
         </div>
@@ -2051,7 +2082,7 @@ font-family: inherit !important;
       }
 
       try {
-        const res = await fetch("https://divine-silence-6016.sharthakjaiswal50.workers.dev/api/feedback", {
+        const res = await fetch(SevApi.url("/api/feedback"), {
           method: "POST",
           body: formData
         });
@@ -2335,10 +2366,13 @@ font-family: inherit !important;
         <section class="hero-card empty-state">
           <div>
             <p class="eyebrow">Welcome</p>
-            <h1>Import a question bank to begin practicing.</h1>
-            <p>Everything runs locally — no accounts, servers, or costs. Your data stays in this browser's IndexedDB.</p>
+            <h1>Get the question bank to begin practicing.</h1>
+            <p>Download ${CATALOG_QUESTION_COUNT_LABEL} official practice questions straight from Sevrony. Your answers, sessions and progress never leave this browser.</p>
           </div>
-          <button class="primary-btn large" type="button" data-action="import">Import .sat-test File</button>
+          <div style="display:flex;flex-direction:column;gap:10px;align-items:stretch;">
+            <button class="primary-btn large" type="button" data-action="download-catalog">Download question bank</button>
+            <button class="ghost-btn" type="button" data-action="import" style="font-size:13px;">Or import your own .sat-test file</button>
+          </div>
         </section>
       `;
     }
@@ -2358,6 +2392,24 @@ font-family: inherit !important;
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 24px;">
+        ${shouldOfferCatalog() ? `
+        <section class="panel catalog-upgrade-banner" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 12px; background: linear-gradient(145deg, var(--card) 0%, color-mix(in srgb, var(--line) 30%, transparent) 100%); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+          <div style="display: flex; align-items: center; gap: 16px; flex: 1; min-width: 250px;">
+            <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink);">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            </div>
+            <div>
+              <strong style="display: block; font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px;">Switch to the Sevrony question bank</strong>
+              <span class="muted" style="font-size: 13px;">Same ${CATALOG_QUESTION_COUNT_LABEL} questions, now served from Sevrony. Your answers and progress carry over, and your backups get about 100× smaller.</span>
+            </div>
+          </div>
+          <div class="catalog-upgrade-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
+            <button class="ghost-btn" data-action="dismiss-catalog-banner" style="padding: 8px 16px; font-size: 13px; font-weight: 500;">Not now</button>
+            <button class="primary-btn" data-action="download-catalog" style="padding: 8px 16px; font-size: 13px; font-weight: 500;">Switch</button>
+          </div>
+        </section>
+        ` : ''}
+
         ${!isDemoMode() && !window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
         <section class="panel cloud-sync-banner" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 12px; background: linear-gradient(145deg, var(--card) 0%, color-mix(in srgb, var(--line) 30%, transparent) 100%); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
           <div style="display: flex; align-items: center; gap: 16px; flex: 1; min-width: 250px;">
@@ -5030,6 +5082,8 @@ function renderTestReview() {
       }
     }
     if (action === "import") { fileInput.click(); }
+    if (action === "download-catalog") { downloadCatalog(); return; }
+    if (action === "retry-catalog") { downloadCatalog({ force: true }); return; }
     if (action === "dismiss-notice") { state.notice = null; dismissNoticeUI(); }
     if (action === "toggle-advanced-domains") {
       state.showAdvancedDomains = !state.showAdvancedDomains;
@@ -5302,6 +5356,10 @@ function renderTestReview() {
       localStorage.setItem('sevrony.syncBannerDismissed', 'true');
       renderHome();
     }
+    if (action === "dismiss-catalog-banner") {
+      localStorage.setItem('sevrony.catalogBannerDismissed', 'true');
+      renderHome();
+    }
   }
 
   function makeDebugUrl(qid) {
@@ -5509,6 +5567,10 @@ function renderTestReview() {
             renderHome();
             maybeStartTutorial();
             if (window.SevSync?.isLinked()) SevSync.sync(true, { forcePush: true });
+            // Backups carry the catalog *bank* record but not its questions, so
+            // a restore has to pull them back down. No-op for a user who never
+            // adopted the catalog.
+            resumeCatalogIfNeeded();
           } catch (err) {
             clearBusy(false);
             console.error(err);
@@ -5601,6 +5663,208 @@ function renderTestReview() {
     maybeStartTutorial();
     syncBackup(false);
     if (window.SevSync?.isLinked()) SevSync.sync();
+  }
+
+  /* ===========================================================
+     SHARED QUESTION CATALOG
+     -----------------------------------------------------------
+     The question bank lives in D1 and is served by the worker. Locally it looks
+     like any other imported bank, except its records are re-downloadable, so
+     they are excluded from exports and from the Drive sync blob.
+     =========================================================== */
+
+  const CATALOG_BANK_ID = "sevrony-catalog";
+  const CATALOG_BANK_LABEL = "Sevrony Question Bank";
+  // Marketing copy only -- the real count comes from /api/catalog/meta. Kept
+  // approximate so it stays true as the bank grows.
+  const CATALOG_QUESTION_COUNT_LABEL = "2,900+";
+
+  function isCatalogQuestion(record) {
+    return record?.bankId === CATALOG_BANK_ID;
+  }
+
+  function catalogQuestionCount() {
+    return state.questions.reduce((n, q) => n + (isCatalogQuestion(q) ? 1 : 0), 0);
+  }
+
+  /**
+   * Whether to offer the switch on the dashboard.
+   *
+   * Aimed at users who imported the College Board export by hand before the
+   * catalog existed. Deliberately not shown for a Bluebook-only library: those
+   * questions are not in the catalog, so there is nothing to switch to.
+   */
+  function shouldOfferCatalog() {
+    if (isDemoMode() || !window.SevApi) return false;
+    if (localStorage.getItem("sevrony.catalogBannerDismissed")) return false;
+    if (catalogQuestionCount() > 0) return false;
+    // The Bluebook flag lives on the bank, not the question.
+    const bluebookBankIds = new Set(state.banks.filter(b => b.isBluebook).map(b => b.id));
+    return state.questions.some(q => !isDeletedRecord(q) && !bluebookBankIds.has(q.bankId));
+  }
+
+  /** One page of catalog payloads -> normalized records in IndexedDB. */
+  async function storeCatalogPage(rawQuestions, { version }) {
+    const records = [];
+    for (let i = 0; i < rawQuestions.length; i++) {
+      const record = normalizeQuestion(rawQuestions[i], CATALOG_BANK_ID, i);
+      if (!record) continue;
+      // normalizeQuestion() ends with `raw: question.raw || question`. Catalog
+      // payloads have no `raw`, so it would attach the whole question to itself
+      // and double what IndexedDB holds (~20 MB becomes ~41 MB). Every field the
+      // app reads out of `raw` also exists as a top-level field in the catalog
+      // payload -- tools/verify_catalog.js proves that for all 2982 questions --
+      // so drop it rather than carrying a redundant copy.
+      delete record.raw;
+      record.catalogVersion = version;
+      records.push(record);
+    }
+    await putManyChunked("questions", records, 300);
+    return records.length;
+  }
+
+  async function upsertCatalogBank(version, count) {
+    const existing = await DB.get("questionBanks", CATALOG_BANK_ID);
+    await DB.put("questionBanks", {
+      ...(existing || {}),
+      id: CATALOG_BANK_ID,
+      filename: CATALOG_BANK_LABEL,
+      displayTitle: CATALOG_BANK_LABEL,
+      isCatalog: true,
+      catalogVersion: version,
+      importedAt: existing?.importedAt || new Date().toISOString(),
+      updatedAt: Date.now(),
+      deletedAt: null,
+      questionCount: count
+    });
+  }
+
+  /**
+   * Retire banks that the catalog download emptied.
+   *
+   * Existing users imported the same College Board export under a random bank id.
+   * Because a question's primary key is its College Board external id, the
+   * catalog download rewrites those exact records in place with bankId
+   * "sevrony-catalog" -- progress and responses key off the question id, so
+   * nothing is lost. What it leaves behind is an old bank record owning nothing.
+   *
+   * Only genuinely empty banks are tombstoned, so a bank holding questions the
+   * catalog does not have survives untouched.
+   *
+   * Counts come from `state.questions`, which refreshLocalData() has already
+   * loaded -- the questions store has no bankId index, and re-reading it here
+   * would mean a second full scan.
+   */
+  async function retireEmptiedBanks() {
+    const counts = new Map();
+    for (const q of state.questions) {
+      if (isDeletedRecord(q)) continue;
+      counts.set(q.bankId, (counts.get(q.bankId) || 0) + 1);
+    }
+
+    const now = Date.now();
+    const retired = [];
+    for (const bank of state.banks) {
+      if (bank.id === CATALOG_BANK_ID || bank.isBluebook || isDeletedRecord(bank)) continue;
+      if ((counts.get(bank.id) || 0) === 0) {
+        await DB.put("questionBanks", { ...bank, deletedAt: now, updatedAt: now });
+        retired.push(bank.id);
+      }
+    }
+    return retired;
+  }
+
+  function catalogProgressDetail({ phase, downloaded, total }) {
+    if (phase === "meta") return "Checking for the latest question bank.";
+    if (phase === "ticket") return "Verifying your browser.";
+    if (phase === "done") return "Finishing up.";
+    if (total) return `Downloaded ${downloaded.toLocaleString()} of ${total.toLocaleString()} questions.`;
+    return `Downloaded ${downloaded.toLocaleString()} questions.`;
+  }
+
+  /**
+   * Download (or resume, or verify) the shared catalog and fold it into local state.
+   * @returns {Promise<boolean>} whether local data now holds the catalog
+   */
+  async function downloadCatalog({ force = false, silent = false } = {}) {
+    if (!window.SevApi) {
+      showNotice("The catalog client failed to load. Please refresh the page.", "error");
+      return false;
+    }
+    if (state.catalogBusy) return false;
+    state.catalogBusy = true;
+
+    if (!silent) setBusy("Getting your question bank", "Contacting Sevrony...", "import", 0);
+    try {
+      const result = await SevApi.ensureCatalog({
+        force,
+        store: storeCatalogPage,
+        onProgress: progress => {
+          if (silent) return;
+          setBusy("Getting your question bank", catalogProgressDetail(progress), "import", progress.pct);
+        }
+      });
+
+      if (result.status === "current") {
+        state.catalogBusy = false;
+        if (!silent) clearBusy(false);
+        return true;
+      }
+
+      if (!silent) setBusy("Updating dashboard", "Refreshing metrics and local history.", "import");
+      await upsertCatalogBank(result.version, result.count);
+      await refreshLocalData();
+
+      const retired = await retireEmptiedBanks();
+      if (retired.length) await refreshLocalData();
+
+      ensureConfigDefaults();
+      captureTelemetry("Downloaded Catalog", { count: result.count, version: result.version, retiredBanks: retired.length });
+
+      if (!silent) {
+        const freed = retired.length
+          ? " Your old imported bank has been retired — backups will be much smaller from now on."
+          : "";
+        showNotice(`Your question bank is ready — ${result.count.toLocaleString()} questions.${freed}`, "success");
+      }
+      return true;
+    } catch (err) {
+      if (err?.name === "AbortError") return false;
+      const message = err?.message || String(err);
+      if (!silent) showNotice(`Couldn't finish downloading the question bank: ${message}`, "error");
+      console.warn("Catalog download failed:", err);
+      return false;
+    } finally {
+      state.catalogBusy = false;
+      if (!silent) {
+        clearBusy(false);
+        renderHome();
+      }
+      syncBackup(false);
+      if (window.SevSync?.isLinked()) SevSync.sync();
+    }
+  }
+
+  /**
+   * Boot hook. A restore brings back the catalog *bank* record but not its
+   * questions (they are excluded from backups), so re-fetch them. Also finishes
+   * a download that was interrupted mid-way.
+   */
+  async function resumeCatalogIfNeeded() {
+    if (!window.SevApi || isDemoMode()) return;
+    try {
+      const cursor = await SevApi.catalog.getState();
+      const hasBankRecord = state.banks.some(b => b.id === CATALOG_BANK_ID && !isDeletedRecord(b));
+      const localCount = catalogQuestionCount();
+
+      const interrupted = cursor && !cursor.complete;
+      const restoredWithoutQuestions = (hasBankRecord || (cursor && cursor.complete)) && localCount === 0;
+      if (!interrupted && !restoredWithoutQuestions) return;
+
+      await downloadCatalog({ force: restoredWithoutQuestions });
+    } catch (err) {
+      console.warn("Could not resume the catalog download:", err);
+    }
   }
 
   function normalizeImportPayload(payload, filename) {

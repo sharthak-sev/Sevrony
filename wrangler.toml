@@ -1,0 +1,67 @@
+# Sevrony Worker configuration.
+#
+#   Staging     (default)          wrangler deploy
+#   Production                     wrangler deploy --env production
+#
+# The default environment is staging on purpose: a bare `wrangler deploy` can
+# never touch the worker that is live for users.
+#
+# ---------------------------------------------------------------------------
+# Secrets -- set with `wrangler secret put <NAME>` (add `--env production` for
+# the live worker). Never commit these, and never put them in the frontend.
+#
+#   ADMIN_KEY            gates /api/admin/* -- used only by tools/upload_catalog.py
+#   CATALOG_TICKET_KEY   HMAC key for catalog download tickets (any long random string)
+#   TURNSTILE_SECRET     existing -- Cloudflare Turnstile server-side secret
+#   GEMINI_API_KEY       existing -- vocabulary AI
+#   DISCORD_WEBHOOK_URL  existing -- feedback relay
+#   WORKER_API_KEY       existing, optional -- leave UNSET; vocab.js still sends a
+#                        placeholder value, so setting it would 401 every client
+# ---------------------------------------------------------------------------
+
+name = "sevrony-worker-staging"
+main = "worker/index.js"
+compatibility_date = "2026-05-01"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+GEMINI_MODEL = "gemini-1.5-flash"
+# "0" disables the download ticket gate on /api/catalog/questions. Keep it at
+# "1" anywhere real; see worker/catalog.js ticketRequired().
+CATALOG_REQUIRE_TICKET = "1"
+# Comma-separated extra CORS origins. localhost and 127.0.0.1 are always allowed.
+ALLOWED_ORIGINS = ""
+
+[[d1_databases]]
+binding = "QUESTIONS_DB"
+database_name = "sevrony-questions-staging"
+database_id = "aac71474-2ac2-4c88-8625-a65c8479c398"
+
+# ---------------------------------------------------------------------------
+
+[env.production]
+name = "divine-silence-6016"
+workers_dev = true
+
+[env.production.observability]
+enabled = true
+
+# Named environments do NOT inherit vars or bindings -- they are repeated here
+# deliberately, not by accident.
+[env.production.vars]
+GEMINI_MODEL = "gemini-1.5-flash"
+CATALOG_REQUIRE_TICKET = "1"
+ALLOWED_ORIGINS = ""
+
+# Uncomment once the production catalog database exists:
+#   wrangler d1 create sevrony-questions
+# and paste the id it prints. Until then production deploys cleanly and the
+# vocabulary / feedback routes keep working; only /api/catalog/* returns 500.
+#
+# [[env.production.d1_databases]]
+# binding = "QUESTIONS_DB"
+# database_name = "sevrony-questions"
+# database_id = "PASTE-THE-ID-FROM-d1-create"

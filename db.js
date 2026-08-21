@@ -35,7 +35,7 @@
     }
 
     return new Promise((resolve, reject) => {
-      const worker = new Worker("db-worker.js?v=2.2.0");
+      const worker = new Worker("db-worker.js?v=2.3.0");
       const timer = setTimeout(() => {
         worker.terminate();
         reject(new Error("Timed out migrating local practice data."));
