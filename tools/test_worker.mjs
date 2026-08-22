@@ -12,7 +12,7 @@
  */
 
 import { DatabaseSync } from "node:sqlite";
-import { copyFileSync, existsSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -76,6 +76,7 @@ const DISCORD_URL = "https://discord.test/api/webhooks/stub";
 // Discord would actually have received rather than only on the status code.
 let discordSeen = null;
 let discordFails = false;
+let geminiUrl = null;
 
 globalThis.fetch = async (url, init) => {
   if (String(url).includes("turnstile/v0/siteverify")) {
@@ -103,6 +104,13 @@ globalThis.fetch = async (url, init) => {
     if (discordFails) return new Response("nope", { status: 500, statusText: "Internal Server Error" });
     // Discord answers a webhook post with 204; the body must be null at that status.
     return new Response(null, { status: 204 });
+  }
+  if (String(url).startsWith("https://generativelanguage.googleapis.com/")) {
+    // Recorded so a test can assert which model the worker actually asked for.
+    geminiUrl = String(url);
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify({ isValid: true, feedback: "Good use." }) }] } }],
+    }), { headers: { "Content-Type": "application/json" } });
   }
   throw new Error(`unexpected outbound fetch to ${url}`);
 };
@@ -263,6 +271,41 @@ section("feedback");
       last = r.status;
     }
     check("feedback is rate limited at 5/minute per IP", last === 429, `${last}`);
+  }
+}
+
+section("vocabulary evaluator model");
+{
+  // A commit once replaced a hardcoded model with `env.GEMINI_MODEL || <a
+  // different model>`, so a deploy that did not supply the var silently
+  // downgraded the evaluator and production served heuristic-only checks for
+  // days. Both halves of that are pinned here: the var is honoured, and the
+  // fallback is the same model rather than another one.
+  const checkBody = {
+    word: "ephemeral",
+    meaning: "lasting a short time",
+    sentence: "The ephemeral bloom lasted only two days.",
+    "cf-turnstile-response": TURNSTILE_OK,
+  };
+  const EXPECTED_MODEL = "gemini-3.5-flash-lite";
+
+  {
+    // A sentinel rather than the real model, so this can only pass by reading
+    // the var -- with the real name here it would also pass off the fallback.
+    geminiUrl = null;
+    const r = await call("/", { method: "POST", body: checkBody, ip: "8.0.0.1" }, { ...env, GEMINI_MODEL: "sentinel-model-from-config" });
+    const j = await r.json();
+    check("a full vocab check reaches Gemini", r.status === 200 && j.isValid === true, `${r.status} ${JSON.stringify(j)}`);
+    check("GEMINI_MODEL from config is the model requested", geminiUrl?.includes("/models/sentinel-model-from-config:"), geminiUrl);
+  }
+  {
+    // The exact shape of the outage: the var missing from a deploy.
+    geminiUrl = null;
+    const r = await call("/", { method: "POST", body: checkBody, ip: "8.0.0.2" }, { ...env, GEMINI_MODEL: undefined });
+    check(`an unset GEMINI_MODEL still means ${EXPECTED_MODEL}`, r.status === 200 && geminiUrl?.includes(`/models/${EXPECTED_MODEL}:`), geminiUrl);
+  }
+  {
+    check("wrangler.toml agrees with the code fallback", readFileSync("wrangler.toml", "utf8").match(/GEMINI_MODEL = "([^"]+)"/g)?.every(m => m.includes(EXPECTED_MODEL)) === true, "a [vars] block names a different model");
   }
 }
 

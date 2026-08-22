@@ -28,7 +28,8 @@ workers_dev = true
 enabled = true
 
 [vars]
-GEMINI_MODEL = "gemini-1.5-flash"
+# Keep this identical to the fallback in worker/vocab.js handleVocabCheck().
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 # "0" disables the download ticket gate on /api/catalog/questions. Keep it at
 # "1" anywhere real; see worker/catalog.js ticketRequired().
 CATALOG_REQUIRE_TICKET = "1"
@@ -52,7 +53,7 @@ enabled = true
 # Named environments do NOT inherit vars or bindings -- they are repeated here
 # deliberately, not by accident.
 [env.production.vars]
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 CATALOG_REQUIRE_TICKET = "1"
 ALLOWED_ORIGINS = ""
 

@@ -141,7 +141,12 @@ export async function handleVocabCheck(request, env, ip, cors) {
   }
 
   const apiKey = env.GEMINI_API_KEY;
-  const modelName = env.GEMINI_MODEL || "gemini-1.5-flash";
+  // Must stay in step with GEMINI_MODEL in wrangler.toml. This fallback used to
+  // name a different model than the config did, so a deploy that did not supply
+  // the var silently switched the evaluator to gemini-1.5-flash -- which is how
+  // production ended up serving heuristic-only checks. Same string in both
+  // places means neither path can change the model on its own.
+  const modelName = env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
   const aiPrompt = `You are an English teacher evaluating a high school student's vocabulary practice.
