@@ -56,12 +56,7 @@ GEMINI_MODEL = "gemini-1.5-flash"
 CATALOG_REQUIRE_TICKET = "1"
 ALLOWED_ORIGINS = ""
 
-# Uncomment once the production catalog database exists:
-#   wrangler d1 create sevrony-questions
-# and paste the id it prints. Until then production deploys cleanly and the
-# vocabulary / feedback routes keep working; only /api/catalog/* returns 500.
-#
-# [[env.production.d1_databases]]
-# binding = "QUESTIONS_DB"
-# database_name = "sevrony-questions"
-# database_id = "PASTE-THE-ID-FROM-d1-create"
+[[env.production.d1_databases]]
+binding = "QUESTIONS_DB"
+database_name = "sevrony-questions"
+database_id = "c26f0468-d9bd-4385-99bc-7fe0ae4dde25"
