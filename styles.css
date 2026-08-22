@@ -51,7 +51,14 @@
 }
 
 /* ---- Reset ---- */
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
 
 body {
   background: var(--paper);
@@ -69,13 +76,15 @@ body {
   width: 100%;
 }
 
-button, input, select, textarea { font: inherit; }
-button { cursor: pointer; border: none; background: none; }
+button, input, select, textarea { font: inherit; outline: none; }
+button { cursor: pointer; border: none; background: none; -webkit-tap-highlight-color: transparent; }
 button:disabled, input:disabled { cursor: not-allowed; opacity: 0.45; }
 img, svg { max-width: 100%; height: auto; }
 
-/* ---- iOS Touch Fixes ---- */
-button, label, a, div[onclick], .vocab-card, .vocab-flashcard-container, .choice-button, .vocab-match-btn { -webkit-tap-highlight-color: transparent; }
+/* ---- Touch & Tap Highlight Fixes ---- */
+*, button, label, a, div, span, input, .vocab-card, .vocab-flashcard-container, .choice-button, .vocab-match-btn, .busy-tip-box {
+  -webkit-tap-highlight-color: transparent;
+}
 
 /* ---- Scrollbar styling ---- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -3243,56 +3252,267 @@ html[data-transition="drill"]::view-transition-new(root) {
   background: color-mix(in srgb, var(--amber) 12%, transparent);
 }
 
-/* Busy / Skeleton UI */
+/* ============================================================
+   SEVRONY UNIFIED LOADING EXPERIENCE
+   ============================================================ */
 .busy-shell {
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface);
-  padding: 24px;
+  background: var(--paper, #f8fafc);
+  padding: 24px 16px;
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
 }
+
 .busy-card {
   width: 100%;
-  max-width: 420px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 32px 28px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
-}
-.busy-card-header {
+  max-width: 440px;
+  background: var(--panel, #ffffff);
+  border: 1px solid var(--line, #e4e4e7);
+  border-radius: var(--radius-xl, 16px);
+  padding: 32px 28px 24px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  text-align: center;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-  gap: 12px;
-  margin-bottom: 32px;
 }
-.busy-icon-wrap {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--bb-blue);
+
+.busy-logo-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--bb-navy, #09090b);
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   flex-shrink: 0;
 }
-.busy-icon-wrap svg {
+
+.busy-logo-badge img {
+  width: 24px;
+  height: 24px;
+}
+
+.busy-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--ink, #09090b);
+  margin: 0 0 6px;
+}
+
+.busy-desc {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-secondary, #71717a);
+  margin: 0 0 20px;
+  min-height: 20px;
+  transition: opacity 0.2s ease;
+}
+
+/* Integrated Interactive Tip Showcase */
+.busy-tip-box {
+  width: 100%;
+  background: var(--paper, #f8fafc);
+  border: 1px solid var(--line, #e4e4e7);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  text-align: left;
+  box-sizing: border-box;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.busy-tip-box:focus,
+.busy-tip-box:active {
+  outline: none;
+}
+
+.busy-tip-box:hover {
+  border-color: var(--ink-muted, #a1a1aa);
+}
+
+.busy-tip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.busy-tip-tag-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.busy-tip-icon-wrap {
   width: 28px;
   height: 28px;
+  border-radius: 7px;
+  background: var(--panel, #ffffff);
+  border: 1px solid var(--line, #e4e4e7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink, #09090b);
+  flex-shrink: 0;
 }
-.busy-card-header h1 {
-  font-size: 1.5rem;
-  margin: 0;
+
+.busy-tip-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-secondary, #52525b);
 }
-.busy-card-header p {
+
+.busy-tip-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-muted, #a1a1aa);
+}
+
+.busy-tip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 56px;
+  transition: opacity 0.2s ease;
+}
+
+.busy-tip-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #09090b);
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.busy-tip-desc {
+  font-size: 12.5px;
+  color: var(--ink-secondary, #52525b);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.busy-tip-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line, #e4e4e7);
+}
+
+.busy-tip-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.busy-tip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--line, #e4e4e7);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.busy-tip-dot.is-active {
+  width: 16px;
+  background: var(--ink, #09090b);
+}
+
+/* Progress Section */
+.busy-progress-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.busy-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.busy-progress-status {
+  font-weight: 500;
+  color: var(--ink-secondary, #71717a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.2s ease;
+}
+
+.busy-progress-pct {
+  font-weight: 600;
+  color: var(--ink, #09090b);
+  flex-shrink: 0;
+}
+
+.busy-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--line-light, #f4f4f5);
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.busy-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--bb-navy, #09090b);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.busy-progress-fill.indeterminate {
+  width: 35% !important;
+  background: var(--bb-navy, #09090b);
+  animation: busyIndetSweep 1.5s ease-in-out infinite;
+}
+
+@keyframes busyIndetSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .busy-progress-fill,
+  .busy-tip-dot,
+  .busy-desc,
+  .busy-tip-body {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 480px) {
+  .busy-card { padding: 24px 20px 20px; }
+  .busy-title { font-size: 18px; }
+  .busy-tip-box { padding: 14px 14px; }
 }
 
 .skeleton-layout {

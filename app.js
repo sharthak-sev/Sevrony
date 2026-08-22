@@ -1303,64 +1303,285 @@ window.updateSelectAllButtons = function() {
   }
 
   /* ===========================================================
-     RENDERING — HOME VIEWS
+     BUSY VIEW & INTEGRATED TIP LOADER
      =========================================================== */
 
   let _currentRoute = null;
 
+  const BUSY_CARDS = [
+    {
+      id: "adaptive",
+      tag: "Adaptive Engine",
+      badge: "01",
+      title: "Multistage Routing",
+      desc: "Module 2 dynamically calibrates difficulty to your real-time performance, matching the College Board adaptive algorithm.",
+      icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`
+    },
+    {
+      id: "desmos",
+      tag: "Desmos Calculator",
+      badge: "02",
+      title: "Embedded Graphing",
+      desc: "Full built-in graphing suite with regression tables, slider constants, and system solver shortcuts.",
+      icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/><circle cx="14" cy="15" r="2"/></svg>`
+    },
+    {
+      id: "vocab",
+      tag: "Spaced Repetition",
+      badge: "03",
+      title: "Vocabulary SRS",
+      desc: "Master 1,200+ high-frequency SAT vocabulary words with automated Leitner active recall intervals.",
+      icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`
+    },
+    {
+      id: "mistakes",
+      tag: "Mistake Matrix",
+      badge: "04",
+      title: "Error Diagnostics",
+      desc: "Isolate recurring traps—content gaps, calculation slips, pacing pressure—and generate targeted retry drill sessions.",
+      icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`
+    },
+    {
+      id: "offline",
+      tag: "Offline Engine",
+      badge: "05",
+      title: "Zero Cloud Latency",
+      desc: "Your practice sessions, questions, and metrics are stored and scored client-side in IndexedDB with instant responsiveness.",
+      icon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`
+    }
+  ];
+
+  const COSMIC_LOADING_PHRASES = [
+    "Constructing the universe from scratch...",
+    "Splitting atoms and balancing equations...",
+    "Synthesizing College Board quantum states...",
+    "Calibrating multidimensional scoring matrices...",
+    "Decompressing the Desmos singularity...",
+    "Charging neural pathways for test endurance...",
+    "Warming up adaptive difficulty engines...",
+    "Generating 1600-grade brain frequencies...",
+    "Aligning spacetime with test day...",
+    "Achieving perfect cognitive equilibrium..."
+  ];
+
+  let _busyDeckTimer = null;
+  let _busyCardIndex = 0;
+  let _busyDeckPaused = false;
+
+  function getCosmicPhrase(progress) {
+    if (progress == null || progress <= 0) return COSMIC_LOADING_PHRASES[0];
+    const idx = Math.min(
+      Math.floor((progress / 100) * COSMIC_LOADING_PHRASES.length),
+      COSMIC_LOADING_PHRASES.length - 1
+    );
+    return COSMIC_LOADING_PHRASES[idx];
+  }
+
+  function advanceBusyDeck() {
+    _busyCardIndex = (_busyCardIndex + 1) % BUSY_CARDS.length;
+    updateBusyCardView();
+  }
+
+  function updateBusyCardView() {
+    const card = BUSY_CARDS[_busyCardIndex];
+    if (!card) return;
+
+    const iconEl = document.getElementById("busy-tip-icon");
+    const tagEl = document.getElementById("busy-tip-tag");
+    const countEl = document.getElementById("busy-tip-counter");
+    const titleEl = document.getElementById("busy-tip-title");
+    const descEl = document.getElementById("busy-tip-desc");
+    const bodyEl = document.getElementById("busy-tip-body");
+
+    if (bodyEl) {
+      bodyEl.style.opacity = "0.3";
+      setTimeout(() => {
+        if (iconEl) iconEl.innerHTML = card.icon;
+        if (tagEl) tagEl.textContent = card.tag;
+        if (countEl) countEl.textContent = `0${_busyCardIndex + 1} / 05`;
+        if (titleEl) titleEl.textContent = card.title;
+        if (descEl) descEl.textContent = card.desc;
+        bodyEl.style.opacity = "1";
+      }, 120);
+    }
+
+    const dots = document.querySelectorAll(".busy-tip-dot");
+    dots.forEach((dot, idx) => {
+      dot.classList.toggle("is-active", idx === _busyCardIndex);
+    });
+  }
+
+  function mountBusyDeck() {
+    cleanupBusyDeck();
+    _busyDeckPaused = false;
+
+    const tipBox = document.getElementById("busy-tip-box");
+
+    if (tipBox) {
+      tipBox.onclick = () => { advanceBusyDeck(); };
+      tipBox.onmouseenter = () => { _busyDeckPaused = true; };
+      tipBox.onmouseleave = () => { _busyDeckPaused = false; };
+      tipBox.ontouchstart = () => { _busyDeckPaused = true; };
+      tipBox.ontouchend = () => { _busyDeckPaused = false; };
+    }
+
+    const dots = document.querySelectorAll(".busy-tip-dot");
+    dots.forEach(dot => {
+      dot.onclick = (e) => {
+        e.stopPropagation();
+        const targetIdx = parseInt(dot.getAttribute("data-dot-index"), 10);
+        if (!isNaN(targetIdx)) {
+          _busyCardIndex = targetIdx;
+          updateBusyCardView();
+        }
+      };
+    });
+
+    _busyDeckTimer = setInterval(() => {
+      if (!_busyDeckPaused && document.querySelector(".busy-shell")) {
+        advanceBusyDeck();
+      }
+    }, 2800);
+  }
+
+  function cleanupBusyDeck() {
+    if (_busyDeckTimer) {
+      clearInterval(_busyDeckTimer);
+      _busyDeckTimer = null;
+    }
+  }
+
+  function updateBusyDOM(busy) {
+    const titleEl = document.getElementById("busy-title-label");
+    const descEl = document.getElementById("busy-desc-text");
+    const fillEl = document.getElementById("busy-progress-fill");
+    const pctEl = document.getElementById("busy-pct-badge");
+    const statusEl = document.getElementById("busy-progress-status");
+
+    const isIndet = busy?.progress == null;
+    const pctVal = isIndet ? null : Math.round(busy.progress);
+
+    if (titleEl && busy?.title) {
+      titleEl.textContent = busy.title;
+    }
+
+    if (descEl) {
+      const desc = busy?.title === "Signing in"
+        ? "Choose your Google account to connect."
+        : "Setting up your practice environment.";
+      if (descEl.textContent !== desc) {
+        descEl.textContent = desc;
+      }
+    }
+
+    if (statusEl) {
+      const slogan = busy?.detail || getCosmicPhrase(pctVal);
+      if (statusEl.textContent !== slogan) {
+        statusEl.style.opacity = "0.3";
+        setTimeout(() => {
+          statusEl.textContent = slogan;
+          statusEl.style.opacity = "1";
+        }, 120);
+      }
+    }
+
+    if (fillEl) {
+      if (isIndet) {
+        fillEl.className = "busy-progress-fill indeterminate";
+        fillEl.style.width = "";
+      } else {
+        fillEl.className = "busy-progress-fill";
+        fillEl.style.width = `${Math.min(100, Math.max(0, pctVal))}%`;
+      }
+    }
+
+    if (pctEl) {
+      pctEl.textContent = isIndet ? "Syncing..." : `${pctVal}%`;
+    }
+  }
+
   function setBusy(title, detail, variant = "sync", progress = null) {
     state.busy = { title, detail, variant, progress };
+    const shell = document.querySelector(".busy-shell");
+    if (shell && document.body.contains(shell)) {
+      if (!_busyDeckTimer) {
+        mountBusyDeck();
+      }
+      updateBusyDOM(state.busy);
+      return;
+    }
     renderHome(true, true);
   }
 
   function clearBusy(shouldRender = true) {
+    cleanupBusyDeck();
     state.busy = null;
     if (shouldRender) renderHome(true, true);
   }
 
   function renderBusyView(busy) {
-    const title = escapeHtml(busy?.title || "Working");
-    const detail = escapeHtml(busy?.detail || "Please wait while Sevrony updates your local data.");
-    const variant = busy?.variant || "restore";
-    const label = variant === "restore"
-      ? "Restoring local data"
-      : variant === "import"
-        ? "Importing files"
-        : "Syncing account";
+    const title = escapeHtml(busy?.title || "Preparing Sevrony");
+    const isIndet = busy?.progress == null;
+    const pctVal = isIndet ? null : Math.round(busy.progress);
+    const slogan = escapeHtml(busy?.detail || getCosmicPhrase(pctVal));
+    const desc = busy?.title === "Signing in"
+      ? "Choose your Google account to connect."
+      : "Setting up your practice environment.";
+    const currentCard = BUSY_CARDS[_busyCardIndex] || BUSY_CARDS[0];
 
-    let visualElement = "";
-    if (variant === "import" || variant === "restore") {
-      const isIndet = busy?.progress == null;
-      const progressWidth = isIndet ? "" : `style="width: ${busy.progress}%"`;
-      const fillClass = isIndet ? "shadcn-progress-fill indeterminate" : "shadcn-progress-fill";
-      
-      visualElement = `
-        <div class="shadcn-progress-container">
-          <div class="shadcn-progress-label"><span>${title}</span><span class="muted">${isIndet ? "Processing..." : busy.progress + "%"}</span></div>
-          <div class="shadcn-progress-bg"><div class="${fillClass}" ${progressWidth}></div></div>
-        </div>
-      `;
-    } else {
-      visualElement = `
-        <div class="shadcn-spinner-container">
-          <svg class="shadcn-loader" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-          <p class="muted">Establishing secure connection...</p>
-        </div>
-      `;
-    }
+    const dotsHtml = BUSY_CARDS.map((_, idx) => `
+      <div class="busy-tip-dot ${idx === _busyCardIndex ? 'is-active' : ''}" data-dot-index="${idx}" role="button" aria-label="Tip ${idx + 1}"></div>
+    `).join("");
+
+    const progressWidth = isIndet ? "" : `style="width: ${Math.min(100, Math.max(0, pctVal))}%"`;
+    const fillClass = isIndet ? "busy-progress-fill indeterminate" : "busy-progress-fill";
+    const pctText = isIndet ? "Syncing..." : `${pctVal}%`;
 
     return `
       <main class="busy-shell" aria-busy="true" aria-live="polite">
-        <section class="busy-card" role="status" aria-label="${escapeAttr(label)}">
-          <div class="busy-card-header">
-            <div>
-              <p class="eyebrow">Sevrony is updating</p>
-              <h1>${title}</h1>
-              <p>${detail}</p>
+        <div class="busy-card animate-fade-in-up">
+          
+          <div class="busy-logo-badge">
+            <img src="logo.svg" alt="Sevrony Logo" />
+          </div>
+
+          <h1 class="busy-title" id="busy-title-label">${title}</h1>
+          <p class="busy-desc" id="busy-desc-text">${desc}</p>
+
+          <div class="busy-tip-box" id="busy-tip-box" title="Click to view next tip">
+            <div class="busy-tip-header">
+              <div class="busy-tip-tag-wrap">
+                <div class="busy-tip-icon-wrap" id="busy-tip-icon">
+                  ${currentCard.icon}
+                </div>
+                <span class="busy-tip-tag" id="busy-tip-tag">${currentCard.tag}</span>
+              </div>
+              <span class="busy-tip-count" id="busy-tip-counter">0${_busyCardIndex + 1} / 05</span>
+            </div>
+
+            <div class="busy-tip-body" id="busy-tip-body">
+              <h3 class="busy-tip-title" id="busy-tip-title">${currentCard.title}</h3>
+              <p class="busy-tip-desc" id="busy-tip-desc">${currentCard.desc}</p>
+            </div>
+
+            <div class="busy-tip-footer">
+              <div class="busy-tip-dots">
+                ${dotsHtml}
+              </div>
             </div>
           </div>
-          ${visualElement}
-        </section>
+
+          <div class="busy-progress-wrap">
+            <div class="busy-progress-meta">
+              <span class="busy-progress-status" id="busy-progress-status">${slogan}</span>
+              <span class="busy-progress-pct" id="busy-pct-badge">${pctText}</span>
+            </div>
+            <div class="busy-progress-track">
+              <div class="${fillClass}" id="busy-progress-fill" ${progressWidth}></div>
+            </div>
+          </div>
+
+        </div>
       </main>
     `;
   }
@@ -1436,6 +1657,7 @@ window.updateSelectAllButtons = function() {
     if (state.busy) {
       app.className = "";
       app.innerHTML = renderBusyView(state.busy);
+      mountBusyDeck();
       return;
     }
 
@@ -5879,12 +6101,11 @@ function renderTestReview() {
     return retired;
   }
 
-  function catalogProgressDetail({ phase, downloaded, total }) {
-    if (phase === "meta") return "Checking for the latest question bank.";
-    if (phase === "ticket") return "Verifying your browser.";
-    if (phase === "done") return "Finishing up.";
-    if (total) return `Downloaded ${downloaded.toLocaleString()} of ${total.toLocaleString()} questions.`;
-    return `Downloaded ${downloaded.toLocaleString()} questions.`;
+  function catalogProgressDetail({ phase, downloaded, total, pct }) {
+    if (phase === "meta") return "Probing the quantum multiverse...";
+    if (phase === "ticket") return "Verifying atmospheric integrity...";
+    if (phase === "done") return "Achieving 1600 equilibrium...";
+    return getCosmicPhrase(pct);
   }
 
   /**
