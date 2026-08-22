@@ -1996,6 +1996,8 @@ font-family: inherit !important;
           </div>
         </div>
         
+        <div id="fb-error" role="alert" style="display: none; color: var(--red); font-size: 0.85em; margin-bottom: 8px;"></div>
+
         <button id="fb-submit" class="feedback-submit-btn">
           <span class="btn-text">Send Feedback</span>
           <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -2061,13 +2063,33 @@ font-family: inherit !important;
         return;
       }
       modal.querySelector("#fb-msg").style.borderColor = "";
-      
+
+      const errorLine = modal.querySelector("#fb-error");
+      errorLine.style.display = "none";
+
       const submitBtn = modal.querySelector("#fb-submit");
       const btnText = submitBtn.querySelector(".btn-text");
       const btnIcon = submitBtn.querySelector(".btn-icon");
+      // Captured so a failed send can put the button back exactly as it was.
+      // Read from the DOM rather than duplicated here so it cannot drift from
+      // the markup above, and re-read on each attempt because a previous
+      // failure already restored it.
+      const originalIcon = btnIcon.outerHTML;
       btnText.innerText = "Sending...";
       btnIcon.outerHTML = '<svg class="btn-icon" style="animation: spin 1s linear infinite;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
       submitBtn.disabled = true;
+
+      // A failed send leaves the form standing with the reason above the button.
+      // The old path hid the form and closed the modal on a timer, which threw
+      // away whatever had been typed -- worst for exactly the long bug reports
+      // worth reading. Nothing is lost now and Send works again immediately.
+      const fail = (text) => {
+        errorLine.innerText = text;
+        errorLine.style.display = "block";
+        btnText.innerText = "Send Feedback";
+        submitBtn.querySelector(".btn-icon").outerHTML = originalIcon;
+        submitBtn.disabled = false;
+      };
 
       const formData = new FormData();
       formData.append("type", type);
@@ -2086,26 +2108,37 @@ font-family: inherit !important;
           method: "POST",
           body: formData
         });
-        
-        if (!res.ok) throw new Error(await res.text());
-        
+
+        if (!res.ok) {
+          const body = await res.text();
+          // Only a parsed {"error":"..."} is trusted for display. A proxy or WAF
+          // in front of the Worker answers with an HTML page, and pasting that
+          // into the modal would be worse than saying nothing -- those fall
+          // through to the status line below. The raw body still goes to console.
+          let detail = "";
+          try { detail = String(JSON.parse(body).error || ""); } catch (e) {}
+          console.error("Feedback failed", res.status, detail || body);
+          // A 4xx message is written for the person reading it -- "Message is
+          // required", the rate-limit wait -- so it goes through as-is. A 5xx is
+          // our fault and its text names internals ("DISCORD_WEBHOOK_URL is not
+          // configured") that mean nothing to a student, so show the status code
+          // they can quote back instead, and say plainly it is not their network.
+          fail(res.status >= 500
+            ? `Sevrony's server couldn't pass this on (error ${res.status}). This is not your connection — please try again shortly.`
+            : detail || `Request rejected (error ${res.status}).`);
+          return;
+        }
+
         modal.querySelector(".feedback-body").style.display = "none";
         const statusDiv = modal.querySelector(".feedback-status");
         statusDiv.style.display = "flex";
-        
+
         setTimeout(close, 2500);
       } catch (err) {
+        // Only a genuine transport failure reaches here now, so this is the one
+        // place the connection wording is actually true.
         console.error("Feedback error", err);
-        modal.querySelector(".feedback-body").style.display = "none";
-        const statusDiv = modal.querySelector(".feedback-status");
-        statusDiv.style.display = "flex";
-        const iconWrap = modal.querySelector(".status-icon-wrapper");
-        iconWrap.style.background = "rgba(239, 68, 68, 0.1)";
-        iconWrap.style.color = "var(--red)";
-        modal.querySelector("#fb-status-icon").innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>';
-        modal.querySelector("#fb-status-title").innerText = "Failed to send";
-        modal.querySelector("#fb-status-msg").innerText = "Please try again later or check your connection.";
-        setTimeout(close, 4000);
+        fail("Couldn't reach Sevrony. Check your connection and try again.");
       }
     };
   }

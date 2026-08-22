@@ -66,10 +66,16 @@ function makeD1(sqlitePath) {
   };
 }
 
-/* ------------------------------------------------------- fetch stub (Turnstile) */
+/* ------------------------------------------------- fetch stub (Turnstile, Discord) */
 
 const TURNSTILE_OK = "good-token";
 const TURNSTILE_WRONG_ACTION = "wrong-action-token";
+
+const DISCORD_URL = "https://discord.test/api/webhooks/stub";
+// Last payload the worker relayed, so the feedback tests can assert on what
+// Discord would actually have received rather than only on the status code.
+let discordSeen = null;
+let discordFails = false;
 
 globalThis.fetch = async (url, init) => {
   if (String(url).includes("turnstile/v0/siteverify")) {
@@ -87,6 +93,16 @@ globalThis.fetch = async (url, init) => {
     return new Response(JSON.stringify({ success: false, "error-codes": ["invalid-input-response"] }), {
       headers: { "Content-Type": "application/json" },
     });
+  }
+  if (String(url) === DISCORD_URL) {
+    const payload = JSON.parse(init.body.get("payload_json"));
+    discordSeen = {
+      embed: payload.embeds[0],
+      files: [...init.body.keys()].filter(k => k.startsWith("file")),
+    };
+    if (discordFails) return new Response("nope", { status: 500, statusText: "Internal Server Error" });
+    // Discord answers a webhook post with 204; the body must be null at that status.
+    return new Response(null, { status: 204 });
   }
   throw new Error(`unexpected outbound fetch to ${url}`);
 };
@@ -113,6 +129,7 @@ const env = {
   TURNSTILE_SECRET: "test-turnstile-secret",
   CATALOG_REQUIRE_TICKET: "1",
   ALLOWED_ORIGINS: "",
+  DISCORD_WEBHOOK_URL: DISCORD_URL,
 };
 
 const ORIGIN = "https://sharthak-sev.github.io";
@@ -120,7 +137,9 @@ const BASE = "https://worker.test";
 
 function req(path, { method = "GET", headers = {}, body, origin = ORIGIN, ip = "1.2.3.4" } = {}) {
   const h = { ...headers, Origin: origin, "cf-connecting-ip": ip };
-  if (body !== undefined && typeof body !== "string") {
+  // FormData goes through untouched so fetch sets its own multipart boundary --
+  // the feedback route is the one caller that posts a form rather than JSON.
+  if (body !== undefined && typeof body !== "string" && !(body instanceof FormData)) {
     h["Content-Type"] = "application/json";
     body = JSON.stringify(body);
   }
@@ -172,6 +191,79 @@ section("routing / regressions from the single-file worker");
 {
   const r = await call("/api/catalog/meta", { method: "POST" });
   check("wrong method on a catalog route -> 405", r.status === 405, `${r.status}`);
+}
+
+section("feedback");
+{
+  // This is the channel a user reports a broken release through, so it gets the
+  // same treatment as the catalog routes. Every case below uses its own IP: the
+  // bucket is 5/minute per address and shared IPs would 429 later assertions.
+  const form = (fields = {}, files = []) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+    for (const f of files) fd.append("file", f);
+    return fd;
+  };
+  const send = (fd, { ip, e } = {}) =>
+    call("/api/feedback", { method: "POST", body: fd, ip: ip || "9.0.0.1" }, e);
+
+  {
+    const r = await send(form({ type: "Bug", message: "" }), { ip: "9.0.0.2" });
+    const j = await r.json();
+    check("feedback with an empty message -> 400", r.status === 400 && /Message is required/.test(j.error), `${r.status} ${j.error}`);
+  }
+  {
+    const r = await call("/api/feedback", { ip: "9.0.0.3" });
+    check("GET /api/feedback -> 405", r.status === 405, `${r.status}`);
+  }
+  {
+    discordSeen = null;
+    const r = await send(form({
+      type: "Bug",
+      message: "catalog download stalls at page 4",
+      email: "someone@example.com",
+      context: JSON.stringify({ version: "2.3.0", urlHash: "#/dashboard", userAgent: "UA", viewport: "390x844" }),
+    }), { ip: "9.0.0.4" });
+    const j = await r.json();
+    check("feedback with a message -> 200", r.status === 200 && j.success === true, `${r.status}`);
+    const f = (discordSeen?.embed.fields || []).reduce((m, x) => (m[x.name] = x.value, m), {});
+    check("the report reaches Discord intact", f.Message === "catalog download stalls at page 4" && f.Email === "someone@example.com", JSON.stringify(f));
+    check("app version rides along for triage", f["App Version"] === "2.3.0" && f["Route / Hash"] === "#/dashboard", JSON.stringify(f));
+    check("the embed is titled by report type", discordSeen?.embed.title === "New Feedback: Bug", discordSeen?.embed.title);
+  }
+  {
+    discordSeen = null;
+    const files = Array.from({ length: 7 }, (_, i) => new File([`png${i}`], `shot${i}.png`, { type: "image/png" }));
+    const r = await send(form({ type: "Bug", message: "with attachments" }, files), { ip: "9.0.0.7" });
+    check("attachments are forwarded", r.status === 200 && discordSeen.files.length > 0, `${r.status} ${discordSeen?.files.length}`);
+    check("no more than 5 attachments are relayed", discordSeen.files.length === 5, `${discordSeen?.files.length}`);
+  }
+  {
+    // The exact staging failure: the secret was never set on that environment.
+    // A 500 here is correct, but the client must not blame the user's network
+    // for it -- see the status-code split in app.js.
+    const r = await send(form({ type: "Bug", message: "hello" }), {
+      ip: "9.0.0.5",
+      e: { ...env, DISCORD_WEBHOOK_URL: undefined },
+    });
+    const j = await r.json();
+    check("missing DISCORD_WEBHOOK_URL -> 500, not a silent success", r.status === 500 && /DISCORD_WEBHOOK_URL/.test(j.error), `${r.status} ${j.error}`);
+  }
+  {
+    discordFails = true;
+    const r = await send(form({ type: "Bug", message: "hello" }), { ip: "9.0.0.6" });
+    const j = await r.json();
+    discordFails = false;
+    check("Discord rejecting the relay -> 500", r.status === 500 && /Discord API error/.test(j.error), `${r.status} ${j.error}`);
+  }
+  {
+    let last = 0;
+    for (let i = 0; i < 7; i++) {
+      const r = await send(form({ type: "Bug", message: `spam ${i}` }), { ip: "9.9.9.9" });
+      last = r.status;
+    }
+    check("feedback is rate limited at 5/minute per IP", last === 429, `${last}`);
+  }
 }
 
 section("CORS");
