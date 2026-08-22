@@ -4,7 +4,7 @@ Sevrony is a local-first SAT practice app. It runs in the browser, stores all pr
 
 The question bank is downloaded once from Sevrony's Cloudflare Worker and then lives entirely in your browser. You can also import your own `.sat-test` files and Bluebook result exports.
 
-> **Disclaimer:** Sevrony is a personal educational project and is not affiliated with, endorsed by, or associated with College Board. SAT is a College Board trademark. This repository does not contain or distribute College Board question content — the question bank is served from a separate Cloudflare D1 database that is not part of this repository, and the export used to build it is not committed here.
+> **Disclaimer:** Sevrony is a personal educational project. It is not affiliated with, endorsed by, or associated with College Board. SAT is a College Board trademark. Sevrony serves SAT question content it does not own; if you are College Board and want it taken down, open an issue and it comes down.
 
 ## What it does
 
