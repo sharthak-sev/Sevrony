@@ -1629,7 +1629,7 @@ font-family: inherit !important;
           </h1>
           
           <p class="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mt-6 font-medium" style="margin-bottom: 2.5rem;">
-            The authentic Bluebook practice experience. Zero accounts, zero costs. Focus purely on your score.
+            The authentic Bluebook practice experience. 100% free with cross-device sync. Focus purely on your score.
           </p>
           
           <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
@@ -1686,106 +1686,106 @@ font-family: inherit !important;
 
   function renderOnboarding() {
     return `
-      <div class="font-marketing min-h-[80vh] flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
-        <div class="w-full max-w-3xl border border-border bg-card text-card-foreground rounded-xl shadow-sm opacity-0 animate-fade-in-up">
+      <div class="onboarding-wrapper">
+        <div class="onboarding-card opacity-0 animate-fade-in-up">
           
-          <!-- Header (Returning User) -->
-          <div class="flex flex-col items-center justify-center space-y-4 p-8 border-b border-border text-center bg-muted/20" style="background: rgba(0,0,0,0.02);">
-            <h2 class="text-xl font-bold text-foreground" style="margin: 0;">Returning User?</h2>
-            <p class="text-sm text-muted-foreground" style="margin: 0; max-width: 400px;">Login to Google Drive to restore your existing practice data, sessions, and dashboard metrics.</p>
-            <div class="flex items-center gap-3 mt-4" style="margin-top: 16px;">
-              <button class="primary-btn" type="button" data-action="returning-sign-in">Sign in and restore</button>
-            </div>
-          </div>
-          
-          <div class="relative flex justify-center" style="margin-top: -14px;">
-            <span class="bg-card px-4 text-xs font-semibold text-muted-foreground uppercase tracking-widest border border-border shadow-sm" style="border-radius: 20px; background: var(--paper); padding: 4px 16px;">OR</span>
+          <div class="onboarding-logo-badge">
+            <img src="logo.svg" alt="Sevrony Logo" />
           </div>
 
-          <!-- Content (New User) -->
-          <div class="p-8 pt-6 space-y-8">
-            <div class="text-center mb-8">
-              <h2 class="text-2xl font-bold tracking-tight text-foreground" style="margin: 0;">New User Setup</h2>
-              <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 0 0;">Download the question bank to begin.</p>
+          <h1 class="onboarding-title">Get started with Sevrony</h1>
+          <p class="onboarding-desc">Sign in to download ${CATALOG_QUESTION_COUNT_LABEL} official practice questions and sync your progress across devices.</p>
+
+          <button class="onboarding-google-btn" type="button" data-action="sign-in-and-download">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            <span>Sign in with Google</span>
+          </button>
+
+          <div class="onboarding-features">
+            <div class="onboarding-feature-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>${CATALOG_QUESTION_COUNT_LABEL} official College Board questions</span>
             </div>
-
-            <!-- Primary path: the shared catalog -->
-            <div class="border border-border rounded-lg p-6 text-center" style="background: rgba(0,0,0,0.02);">
-              <div class="flex justify-center mb-3 text-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-              </div>
-              <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">${CATALOG_QUESTION_COUNT_LABEL} official practice questions</h3>
-              <p class="text-sm text-muted-foreground mt-2" style="margin: 8px 0 16px 0;">One download, straight from Sevrony. Your answers, sessions and progress stay in this browser.</p>
-              <button class="primary-btn large" type="button" data-action="download-catalog">Download question bank</button>
+            <div class="onboarding-feature-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Authentic adaptive test engine & scoring</span>
             </div>
+            <div class="onboarding-feature-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Automatic cloud backup & device sync</span>
+            </div>
+          </div>
 
-            <details class="border border-border rounded-lg" style="margin-top: 16px;">
-              <summary class="p-4 text-sm font-medium text-foreground cursor-pointer select-none">Advanced: import your own .sat-test file</summary>
-              <div class="px-4 pb-4 space-y-8">
+        </div>
 
+        <details class="onboarding-advanced">
+          <summary>Advanced: import your own .sat-test file &#9662;</summary>
+          <div class="onboarding-advanced-content">
+            
             <!-- Step 1 -->
-            <div class="flex gap-4">
+            <div class="flex gap-3">
               <div class="flex flex-col items-center">
-                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm z-10 shrink-0">1</div>
-                <div class="w-px h-full bg-border mt-2"></div>
+                <div class="onboarding-step-badge">1</div>
+                <div class="onboarding-step-line"></div>
               </div>
-              <div class="pb-8 flex-1">
-                <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">Install the Exporter Extension</h3>
-                <ol class="mt-2 text-sm text-muted-foreground list-decimal list-inside space-y-1" style="margin: 8px 0 0 0; padding-left: 0;">
-                  <li>Download and extract the ZIP file below.</li>
-                  <li>Open Chrome (or Edge) and go to <strong class="text-foreground">Extensions</strong>.</li>
+              <div class="pb-3 flex-1">
+                <h3 class="text-sm font-semibold text-foreground" style="margin: 0;">Install the Exporter Extension</h3>
+                <ol class="mt-1.5 text-xs text-muted-foreground list-decimal list-inside space-y-1" style="margin: 4px 0 0 0; padding-left: 0;">
+                  <li>Download and extract the ZIP file.</li>
+                  <li>Open Chrome/Edge &rarr; <strong class="text-foreground">Extensions</strong>.</li>
                   <li>Enable <strong class="text-foreground">Developer mode</strong> (top right).</li>
-                  <li>Click <strong class="text-foreground">Load unpacked</strong> and select the extracted folder.</li>
+                  <li>Click <strong class="text-foreground">Load unpacked</strong> and select folder.</li>
                 </ol>
-                <div class="flex flex-wrap gap-3 mt-4">
-                  <a href="https://github.com/sharthak-sev/sat-qb-exporter/archive/refs/heads/main.zip" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 shadow-sm cursor-pointer" style="text-decoration: none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                    Download ZIP
+                <div class="flex flex-wrap gap-2 mt-2.5">
+                  <a href="https://github.com/sharthak-sev/sat-qb-exporter/archive/refs/heads/main.zip" class="onboarding-btn-sm primary" style="text-decoration: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <span>Download ZIP</span>
                   </a>
-                  <a href="https://github.com/sharthak-sev/sat-qb-exporter" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer shadow-sm" style="text-decoration: none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
-                    View on GitHub
+                  <a href="https://github.com/sharthak-sev/sat-qb-exporter" target="_blank" rel="noopener noreferrer" class="onboarding-btn-sm outline" style="text-decoration: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+                    <span>View on GitHub</span>
                   </a>
                 </div>
               </div>
             </div>
             
             <!-- Step 2 -->
-            <div class="flex gap-4">
+            <div class="flex gap-3">
               <div class="flex flex-col items-center">
-                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm z-10 shrink-0">2</div>
-                <div class="w-px h-full bg-border mt-2"></div>
+                <div class="onboarding-step-badge">2</div>
+                <div class="onboarding-step-line"></div>
               </div>
-              <div class="pb-8 flex-1">
-                <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">Export your Data</h3>
-                <p class="mt-2 text-sm text-muted-foreground leading-relaxed" style="margin: 8px 0 0 0;">
-                  Log into <a href="https://mypractice.collegeboard.org/questionbank/search" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-medium" style="text-decoration: none;">mypractice.collegeboard.org</a>. Once authenticated, open the extension popup, choose your desired filters, and click <strong class="text-foreground">Export as Interactive Test</strong>.
+              <div class="pb-3 flex-1">
+                <h3 class="text-sm font-semibold text-foreground" style="margin: 0;">Export your Data</h3>
+                <p class="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  Log into <a href="https://mypractice.collegeboard.org/questionbank/search" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-medium" style="text-decoration: none;">mypractice.collegeboard.org</a>, open the extension popup, and click <strong class="text-foreground">Export as Interactive Test</strong>.
                 </p>
               </div>
             </div>
             
             <!-- Step 3 -->
-            <div class="flex gap-4">
+            <div class="flex gap-3">
               <div class="flex flex-col items-center">
-                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm z-10 shrink-0">3</div>
+                <div class="onboarding-step-badge">3</div>
               </div>
               <div class="flex-1">
-                <h3 class="text-lg font-semibold text-foreground" style="margin: 0;">Import to Sevrony</h3>
-                <div class="drop-zone mt-4 border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer group" data-action="import" style="margin-top: 16px;">
-                  <div class="flex justify-center mb-3 text-muted-foreground group-hover:text-primary transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                <h3 class="text-sm font-semibold text-foreground" style="margin: 0;">Import to Sevrony</h3>
+                <div class="drop-zone mt-2 border border-dashed border-border rounded-lg p-5 text-center hover:bg-muted/50 transition-colors cursor-pointer group" data-action="import">
+                  <div class="flex justify-center mb-2 text-muted-foreground group-hover:text-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                   </div>
-                  <p class="text-sm font-medium text-foreground" style="margin: 0;">Click here or drag your <strong class="text-primary">.sat-test</strong> file</p>
-                  <p class="text-xs text-muted-foreground mt-1" style="margin: 4px 0 0 0;">to begin your practice</p>
+                  <p class="text-xs font-medium text-foreground" style="margin: 0;">Click here or drag your <strong class="text-primary">.sat-test</strong> file</p>
                 </div>
               </div>
             </div>
 
-              </div>
-            </details>
-
           </div>
+        </details>
+
+        <div class="onboarding-footer">
+          <button type="button" data-action="privacy">Privacy Policy</button>
         </div>
+
       </div>
     `;
   }
@@ -2399,11 +2399,14 @@ font-family: inherit !important;
         <section class="hero-card empty-state">
           <div>
             <p class="eyebrow">Welcome</p>
-            <h1>Get the question bank to begin practicing.</h1>
-            <p>Download ${CATALOG_QUESTION_COUNT_LABEL} official practice questions straight from Sevrony. Your answers, sessions and progress never leave this browser.</p>
+            <h1>Sign in to start practicing.</h1>
+            <p>Download ${CATALOG_QUESTION_COUNT_LABEL} official practice questions and sync your progress across devices.</p>
           </div>
-          <div style="display:flex;flex-direction:column;gap:10px;align-items:stretch;">
-            <button class="primary-btn large" type="button" data-action="download-catalog">Download question bank</button>
+          <div style="display:flex;flex-direction:column;gap:12px;align-items:stretch;max-width:320px;margin:20px auto 0;">
+            <button class="primary-btn large" type="button" data-action="sign-in-and-download" style="gap: 8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Sign in with Google
+            </button>
             <button class="ghost-btn" type="button" data-action="import" style="font-size:13px;">Or import your own .sat-test file</button>
           </div>
         </section>
@@ -4414,6 +4417,75 @@ function renderTestReview() {
     }
   }
 
+  /**
+   * Unified onboarding flow: sign in with Google → sync Drive data (if any) →
+   * auto-download the question catalog from the server. Works the same way for
+   * brand-new and returning users — returning users get their Drive data loaded
+   * alongside the fresh server questions; new users just get the questions.
+   */
+  async function signInAndSetup() {
+    if (isSyncingLinkedAccount) return;
+    if (isDemoMode()) {
+      showNotice("Cloud sync is disabled in Demo Mode. Exit demo to use your own account.", "info");
+      renderHome();
+      return;
+    }
+    if (!requirePrivacyConsent()) return;
+    if (!window.SevSync) {
+      // Sync module unavailable — fall back to a plain catalog download
+      downloadCatalog();
+      return;
+    }
+
+    isSyncingLinkedAccount = true;
+    let signedIn = false;
+    try {
+      if (!SevSync.isLinked()) {
+        setBusy("Signing in", "Choose your Google account.", "sync");
+        await nextPaint();
+        const email = await SevSync.link();
+        if (email && window.posthog?.identify) window.posthog.identify(email);
+      } else if (!SevSync.getStatus().tokenValid) {
+        setBusy("Reconnecting", "Renewing your session...", "sync");
+        await nextPaint();
+      }
+
+      setBusy("Syncing your data", "Checking for existing practice data.", "sync");
+      const result = await SevSync.sync(true);
+      // A failed sync is not fatal — the user can still get questions from the
+      // server.  Log it but don't throw.
+      if (!result.ok && result.reason !== "already_syncing") {
+        console.warn("Drive sync during sign-in returned:", result.reason);
+      }
+
+      await refreshLocalData();
+      ensureConfigDefaults();
+      clearBusy(false);
+
+      const email = SevSync.getStatus()?.email || "";
+      if (hasRestorablePracticeData()) {
+        showNotice(email ? `Welcome back, synced with ${email}.` : "Synced successfully.", "success");
+      } else if (email) {
+        showNotice(`Signed in as ${email}.`, "success");
+      }
+      localStorage.setItem(TUTORIAL_DONE_KEY, "true");
+      signedIn = true;
+    } catch (err) {
+      clearBusy(false);
+      console.error("Sign-in flow error:", err);
+      showNotice("Couldn't complete sign-in. Please try again.", "error");
+      renderHome();
+    } finally {
+      isSyncingLinkedAccount = false;
+    }
+
+    // After a successful sign-in, download the catalog automatically.
+    // downloadCatalog() handles the "already current" case gracefully.
+    if (signedIn) {
+      await downloadCatalog();
+    }
+  }
+
   function shouldAutoStartTutorial() {
     return state.view === "dashboard"
       && state.questions.length > 0
@@ -4664,7 +4736,7 @@ function renderTestReview() {
     }
 
     if (action === "start-onboarding") { state.view = "onboarding"; renderHome(); return; }
-    if (action === "returning-sign-in") { await syncLinkedAccount({ returningUser: true }); return; }
+    if (action === "returning-sign-in" || action === "sign-in-and-download") { await signInAndSetup(); return; }
     if (action === "import-bluebook") { if (requirePrivacyConsent()) fileInput.click(); return; }
     if (action === "privacy-back") {
       if (state.questions.length === 0) {

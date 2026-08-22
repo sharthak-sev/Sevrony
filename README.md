@@ -1,33 +1,34 @@
 # Sevrony
 
-Sevrony is a local-first SAT practice app. It runs in the browser, stores all practice data in IndexedDB, and can optionally sync that data through your own Google Drive.
+Sevrony is a local-first SAT practice app. It runs in the browser, stores all practice data in IndexedDB, and syncs your progress and history seamlessly across devices with Google Sign-in.
 
-The question bank is downloaded once from Sevrony's Cloudflare Worker and then lives entirely in your browser. You can also import your own `.sat-test` files and Bluebook result exports.
+The question bank is downloaded once from Sevrony's Cloudflare Worker after signing in and then lives entirely in your browser. You can also import your own `.sat-test` files and Bluebook result exports.
 
 > **Disclaimer:** Sevrony is a personal educational project. It is not affiliated with, endorsed by, or associated with College Board. SAT is a College Board trademark. Sevrony serves SAT question content it does not own; if you are College Board and want it taken down, open an issue and it comes down.
 
 ## What it does
 
-- Download the shared question bank once, then practice entirely offline.
+- Sign in with Google to download the shared 2,900+ question bank and sync your progress across devices.
+- Practice entirely offline once the question bank is downloaded.
 - Import your own `.sat-test` question banks and Bluebook result exports.
 - Run custom Math, Reading & Writing, full-test, and retry-mistakes practice sessions.
-- Review answers, timings, mistakes, custom tags, highlights, and personal notes.
+- Review answers, timings, mistakes, custom tags, highlights, and personal notes in the Mistakes Log.
 - Track practice history, accuracy, pacing, and streaks locally.
 - Build vocabulary with spaced repetition, flashcards, multiple choice, matching, and AI-assisted sentence checks.
-- Export and restore local backups.
-- Optionally sync progress, responses, study state, and vocabulary progress across devices through Google Drive.
+- Export and restore lightweight local backups (<0.5 MB).
+- Automatic cloud sync for progress, responses, study state, and vocabulary across devices through Google Drive.
 - Install as a PWA with best-effort offline access after the app has been loaded once.
 
 ## Getting started
 
-1. Open [Sevrony](https://sharthak-sev.github.io/).
+1. Open [Sevrony](https://sharthak-sev.github.io/Sevrony/).
 2. Read and accept the in-app Privacy Policy. Acceptance is required before downloading the question bank, importing, restoring a backup, or linking Google Drive.
-3. Click **Download question bank**. This is a one-time transfer of roughly 20 MB that completes a browser verification check first, then streams the bank in pages. Closing the tab mid-download is safe: the next visit resumes where it stopped.
-4. Start a practice session from the dashboard, or use the Vocabulary section without any question bank at all.
+3. Click **Sign in with Google**. This securely signs you in, connects cloud sync for your practice data, and automatically begins streaming the 2,900+ question bank (roughly 20 MB stream). Progress bars keep you updated in real-time, and interrupted downloads resume seamlessly.
+4. Start a practice session from the dashboard, review past tests, or build your vocabulary.
 
-You can instead import a `.sat-test` file, or a supported Bluebook result export from Past Tests. Sevrony accepts broad file types in its picker for iOS compatibility, but validates the file contents during import.
+You can also expand the **Advanced: import your own .sat-test file** section during setup to import a custom `.sat-test` export, or import Bluebook test results from Past Tests. Sevrony accepts broad file types in its picker for iOS compatibility, but validates the file contents during import.
 
-If you imported a bank by hand before the shared bank existed, the dashboard offers to switch you over. Your answers, sessions, and progress carry over unchanged, because a question is keyed by its own identifier rather than by which file it came from.
+If you previously imported questions by hand before the shared bank existed, the dashboard automatically retires duplicate banks after downloading from Sevrony. Your answers, sessions, and progress carry over unchanged, because questions are keyed by their College Board identifiers.
 
 ## Data and privacy
 
@@ -48,11 +49,11 @@ After acceptance, the app may load:
 - **PostHog** for explicit product analytics events. Autocapture, heatmaps, surveys, and session recording are disabled.
 - **Sentry** for errors and sampled performance tracing. Session Replay is disabled.
 
-If Google Drive sync is linked, the app identifies that linked email in PostHog. Do not import, back up, or sync question material you are not allowed to store.
+When Google Drive sync is linked upon sign-in, the app identifies that linked email in PostHog. Do not import, back up, or sync question material you are not allowed to store.
 
 ## Google Drive sync
 
-Cloud sync is optional and disabled by default. When linked, Sevrony uses the Google Drive `appDataFolder` scope and stores one app-private sync file in the linked account.
+When you sign in with Google, Sevrony uses the Google Drive `appDataFolder` scope to store an app-private sync file in your account.
 
 - Data goes directly between the browser and Google Drive; the Sevrony Cloudflare Worker is not part of this sync path.
 - Shared-bank questions are not synced. A newly linked device receives your progress and then downloads the bank itself, which is both faster and far smaller than transferring the questions.
@@ -68,8 +69,8 @@ The service worker uses a network-first cache fallback and precaches the main ap
 
 Some features still need the network:
 
-- The initial question bank download
-- Google Drive sync and sign-in
+- The initial Google sign-in and question bank download
+- Google Drive cloud sync
 - AI vocabulary sentence validation
 - Telemetry, when accepted
 - Remote fonts, KaTeX, Desmos, and Cloudflare Turnstile assets
