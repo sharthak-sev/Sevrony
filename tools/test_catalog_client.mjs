@@ -564,6 +564,42 @@ section("worker refuses an unticketed page");
   eq("no ticket -> 401", res.status, 401);
 }
 
+section("worker origin resolution");
+{
+  // resolveBase() is the one place a misconfiguration would send real users'
+  // downloads -- and their Turnstile tokens -- to someone else's host, so the
+  // loopback gate is worth asserting rather than trusting.
+  const src = readFileSync(join(root, "api.js"), "utf8");
+  const PROD = "https://divine-silence-6016.sharthakjaiswal50.workers.dev";
+  const STAGING = "https://sevrony-worker-staging.sharthakjaiswal50.workers.dev";
+
+  const baseFor = (hostname, stored) => {
+    const win = {
+      location: hostname === undefined ? undefined : { hostname },
+      localStorage: stored === undefined ? undefined : { getItem: k => (k === "sevrony.apiBase" ? stored : null) },
+      turnstile: turnstileStub,
+      get SatPracticeDB() {
+        return localDB;
+      },
+    };
+    // Swallow the override notice so it does not interleave with test output.
+    new Function("window", "document", "fetch", "console", src)(win, documentStub, clientFetch, {
+      info: () => {},
+      warn: () => {},
+    });
+    return win.SevApi.BASE;
+  };
+
+  eq("a deployed origin ignores an override entirely", baseFor("sharthak-sev.github.io", STAGING), PROD);
+  eq("localhost honours a workers.dev override", baseFor("localhost", STAGING), STAGING);
+  eq("127.0.0.1 honours it too", baseFor("127.0.0.1", STAGING), STAGING);
+  eq("localhost with nothing stored -> production", baseFor("localhost", null), PROD);
+  eq("a trailing slash is trimmed", baseFor("localhost", `${STAGING}/`), STAGING);
+  eq("a non-workers.dev host is refused", baseFor("localhost", "https://evil.example.com"), PROD);
+  eq("plain http is refused", baseFor("localhost", "http://x.workers.dev"), PROD);
+  eq("localStorage being unavailable is not fatal", baseFor("localhost", undefined), PROD);
+}
+
 /* -------------------------------------------------------------------- report */
 
 rmSync(WORK, { force: true });

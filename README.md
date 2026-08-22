@@ -88,6 +88,14 @@ Then open `http://localhost:4173`. Do not rely on `file://`: service workers, br
 
 `localhost` and `127.0.0.1` are on the Worker's CORS allowlist, so a local build can talk to the deployed Worker without any changes.
 
+A local build can also be pointed at the staging Worker, which is how a release gets exercised end-to-end — Turnstile, ticket, paging, resume — before it reaches anyone:
+
+```js
+localStorage.setItem("sevrony.apiBase", "https://sevrony-worker-staging.<subdomain>.workers.dev")
+```
+
+Reload, and the console confirms the override. Remove the key to go back to production. This only works from a loopback origin and only for a `https://…workers.dev` host: on the deployed site it is inert, so a stray value cannot redirect a real user's downloads. Editing the URL in `api.js` instead is the thing to avoid — that change gets committed by accident and points every user at staging.
+
 ## Tests
 
 The Worker, the download driver, and the sync filter all run offline against a real catalog, using Node's built-in SQLite as a stand-in for D1. No network and no Cloudflare account needed.

@@ -15,7 +15,41 @@
 (function () {
   "use strict";
 
-  const BASE = "https://divine-silence-6016.sharthakjaiswal50.workers.dev";
+  /** The worker that serves real users. */
+  const PROD_BASE = "https://divine-silence-6016.sharthakjaiswal50.workers.dev";
+
+  /**
+   * Resolve the worker origin.
+   *
+   * A local build can be pointed at the staging worker so a release is
+   * exercisable end to end -- Turnstile, ticket, paging, resume -- before it
+   * reaches anyone:
+   *
+   *   localStorage.setItem("sevrony.apiBase",
+   *     "https://sevrony-worker-staging.<subdomain>.workers.dev")
+   *
+   * Restricted to loopback origins deliberately. On the deployed site this is
+   * inert, so a stray or planted value cannot redirect a real user's downloads
+   * -- or the Turnstile token that rides with them -- to another host. The
+   * alternative, editing PROD_BASE by hand to test, is a change that gets
+   * committed by accident and points every user at staging.
+   */
+  function resolveBase() {
+    const host = window.location?.hostname;
+    if (host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]") return PROD_BASE;
+    try {
+      const override = (window.localStorage?.getItem("sevrony.apiBase") || "").replace(/\/+$/, "");
+      if (/^https:\/\/[a-z0-9.-]+\.workers\.dev$/i.test(override)) {
+        console.info(`[Sevrony] API base overridden for local testing: ${override}`);
+        return override;
+      }
+    } catch {
+      /* storage can be disabled outright; fall through to production */
+    }
+    return PROD_BASE;
+  }
+
+  const BASE = resolveBase();
 
   /** Matches the `action` the worker expects on a catalog ticket request. */
   const TURNSTILE_ACTION = "catalog_download";
