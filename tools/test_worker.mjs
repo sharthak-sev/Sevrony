@@ -468,6 +468,57 @@ section("admin ingestion round-trip (empty database)");
   fresh.__close();
 }
 
+section("legacy database from an earlier import");
+{
+  // Reproduces the D1 that broke a real upload: a database whose `questions`
+  // table predates this schema. The table EXISTS, so D1 answers "no such column"
+  // rather than "no such table" -- which a missing-table-only guard walks past.
+  const LEGACY = join(tmpdir(), "sevrony-worker-legacy.sqlite");
+  if (existsSync(LEGACY)) rmSync(LEGACY);
+  const seed = new DatabaseSync(LEGACY);
+  seed.exec("CREATE TABLE questions (id TEXT PRIMARY KEY, subject TEXT, data TEXT)");
+  seed.exec("INSERT INTO questions VALUES ('old-1','math','{}')");
+  seed.close();
+
+  const legacy = makeD1(LEGACY);
+  const lEnv = { ...env, QUESTIONS_DB: legacy };
+  const AH = { "X-Admin-Key": ADMIN_KEY };
+
+  {
+    const r = await call("/api/admin/catalog/stats", { method: "POST", headers: AH }, lEnv);
+    const s = await r.json();
+    check(
+      "stats on a legacy table -> 200, not a 500 that strands the uploader",
+      r.status === 200 && s.initialised === false && s.rows === 0,
+      `${r.status} ${JSON.stringify(s)}`
+    );
+  }
+  {
+    // The CREATE INDEX in the DDL is what actually dies here, so the probe has to
+    // run before any schema statement rather than after.
+    const r = await call("/api/admin/catalog/init", { method: "POST", headers: AH, body: { reset: false } }, lEnv);
+    const b = await r.json();
+    check("init without reset -> 409, not 500", r.status === 409, `${r.status} ${JSON.stringify(b)}`);
+    check("the 409 tells the operator to use --reset", /--reset/.test(b.error || ""), b.error);
+  }
+  {
+    const r = await call("/api/admin/catalog/init", { method: "POST", headers: AH, body: { reset: true } }, lEnv);
+    check("init with reset recreates the schema -> 200", r.status === 200, `${r.status}`);
+
+    const row = ["n1", "qn1", "math", "H", "H.C.", "E", "mcq", 3, "v-legacy", 0, 24, '{"id":"n1"}'];
+    const w = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { rows: [row] } }, lEnv);
+    const wb = await w.json();
+    check("rows insert once the schema is ours", w.status === 200 && wb.written === 1, `${w.status} ${JSON.stringify(wb)}`);
+
+    const after = await call("/api/admin/catalog/stats", { method: "POST", headers: AH }, lEnv);
+    const s = await after.json();
+    check("the legacy row is gone and only the new one remains", s.initialised === true && s.rows === 1, JSON.stringify(s));
+  }
+
+  legacy.__close();
+  if (existsSync(LEGACY)) rmSync(LEGACY);
+}
+
 section("failure isolation");
 {
   const noDb = { ...env, QUESTIONS_DB: undefined };

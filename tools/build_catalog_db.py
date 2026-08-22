@@ -7,7 +7,7 @@ uploaded to D1 by tools/upload_catalog.py.
 Each row's `payload` is the original .sat-test question object with `raw`
 removed. Everything normalizeQuestion() reads from raw.metadata / raw.detail
 also exists as a top-level field in the export, so stripping it is lossless --
-tools/verify_catalog.py proves that against the real file.
+tools/verify_catalog.js proves that against the real file.
 
 Usage:
     python3 tools/build_catalog_db.py <input.sat-test> [-o catalog.sqlite] [--version 2026-05-25.1]

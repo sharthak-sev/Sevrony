@@ -21,6 +21,7 @@ import argparse
 import getpass
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -34,6 +35,12 @@ COLUMNS = (
 DEFAULT_BATCH = 25
 PAGE_SIZE = 150
 RETRIES = 4
+
+# Cloudflare's edge rejects urllib's default "Python-urllib/3.x" signature on
+# workers.dev with a plain-text `error code: 1010` before the request ever
+# reaches the worker -- which reads as a mystery 403 from our own admin routes.
+# Any ordinary User-Agent gets through.
+USER_AGENT = "sevrony-upload-catalog/1.0"
 
 
 class WorkerError(RuntimeError):
@@ -49,6 +56,7 @@ def call(base, path, admin_key, body=None, method="POST", timeout=120):
     for attempt in range(RETRIES):
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("X-Admin-Key", admin_key)
+        req.add_header("User-Agent", USER_AGENT)
         if data is not None:
             req.add_header("Content-Type", "application/json")
         try:
@@ -57,6 +65,15 @@ def call(base, path, admin_key, body=None, method="POST", timeout=120):
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")[:400]
+            # A bare `error code: NNNN` body is Cloudflare's edge talking, not our
+            # worker -- the request was refused before any route ran, so the admin
+            # key and the payload are not what is wrong.
+            if re.search(r"error code: \d{4}", detail):
+                detail += (
+                    "  <- this is a Cloudflare edge error, not a worker response."
+                    " The request never reached the worker; check that --base is the"
+                    " right hostname and that nothing is rewriting the User-Agent."
+                )
             # 4xx is our bug or a bad key -- retrying will not help.
             if e.code < 500:
                 raise WorkerError(f"{method} {path} -> {e.code}: {detail}") from None

@@ -47,9 +47,19 @@ function ticketRequired(env) {
   return String(env.CATALOG_REQUIRE_TICKET ?? "1") !== "0";
 }
 
-/** True when D1 is reporting that the catalog tables have not been created yet. */
-function isMissingTable(err) {
-  return /no such table/i.test(err?.message || "") || /no such table/i.test(err?.cause?.message || "");
+/**
+ * True when D1 says the catalog tables are not usable yet -- either absent, or
+ * present with a schema that is not ours.
+ *
+ * The "no such column" half is not hypothetical: a D1 database that previously
+ * held an earlier experiment's `questions` table still has *a* table by that
+ * name, so D1 reports a missing column rather than a missing table. Matching
+ * only "no such table" made /stats 500 before upload_catalog.py could reach the
+ * --reset that recreates the schema.
+ */
+function isUninitialisedCatalog(err) {
+  const text = `${err?.message || ""} ${err?.cause?.message || ""}`;
+  return /no such table/i.test(text) || /no such column/i.test(text);
 }
 
 async function readMeta(env, keys) {
@@ -66,7 +76,7 @@ async function readMeta(env, keys) {
     // A database created but never initialised should read as "empty catalog",
     // not as an internal error -- otherwise the first request after
     // `wrangler d1 create` is an opaque 500.
-    if (isMissingTable(err)) return {};
+    if (isUninitialisedCatalog(err)) return {};
     throw err;
   }
 }
@@ -273,14 +283,43 @@ export async function handleAdminCatalog(request, env, pathname, cors) {
 }
 
 async function adminInit(env, body, cors) {
+  const reset = body.reset === true;
+
+  // Probe BEFORE touching the schema. Without a reset, CREATE TABLE IF NOT EXISTS
+  // does nothing at all against a table that already exists under a different
+  // schema -- and then the CREATE INDEX ON questions(seq) that follows it dies on
+  // the missing column. A database left over from an earlier import therefore
+  // fails init with an opaque "no such column"; probing first turns that into an
+  // instruction. LIMIT 0 reads no rows.
+  if (!reset) {
+    try {
+      await db(env).prepare("SELECT seq, bytes, payload, catalog_version FROM questions LIMIT 0").all();
+    } catch (err) {
+      const text = `${err?.message || ""} ${err?.cause?.message || ""}`;
+      if (/no such column/i.test(text)) {
+        return json(
+          {
+            error:
+              'The existing "questions" table has an incompatible schema, probably from an' +
+              " earlier import. Re-run with --reset to drop and recreate the catalog tables.",
+          },
+          409,
+          cors
+        );
+      }
+      // "no such table" is the ordinary first-run case: fall through and create it.
+      if (!/no such table/i.test(text)) throw err;
+    }
+  }
+
   const statements = [];
-  if (body.reset === true) {
+  if (reset) {
     statements.push("DROP TABLE IF EXISTS questions", "DROP TABLE IF EXISTS catalog_meta");
   }
   statements.push(...DDL);
   // exec() splits on newlines, so every statement above is a single line.
   await db(env).exec(statements.join("\n"));
-  return json({ ok: true, reset: body.reset === true }, 200, cors);
+  return json({ ok: true, reset }, 200, cors);
 }
 
 async function adminRows(env, body, cors) {
@@ -351,7 +390,7 @@ async function adminStats(env, cors) {
   } catch (err) {
     // upload_catalog.py calls stats before init to decide whether to resume, so
     // an uninitialised database has to answer "nothing here" rather than fail.
-    if (isMissingTable(err)) {
+    if (isUninitialisedCatalog(err)) {
       return json({ rows: 0, initialised: false, seqContiguous: false, byDomain: {}, byVersion: {}, meta: {} }, 200, cors);
     }
     throw err;
