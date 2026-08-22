@@ -5806,8 +5806,9 @@ function renderTestReview() {
       });
 
       if (result.status === "current") {
-        state.catalogBusy = false;
-        if (!silent) clearBusy(false);
+        // Nothing to store, but the view still has to move -- see the note below.
+        // catalogBusy and clearBusy() are both handled in `finally`.
+        if (state.view === "onboarding") state.view = "dashboard";
         return true;
       }
 
@@ -5820,6 +5821,19 @@ function renderTestReview() {
 
       ensureConfigDefaults();
       captureTelemetry("Downloaded Catalog", { count: result.count, version: result.version, retiredBanks: retired.length });
+
+      // renderHome() forces the onboarding view while there are no questions
+      // (see the guard at the top of it) but nothing moves off it once questions
+      // arrive -- the import path sets the view itself, and so must this.
+      // Without it a first-time download finishes, announces itself, and leaves
+      // the user staring at the setup screen they just completed.
+      //
+      // Guarded on the current view rather than set unconditionally: a resume
+      // triggered at boot, or the Switch button on the dashboard banner, must not
+      // yank someone out of whatever they were looking at. An existing user can
+      // also reach onboarding deliberately to import another file, and finishing
+      // a download there should still land them on the dashboard.
+      if (state.view === "onboarding") state.view = "dashboard";
 
       if (!silent) {
         const freed = retired.length
