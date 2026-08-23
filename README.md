@@ -87,25 +87,29 @@ python3 -m http.server 4173
 
 Then open `http://localhost:4173`. Do not rely on `file://`: service workers, browser storage behavior, and some browser APIs require an HTTP(S) origin.
 
-`localhost` and `127.0.0.1` are on the Worker's CORS allowlist, so a local build can talk to the deployed Worker without any changes.
+`localhost` and `127.0.0.1` are on the Worker's CORS allowlist. When running on loopback (`localhost` or `127.0.0.1`), `api.js` automatically defaults to the staging Worker (`https://sevrony-worker-staging.<subdomain>.workers.dev`), allowing you to test all three catalogs immediately without manual configuration.
 
-A local build can also be pointed at the staging Worker, which is how a release gets exercised end-to-end — Turnstile, ticket, paging, resume — before it reaches anyone:
+You can also specify an explicit Worker origin override in the browser console:
 
 ```js
 localStorage.setItem("sevrony.apiBase", "https://sevrony-worker-staging.<subdomain>.workers.dev")
 ```
 
-Reload, and the console confirms the override. Remove the key to go back to production. This only works from a loopback origin and only for a `https://…workers.dev` host: on the deployed site it is inert, so a stray value cannot redirect a real user's downloads. Editing the URL in `api.js` instead is the thing to avoid — that change gets committed by accident and points every user at staging.
+Reload, and the console confirms the override. Remove the key to return to default. This only works from a loopback origin and only for a `https://…workers.dev` host: on the deployed site it is inert, so a stray value cannot redirect a real user's downloads.
 
 ## Tests
 
-The Worker, the download driver, and the sync filter all run offline against a real catalog, using Node's built-in SQLite as a stand-in for D1. No network and no Cloudflare account needed.
+The Worker, the download driver, and the sync filter all run offline against real catalogs, using Node's built-in SQLite as a stand-in for D1. No network and no Cloudflare account needed.
 
 ```bash
-node tools/test_worker.mjs && node tools/test_catalog_client.mjs && node tools/test_sync_catalog.mjs
+node tools/test_worker.mjs && \
+node tools/test_catalog_client.mjs catalog-sat.sqlite sat && \
+node tools/test_catalog_client.mjs catalog-psat10.sqlite psat10 && \
+node tools/test_catalog_client.mjs catalog-psat8_9.sqlite psat8_9 && \
+node tools/test_sync_catalog.mjs
 ```
 
-The first two need `catalog.sqlite` in the repository root — see the build step under **Question catalog** below. `tools/test_sync_catalog.mjs` has no prerequisites.
+The catalog client tests take the SQLite database path and catalog name (`sat`, `psat10`, `psat8_9`). `tools/test_sync_catalog.mjs` and `tools/test_worker.mjs` test the bidirectional sync logic and worker endpoints.
 
 ## Deployment
 
