@@ -24,6 +24,39 @@
     psat8_9: "2,500+"
   };
 
+  const CATALOG_DETAILS = {
+    sat: {
+      id: "sat",
+      shortLabel: "SAT",
+      label: "SAT®",
+      fullTitle: "Digital SAT®",
+      gradeLevel: "11th–12th Grade",
+      countLabel: "2,900+",
+      countChip: "2.9k",
+      badge: "Official"
+    },
+    psat10: {
+      id: "psat10",
+      shortLabel: "PSAT 10",
+      label: "PSAT/NMSQT® and PSAT™ 10",
+      fullTitle: "PSAT/NMSQT® & PSAT™ 10",
+      gradeLevel: "10th–11th Grade",
+      countLabel: "2,900+",
+      countChip: "2.9k",
+      badge: "NMSQT"
+    },
+    psat8_9: {
+      id: "psat8_9",
+      shortLabel: "PSAT 8/9",
+      label: "PSAT™ 8/9",
+      fullTitle: "PSAT™ 8/9",
+      gradeLevel: "8th–9th Grade",
+      countLabel: "2,500+",
+      countChip: "2.5k",
+      badge: "Foundation"
+    }
+  };
+
   const APP_VERSION = "v2.4.0";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
@@ -1989,19 +2022,20 @@ font-family: inherit !important;
             <img src="logo.svg" alt="Sevrony Logo" />
           </div>
 
-          <h1 class="onboarding-title" style="margin-bottom: 8px;">Get started with Sevrony</h1>
+          <h1 class="onboarding-title">Get started with Sevrony</h1>
+          <p class="onboarding-desc">Choose your target exam to practice ${catalogCountLabel(state.activeCatalog)} official questions and sync your progress across devices.</p>
+
           ${renderCatalogSelector("onboarding")}
-          <p class="onboarding-desc">Sign in to download ${catalogCountLabel(state.activeCatalog)} official practice questions and sync your progress across devices.</p>
 
           <button class="onboarding-google-btn" type="button" data-action="sign-in-and-download">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-            <span>${window.SevSync?.isLinked() ? "Download Question Bank" : "Sign in with Google"}</span>
+            <span>${window.SevSync?.isLinked() ? `Download ${CATALOG_SHORT_LABELS[state.activeCatalog] || "Question"} Bank` : "Sign in with Google"}</span>
           </button>
 
           <div class="onboarding-features">
             <div class="onboarding-feature-item">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>${catalogCountLabel(state.activeCatalog)} official College Board questions</span>
+              <span>${catalogCountLabel(state.activeCatalog)} official ${catalogLabel(state.activeCatalog)} questions</span>
             </div>
             <div class="onboarding-feature-item">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2161,7 +2195,7 @@ font-family: inherit !important;
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
           </button>
         </div>
-        
+
         <nav class="sidebar-nav">
           <div class="nav-section">
             <p class="nav-heading">Main Menu</p>
@@ -2699,7 +2733,7 @@ font-family: inherit !important;
     if (!activeQuestions.length) {
       return `
         <section class="hero-card empty-state">
-          <div style="margin-bottom: 20px;">
+          <div style="margin-bottom: 24px; display: flex; justify-content: center;">
             ${catalogSelectorHtml}
           </div>
           <div>
@@ -2732,7 +2766,7 @@ font-family: inherit !important;
     }
 
     return `
-      <div class="hero-actions" style="display: flex; justify-content: space-between; margin-bottom: 32px; gap: 16px;" data-tour-target="dashboard-hero">
+      <div class="hero-actions" style="display: flex; justify-content: space-between; margin-bottom: 32px; gap: 16px; flex-wrap: wrap; align-items: flex-end;" data-tour-target="dashboard-hero">
         <div>
           <h1 style="font-size: 32px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 4px;">Dashboard</h1>
           <p style="color: var(--ink-muted); font-size: 15px; margin: 0;">${questionsSubtitle}</p>
@@ -2959,7 +2993,7 @@ font-family: inherit !important;
     return `
       <section class="hero-card config-hero">
         <div>
-          <p class="eyebrow">Create New Test</p>
+          <p class="eyebrow">Create New Test · ${catalogLabel(state.activeCatalog)}</p>
           <h1>Choose your practice mode.</h1>
           <p>Single-subject uses a per-question count-up timer. Full test runs RW→Break→Math with adaptive Module 2 routing.</p>
         </div>
@@ -5002,7 +5036,10 @@ function renderTestReview() {
     const action = event.currentTarget.dataset.action;
 
     if (action === "switch-catalog") {
-      await switchCatalog(event.currentTarget.value);
+      const targetCatalog = event.currentTarget.dataset.catalog || event.currentTarget.value;
+      if (targetCatalog) {
+        await switchCatalog(targetCatalog);
+      }
       return;
     }
 
@@ -6157,22 +6194,59 @@ function renderTestReview() {
   /**
    * The exam picker.
    *
-   * One renderer for all three placements. bindHomeEvents() already attaches a
-   * `change` listener to every SELECT carrying data-action, so the option list
-   * and the handler stay in one place instead of being duplicated per view with
-   * an inline handler each.
+   * Offers high-touch UI variants:
+   * - "onboarding": 3-way interactive cards with grade level targets and question counts
+   * - "dashboard" / default: sleek, minimal segmented pill control for dashboard top bar
    */
   function renderCatalogSelector(variant) {
-    const style = variant === "onboarding"
-      ? "margin: 0 auto 16px; padding: 6px 10px; border-radius: 6px; font-size: 14px; display: block;"
-      : "padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500;";
+    if (variant === "onboarding") {
+      return `
+        <div class="qb-onboarding-picker" role="radiogroup" aria-label="Select practice exam">
+          ${CATALOGS.map(cat => {
+            const isSelected = state.activeCatalog === cat;
+            const meta = CATALOG_DETAILS[cat] || { shortLabel: cat.toUpperCase(), countLabel: "2,500+", gradeLevel: "" };
+            return `
+              <button type="button" 
+                      class="qb-onboarding-option ${isSelected ? "active" : ""}" 
+                      data-action="switch-catalog" 
+                      data-catalog="${cat}" 
+                      role="radio" 
+                      aria-checked="${isSelected}"
+                      title="Practice ${escapeAttr(catalogLabel(cat))}">
+                <div class="qb-onboarding-option-header">
+                  <span class="qb-onboarding-name">${escapeHtml(meta.shortLabel)}</span>
+                  ${isSelected ? `<span class="qb-onboarding-check"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>` : ""}
+                </div>
+                <div class="qb-onboarding-meta">
+                  <span class="qb-onboarding-grade">${escapeHtml(meta.gradeLevel)}</span>
+                  <span class="qb-onboarding-count">${escapeHtml(meta.countLabel)} Qs</span>
+                </div>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    // Default: ultra-clean segmented pill control for Dashboard
     return `
-      <select class="glass-select" data-action="switch-catalog" aria-label="Choose which exam to practice"
-              style="border: 1px solid var(--border); background: var(--card); color: var(--ink); ${style}">
-        ${CATALOGS.map(catalog => `
-          <option value="${catalog}" ${state.activeCatalog === catalog ? "selected" : ""}>${catalogLabel(catalog)}</option>
-        `).join("")}
-      </select>
+      <div class="qb-segmented-control" role="tablist" aria-label="Choose question bank">
+        ${CATALOGS.map(cat => {
+          const isSelected = state.activeCatalog === cat;
+          const meta = CATALOG_DETAILS[cat] || { shortLabel: cat.toUpperCase(), countLabel: "2,500+" };
+          return `
+            <button type="button"
+                    class="qb-segment-btn ${isSelected ? "active" : ""}"
+                    data-action="switch-catalog"
+                    data-catalog="${cat}"
+                    role="tab"
+                    aria-selected="${isSelected}"
+                    title="${escapeAttr(catalogLabel(cat))} · ${meta.countLabel} questions">
+              <span class="qb-segment-label">${escapeHtml(meta.shortLabel)}</span>
+            </button>
+          `;
+        }).join("")}
+      </div>
     `;
   }
 
