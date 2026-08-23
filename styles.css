@@ -2951,79 +2951,25 @@ img, svg { max-width: 100%; height: auto; }
 }
 
 /* ============================================================
-   VIEW TRANSITIONS & MICRO-INTERACTIONS
+   MICRO-INTERACTIONS & HOVER STATES
    ============================================================ */
 
-/* Continuity Transition for persistent elements */
-.sidebar { view-transition-name: sidebar; }
-.main-content-wrapper { view-transition-name: main-content; }
-
-/* Prevent scrolling during transition */
-html::view-transition-group(root),
-html::view-transition-group(main-content) {
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Context Transition: Sliding Fade */
-html[data-transition="context"]::view-transition-old(main-content) {
-  animation: fade-out 0.15s ease-in forwards;
-}
-html[data-transition="context"]::view-transition-new(main-content) {
-  animation: slide-up-fade 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-/* Fallback scoped route enter animation */
-.main-grid.view-enter, .page-container.view-enter {
-  animation: view-fade-slide 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes view-fade-slide {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fade-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@keyframes slide-in-fade {
-  from { opacity: 0; transform: translateX(8px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes scale-down-fade {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.98); }
-}
-
-@keyframes slide-up-fade {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Tactile Micro-Interactions */
+/* Tactile Card & Button Micro-Interactions */
 .history-card, .review-card, .mistake-stat-card, .metric-card, .check-card {
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s ease;
 }
 
 .history-card:hover, .review-card:hover, .check-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
 .ghost-btn:active, .primary-btn:active, .secondary-btn:active, .danger-btn:active, .bb-end-btn:active, .qb-segment-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .accuracy-bar-fill, .progress-fill, .boot-progress-fill {
-  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 

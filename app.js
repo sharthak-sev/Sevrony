@@ -1043,8 +1043,43 @@ window.updateSelectAllButtons = function() {
         });
       }
     }
-    return dedupeResponses([...(storedResponses || []), ...embeddedResponses])
+    return dedupeResponses([...embeddedResponses, ...(storedResponses || [])])
       .sort((a, b) => String(b.answeredAt).localeCompare(String(a.answeredAt)));
+  }
+
+  async function persistResponseMutation(response) {
+    if (!response) return;
+    response.updatedAt = Date.now();
+
+    // Update in-memory state.responses
+    const idx = state.responses.findIndex(x => x.id === response.id || responseIdentity(x) === responseIdentity(response));
+    if (idx !== -1) {
+      state.responses[idx] = response;
+    }
+
+    // If response belongs to a session, update embedded response in session record
+    if (response.sessionId) {
+      const session = state.sessions.find(s => s.id === response.sessionId);
+      if (session && Array.isArray(session.responses)) {
+        const respIdx = session.responses.findIndex(r => r.id === response.id || responseIdentity(r) === responseIdentity(response));
+        if (respIdx !== -1) {
+          session.responses[respIdx] = {
+            ...session.responses[respIdx],
+            isMastered: response.isMastered,
+            notes: response.notes,
+            tags: response.tags,
+            updatedAt: response.updatedAt
+          };
+          session.updatedAt = response.updatedAt;
+          await DB.put("sessions", session).catch(console.error);
+        }
+      }
+    }
+
+    await DB.put("responses", response);
+    if (window.SevSync?.isLinked()) {
+      window.SevSync.sync();
+    }
   }
 
   function buildPortablePayload() {
@@ -1697,32 +1732,9 @@ window.updateSelectAllButtons = function() {
     const isRouteChanging = _currentRoute !== newRoute;
     _currentRoute = newRoute;
     if (isRouteChanging) captureTelemetry("$pageview", { view: newRoute });
-
-    if (isRouteChanging && typeof document.startViewTransition === "function") {
-      document.documentElement.setAttribute("data-transition", "context");
-      try {
-        const transition = document.startViewTransition(() => {
-          doRender();
-          window.scrollTo(0, 0);
-        });
-        transition.finished.finally(() => {
-          document.documentElement.removeAttribute("data-transition");
-        });
-      } catch (e) {
-        doRender();
-        window.scrollTo(0, 0);
-      }
-    } else {
-      doRender();
-      if (isRouteChanging) {
-        window.scrollTo(0, 0);
-        const mainGrid = app.querySelector(".main-grid");
-        if (mainGrid) {
-          mainGrid.classList.remove("view-enter");
-          void mainGrid.offsetWidth;
-          mainGrid.classList.add("view-enter");
-        }
-      }
+    doRender();
+    if (isRouteChanging) {
+      window.scrollTo(0, 0);
     }
   }
 
@@ -1898,8 +1910,8 @@ window.updateSelectAllButtons = function() {
     return `
       <main class="page-container" style="max-width: 800px; margin: 0 auto; padding: 40px 20px;">
         <div style="margin-bottom: 32px; display: flex; align-items: center; gap: 16px;">
-          <button type="button" data-action="privacy-back" class="ghost-btn icon-btn" style="padding: 8px; border-radius: 50%;" aria-label="Go back">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          <button type="button" data-action="privacy-back" class="ghost-btn icon-btn" style="width: 38px; height: 38px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" aria-label="Go back">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
           <div>
             <h1 style="font-size: 2.5rem; margin-bottom: 8px; margin-top: 0;">Privacy Policy</h1>
@@ -1999,7 +2011,7 @@ font-family: inherit !important;
       <div class="font-marketing min-h-[80vh] flex flex-col justify-center items-center py-16 px-4 sm:px-6 lg:px-8 bg-background">
         
         <!-- Hero Section -->
-        <div class="text-center max-w-4xl mx-auto space-y-8 opacity-0 animate-fade-in-up">
+        <div class="text-center max-w-4xl mx-auto space-y-8">
           <div class="inline-flex items-center justify-center p-4 border border-border/60 bg-muted/20 rounded-2xl mb-6 shadow-sm">
             <img src="logo.svg" alt="Sevrony Logo" class="w-14 h-14 object-contain" />
           </div>
@@ -2067,7 +2079,7 @@ font-family: inherit !important;
   function renderOnboarding() {
     return `
       <div class="onboarding-wrapper">
-        <div class="onboarding-card opacity-0 animate-fade-in-up">
+        <div class="onboarding-card">
           
           <div class="onboarding-logo-badge">
             <img src="logo.svg" alt="Sevrony Logo" />
@@ -4123,7 +4135,7 @@ function renderTestReview() {
 
     return `
       <div id="mistakes-log-container">
-        <div class="opacity-0 animate-fade-in-up" style="max-width: var(--max-content-width, 1200px); margin: 0 auto; padding-bottom: 48px; padding-top: 24px;">
+        <div style="max-width: var(--max-content-width, 1200px); margin: 0 auto; padding-bottom: 48px; padding-top: 24px;">
           <!-- Header Section -->
         <div style="margin-bottom: 24px; padding: 0 16px;">
             <h2 style="font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 8px;">Mistakes Log</h2>
@@ -5285,9 +5297,8 @@ function renderTestReview() {
       const response = state.responses.find(x => x.id === id);
       if (response) {
         response.isMastered = !response.isMastered;
-        DB.put("responses", response).then(() => {
+        persistResponseMutation(response).then(() => {
           updateMistakesLogUI();
-          if (window.SevSync?.isLinked()) window.SevSync.sync();
         }).catch(console.error);
       }
     }
@@ -5351,10 +5362,8 @@ function renderTestReview() {
         } else {
           r.tags.push(tag);
         }
-        r.updatedAt = Date.now();
-        DB.put("responses", r).catch(console.error);
-        if (window.SevSync?.isLinked()) window.SevSync.sync();
         target.classList.toggle("active");
+        persistResponseMutation(r).catch(console.error);
       }
     }
     if (action === "ml-add-custom-tag") {
@@ -5368,33 +5377,10 @@ function renderTestReview() {
             r.tags = r.tags || [];
             if (!r.tags.includes(cleanTag)) {
               r.tags.push(cleanTag);
-              r.updatedAt = Date.now();
-              DB.put("responses", r).catch(console.error);
-              if (window.SevSync?.isLinked()) window.SevSync.sync();
+              persistResponseMutation(r).then(() => {
+                updateMistakesLogUI();
+              }).catch(console.error);
             }
-            
-            const container = target.parentElement;
-            let tagBtn = Array.from(container.querySelectorAll("button.tag-badge")).find(b => b.dataset.tag === cleanTag);
-            if (!tagBtn) {
-              tagBtn = document.createElement("button");
-              tagBtn.type = "button";
-              tagBtn.dataset.action = "ml-toggle-tag";
-              tagBtn.dataset.id = id;
-              tagBtn.dataset.tag = cleanTag;
-              tagBtn.className = "tag-badge";
-              tagBtn.textContent = cleanTag + " ";
-              const closeSpan = document.createElement("span");
-              closeSpan.dataset.action = "ml-delete-custom-tag";
-              closeSpan.dataset.tag = cleanTag;
-              closeSpan.style.marginLeft = "6px";
-              closeSpan.style.opacity = "0.6";
-              closeSpan.textContent = "×";
-              tagBtn.appendChild(closeSpan);
-              tagBtn.addEventListener("click", handleHomeAction);
-              closeSpan.addEventListener("click", handleHomeAction);
-              container.insertBefore(tagBtn, target);
-            }
-            tagBtn.classList.add("active");
           }
         });
       }
@@ -5405,13 +5391,9 @@ function renderTestReview() {
         const toUpdate = state.responses.filter(r => r.tags && r.tags.includes(tag));
         for (const r of toUpdate) {
           r.tags = r.tags.filter(t => t !== tag);
-          r.updatedAt = Date.now();
+          await persistResponseMutation(r);
         }
         if (state.mistakesLog.filterTags.has(tag)) state.mistakesLog.filterTags.delete(tag);
-        if (toUpdate.length > 0) {
-          await DB.putMany("responses", toUpdate);
-          if (window.SevSync?.isLinked()) window.SevSync.sync();
-        }
         updateMistakesLogUI();
       });
       return;
@@ -5424,12 +5406,10 @@ function renderTestReview() {
         showConfirmModal("Are you sure you want to delete this note and its tags?", "Delete Note", () => {
           r.notes = "";
           r.tags = [];
-          r.updatedAt = Date.now();
           const textarea = document.querySelector(`textarea.ml-note-input[data-id="${id}"]`);
           if (textarea) textarea.value = "";
-          DB.put("responses", r).then(() => {
+          persistResponseMutation(r).then(() => {
             updateMistakesLogUI();
-            if (window.SevSync?.isLinked()) window.SevSync.sync();
           }).catch(console.error);
         });
       }
@@ -5459,11 +5439,9 @@ function renderTestReview() {
               }
               r.notes = "";
               r.tags = [];
-              r.updatedAt = Date.now();
               textarea.value = "";
-              DB.put("responses", r).then(() => {
+              persistResponseMutation(r).then(() => {
                 updateMistakesLogUI();
-                if (window.SevSync?.isLinked()) window.SevSync.sync();
               }).catch(console.error);
               return;
             }
@@ -5478,10 +5456,8 @@ function renderTestReview() {
           }
           
           r.notes = newNotes;
-          r.updatedAt = Date.now();
-          DB.put("responses", r).then(() => {
+          persistResponseMutation(r).then(() => {
             updateMistakesLogUI();
-            if (window.SevSync?.isLinked()) window.SevSync.sync();
           }).catch(console.error);
         }
       }
