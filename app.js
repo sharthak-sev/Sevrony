@@ -1697,9 +1697,32 @@ window.updateSelectAllButtons = function() {
     const isRouteChanging = _currentRoute !== newRoute;
     _currentRoute = newRoute;
     if (isRouteChanging) captureTelemetry("$pageview", { view: newRoute });
-    doRender();
-    if (isRouteChanging) {
-      window.scrollTo(0, 0);
+
+    if (isRouteChanging && typeof document.startViewTransition === "function") {
+      document.documentElement.setAttribute("data-transition", "context");
+      try {
+        const transition = document.startViewTransition(() => {
+          doRender();
+          window.scrollTo(0, 0);
+        });
+        transition.finished.finally(() => {
+          document.documentElement.removeAttribute("data-transition");
+        });
+      } catch (e) {
+        doRender();
+        window.scrollTo(0, 0);
+      }
+    } else {
+      doRender();
+      if (isRouteChanging) {
+        window.scrollTo(0, 0);
+        const mainGrid = app.querySelector(".main-grid");
+        if (mainGrid) {
+          mainGrid.classList.remove("view-enter");
+          void mainGrid.offsetWidth;
+          mainGrid.classList.add("view-enter");
+        }
+      }
     }
   }
 

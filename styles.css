@@ -2951,32 +2951,41 @@ img, svg { max-width: 100%; height: auto; }
 }
 
 /* ============================================================
-   VIEW TRANSITIONS
+   VIEW TRANSITIONS & MICRO-INTERACTIONS
    ============================================================ */
 
 /* Continuity Transition for persistent elements */
-.topbar { view-transition-name: topbar; }
-.bb-topbar { view-transition-name: topbar; }
+.sidebar { view-transition-name: sidebar; }
+.main-content-wrapper { view-transition-name: main-content; }
 
 /* Prevent scrolling during transition */
-html::view-transition-group(root) {
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+html::view-transition-group(root),
+html::view-transition-group(main-content) {
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Context Transition: Sliding Fade */
-html[data-transition="context"]::view-transition-old(root) {
-  animation: fade-out 0.2s ease-in forwards;
+html[data-transition="context"]::view-transition-old(main-content) {
+  animation: fade-out 0.15s ease-in forwards;
 }
-html[data-transition="context"]::view-transition-new(root) {
-  animation: slide-in-fade 0.3s ease-out backwards;
+html[data-transition="context"]::view-transition-new(main-content) {
+  animation: slide-up-fade 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
-/* Drill Transition: Scale down & Slide in from bottom/right */
-html[data-transition="drill"]::view-transition-old(root) {
-  animation: scale-down-fade 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+/* Fallback scoped route enter animation */
+.main-grid.view-enter, .page-container.view-enter {
+  animation: view-fade-slide 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-html[data-transition="drill"]::view-transition-new(root) {
-  animation: slide-up-fade 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+
+@keyframes view-fade-slide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fade-out {
@@ -2985,7 +2994,7 @@ html[data-transition="drill"]::view-transition-new(root) {
 }
 
 @keyframes slide-in-fade {
-  from { opacity: 0; transform: translateX(10px); }
+  from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
@@ -2995,8 +3004,26 @@ html[data-transition="drill"]::view-transition-new(root) {
 }
 
 @keyframes slide-up-fade {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Tactile Micro-Interactions */
+.history-card, .review-card, .mistake-stat-card, .metric-card, .check-card {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
+}
+
+.history-card:hover, .review-card:hover, .check-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.ghost-btn:active, .primary-btn:active, .secondary-btn:active, .danger-btn:active, .bb-end-btn:active, .qb-segment-btn:active {
+  transform: scale(0.97);
+}
+
+.accuracy-bar-fill, .progress-fill, .boot-progress-fill {
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 
