@@ -1,7 +1,30 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v2.3.0";
+  /** Catalog ids, in the order the picker offers them. */
+  const CATALOGS = ["sat", "psat10", "psat8_9"];
+  const DEFAULT_CATALOG = "sat";
+  const LOCAL_CATALOG = "local";
+
+  const CATALOG_LABELS = {
+    sat: "SAT®",
+    psat10: "PSAT/NMSQT® and PSAT™ 10",
+    psat8_9: "PSAT™ 8/9"
+  };
+
+  const CATALOG_SHORT_LABELS = {
+    sat: "SAT",
+    psat10: "PSAT 10",
+    psat8_9: "PSAT 8/9"
+  };
+
+  const CATALOG_QUESTION_COUNT_LABELS = {
+    sat: "2,900+",
+    psat10: "2,900+",
+    psat8_9: "2,500+"
+  };
+
+  const APP_VERSION = "v2.4.0";
   const DB = window.SatPracticeDB;
   const app = document.querySelector("#app");
   const fileInput = document.querySelector("#fileInput");
@@ -205,10 +228,14 @@ window.updateSelectAllButtons = function() {
     questions: [],
     sessions: [],
     responses: [],
+    // Ids of the sessions belonging to the active catalog. Recomputed once per
+    // refreshLocalData() rather than derived per render.
+    activeSessionIds: new Set(),
     backupHandle: null,
     backupMessage: null,
     view: "dashboard",
     historyTab: "full",
+    activeCatalog: readActiveCatalog(),
     reviewSessionId: null,
     mistakesSessionId: null,
     reviewFilterIncorrect: false,
@@ -604,12 +631,13 @@ window.updateSelectAllButtons = function() {
       state.historyTab = sessionStorage.getItem('historyTab') || "full";
       state.viewSubject = sessionStorage.getItem('viewSubject') || null;
 
-      const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
-      const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
+      const activeSessions = getActiveSessions();
+      const fullTests = activeSessions.filter(s => s.mode === "full" || s.mode === "bluebook");
+      const subjectTests = activeSessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
       if (fullTests.length === 0 && subjectTests.length > 0) {
         state.historyTab = "subject";
       }
-      
+
       const lastResultSessionId = sessionStorage.getItem('lastResultSessionId');
       if (lastResultSessionId) {
         const session = state.sessions.find(s => s.id === lastResultSessionId);
@@ -1265,14 +1293,52 @@ window.updateSelectAllButtons = function() {
   }
   // ------------------------------
 
+  /**
+   * Reload every store the UI reads from.
+   *
+   * `questions` is the one store big enough to matter: all three catalogs
+   * together are 8,416 records, so it is read through the `catalog` index and
+   * only the active exam plus the user's own imports are kept resident. That
+   * keeps `state.questions` at roughly a third of the total and means the rest
+   * of the app can treat it as "the questions" with no filtering -- an earlier
+   * attempt filtered at every call site instead and leaked one catalog's history
+   * into another's dashboard.
+   */
   async function refreshLocalData() {
-    const [banks, questions, sessions, oldResponses, studyStates] = await Promise.all([
+    let [banks, catalogQuestions, localQuestions, sessions, oldResponses, studyStates] = await Promise.all([
       DB.getAll("questionBanks"),
-      DB.getAll("questions"),
+      DB.getAllByIndex("questions", "catalog", state.activeCatalog),
+      DB.getAllByIndex("questions", "catalog", LOCAL_CATALOG),
       DB.getAll("sessions"),
       DB.getAll("responses"),
       DB.getAll("questionStudyState")
     ]);
+
+    // Safety fallback: if the index returned 0 questions but the questions store has records
+    // lacking a catalog stamp, heal them immediately so unindexed records are never lost.
+    if (catalogQuestions.length === 0 && localQuestions.length === 0) {
+      const allRaw = await DB.getAll("questions");
+      if (allRaw.length > 0 && allRaw.some(q => !q.catalog)) {
+        const healed = allRaw.map(q => {
+          if (!q.catalog) {
+            if (typeof q.bankId === "string" && q.bankId.startsWith(SevApi.CATALOG_BANK_PREFIX)) {
+              q.catalog = q.bankId.slice(SevApi.CATALOG_BANK_PREFIX.length);
+            } else if (q.bankId === "sevrony-catalog") {
+              q.catalog = "sat";
+              q.bankId = "sevrony-catalog-sat";
+            } else {
+              q.catalog = LOCAL_CATALOG;
+            }
+          }
+          return q;
+        });
+        await DB.putMany("questions", healed);
+        catalogQuestions = healed.filter(q => q.catalog === state.activeCatalog);
+        localQuestions = healed.filter(q => q.catalog === LOCAL_CATALOG);
+      }
+    }
+
+    const questions = catalogQuestions.concat(localQuestions);
 
     state.banks = banks.filter(record => !isDeletedRecord(record)).sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)));
     state.questions = questions.filter(record => !isDeletedRecord(record)).map(q => {
@@ -1289,11 +1355,19 @@ window.updateSelectAllButtons = function() {
       if (subject !== 0) return subject;
       return String(a.questionId || a.id).localeCompare(String(b.questionId || b.id));
     });
-    
+
     const validSessions = sessions.filter(s => s.id !== "__active_test__" && !s.deletedAt);
     state.sessions = validSessions.sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
-    
+
     state.responses = hydrateCanonicalResponses(validSessions, oldResponses);
+
+    // Sessions and responses stay fully resident -- they are small, and a backup
+    // has to cover every catalog. Scope is derived from the session's own stamp
+    // rather than from question membership, so a catalog that is not downloaded
+    // still reports its own history instead of silently reporting none.
+    state.activeSessionIds = new Set(
+      validSessions.filter(s => sessionCatalog(s) === state.activeCatalog).map(s => s.id)
+    );
 
     const backupConf = await DB.get("appConfig", "backupHandle");
     state.backupHandle = backupConf ? backupConf.handle : null;
@@ -1915,18 +1989,19 @@ font-family: inherit !important;
             <img src="logo.svg" alt="Sevrony Logo" />
           </div>
 
-          <h1 class="onboarding-title">Get started with Sevrony</h1>
-          <p class="onboarding-desc">Sign in to download ${CATALOG_QUESTION_COUNT_LABEL} official practice questions and sync your progress across devices.</p>
+          <h1 class="onboarding-title" style="margin-bottom: 8px;">Get started with Sevrony</h1>
+          ${renderCatalogSelector("onboarding")}
+          <p class="onboarding-desc">Sign in to download ${catalogCountLabel(state.activeCatalog)} official practice questions and sync your progress across devices.</p>
 
           <button class="onboarding-google-btn" type="button" data-action="sign-in-and-download">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-            <span>Sign in with Google</span>
+            <span>${window.SevSync?.isLinked() ? "Download Question Bank" : "Sign in with Google"}</span>
           </button>
 
           <div class="onboarding-features">
             <div class="onboarding-feature-item">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>${CATALOG_QUESTION_COUNT_LABEL} official College Board questions</span>
+              <span>${catalogCountLabel(state.activeCatalog)} official College Board questions</span>
             </div>
             <div class="onboarding-feature-item">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2512,7 +2587,7 @@ font-family: inherit !important;
   }
 
   function renderStreakWidget() {
-    const data = calculateStreakData(state.sessions);
+    const data = calculateStreakData(getActiveSessions());
     const today = new Date();
     today.setHours(0,0,0,0);
 
@@ -2612,22 +2687,30 @@ font-family: inherit !important;
 
 
   function renderDashboard() {
-    const metrics = buildMetrics(state.questions, state.responses);
+    const activeQuestions = state.questions;
+    const activeResponses = getActiveResponses();
+    const activeBanks = getActiveBanks();
+    const metrics = buildMetrics(activeQuestions, activeResponses);
     const mathCount = metrics.bank.bySubject.math || 0;
     const rwCount = metrics.bank.bySubject.rw || 0;
 
-    if (!state.questions.length) {
+    const catalogSelectorHtml = renderCatalogSelector("dashboard");
+
+    if (!activeQuestions.length) {
       return `
         <section class="hero-card empty-state">
+          <div style="margin-bottom: 20px;">
+            ${catalogSelectorHtml}
+          </div>
           <div>
             <p class="eyebrow">Welcome</p>
             <h1>Sign in to start practicing.</h1>
-            <p>Download ${CATALOG_QUESTION_COUNT_LABEL} official practice questions and sync your progress across devices.</p>
+            <p>Download ${catalogCountLabel(state.activeCatalog)} official ${catalogLabel(state.activeCatalog)} practice questions and sync your progress across devices.</p>
           </div>
           <div style="display:flex;flex-direction:column;gap:12px;align-items:stretch;max-width:320px;margin:20px auto 0;">
             <button class="primary-btn large" type="button" data-action="sign-in-and-download" style="gap: 8px;">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-              Sign in with Google
+              ${window.SevSync?.isLinked() ? "Download Question Bank" : "Sign in with Google"}
             </button>
             <button class="ghost-btn" type="button" data-action="import" style="font-size:13px;">Or import your own .sat-test file</button>
           </div>
@@ -2635,13 +2718,27 @@ font-family: inherit !important;
       `;
     }
 
+    const catalogCount = catalogQuestionCount();
+    const totalCount = activeQuestions.length;
+    let questionsSubtitle = "";
+    if (catalogCount > 0 && catalogCount === totalCount) {
+      questionsSubtitle = `${activeBanks.length} bank${activeBanks.length === 1 ? "" : "s"} · ${totalCount.toLocaleString()} ${catalogLabel(state.activeCatalog)} questions`;
+    } else if (catalogCount > 0) {
+      questionsSubtitle = `${activeBanks.length} bank${activeBanks.length === 1 ? "" : "s"} · ${catalogCount.toLocaleString()} ${catalogLabel(state.activeCatalog)} questions (+${(totalCount - catalogCount).toLocaleString()} imported)`;
+    } else if (totalCount > 0) {
+      questionsSubtitle = `${activeBanks.length} bank${activeBanks.length === 1 ? "" : "s"} · ${totalCount.toLocaleString()} imported question${totalCount === 1 ? "" : "s"}`;
+    } else {
+      questionsSubtitle = `0 banks · 0 questions`;
+    }
+
     return `
       <div class="hero-actions" style="display: flex; justify-content: space-between; margin-bottom: 32px; gap: 16px;" data-tour-target="dashboard-hero">
         <div>
           <h1 style="font-size: 32px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 4px;">Dashboard</h1>
-          <p style="color: var(--ink-muted); font-size: 15px; margin: 0;">${state.banks.length} imported bank${state.banks.length === 1 ? "" : "s"} · ${state.questions.length} total questions</p>
+          <p style="color: var(--ink-muted); font-size: 15px; margin: 0;">${questionsSubtitle}</p>
         </div>
-        <div class="top-actions" style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div class="top-actions" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          ${catalogSelectorHtml}
           <button class="primary-btn" type="button" data-action="config" data-tour-target="create-test">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-3px"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
             Create New Test
@@ -2658,7 +2755,7 @@ font-family: inherit !important;
             </div>
             <div>
               <strong style="display: block; font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 2px;">Switch to the Sevrony question bank</strong>
-              <span class="muted" style="font-size: 13px;">Same ${CATALOG_QUESTION_COUNT_LABEL} questions, now served from Sevrony. Your answers and progress carry over, and your backups get about 100× smaller.</span>
+              <span class="muted" style="font-size: 13px;">Same ${catalogCountLabel(state.activeCatalog)} questions, now served from Sevrony. Your answers and progress carry over, and your backups get about 100× smaller.</span>
             </div>
           </div>
           <div class="catalog-upgrade-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
@@ -3196,10 +3293,6 @@ font-family: inherit !important;
   }
 
   function renderTestHistory() {
-    const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
-    const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
-    const sessions = state.historyTab === "full" ? fullTests : subjectTests;
-
     return `
       <section class="hero-card compact-hero">
         <div>
@@ -3216,8 +3309,9 @@ font-family: inherit !important;
 
   
   function renderHistoryPanelContent() {
-    const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
-    const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
+    const activeSessions = getActiveSessions();
+    const fullTests = activeSessions.filter(s => s.mode === "full" || s.mode === "bluebook");
+    const subjectTests = activeSessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
     const sessions = state.historyTab === "full" ? fullTests : subjectTests;
 
     return `
@@ -3290,7 +3384,12 @@ function renderTestReview() {
       `;
     }
 
-    const questionMap = new Map(state.questions.map(q => [q.id, q]));
+    const questionMap = new Map();
+    for (const q of state.questions) {
+      if (q.id) questionMap.set(q.id, q);
+      if (q.externalId) questionMap.set(q.externalId, q);
+      if (q.questionId) questionMap.set(q.questionId, q);
+    }
     const allResponses = state.responses
       .filter(r => r.sessionId === session.id)
       .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
@@ -3576,7 +3675,7 @@ function renderTestReview() {
 
     const responsesToAnalyze = state.mistakesSessionId
       ? state.responses.filter(r => r.sessionId === state.mistakesSessionId)
-      : state.responses;
+      : getActiveResponses();
 
     for (const r of responsesToAnalyze) {
       const isSkipped = !isAnsweredResponse(r);
@@ -3593,7 +3692,12 @@ function renderTestReview() {
       everSkippedIds.delete(id);
     }
 
-    const questionMap = new Map(state.questions.map(q => [q.id, q]));
+    const questionMap = new Map();
+    for (const q of state.questions) {
+      if (q.id) questionMap.set(q.id, q);
+      if (q.externalId) questionMap.set(q.externalId, q);
+      if (q.questionId) questionMap.set(q.questionId, q);
+    }
     const wrongQuestions = [];
     const skippedQuestions = [];
 
@@ -3810,9 +3914,14 @@ function renderTestReview() {
 
     const MISTAKE_TAGS = ["Silly mistake", "Time crunch", "Conceptual error", "Misread question", "Calculation error", "Guessed"];
 
-    const allMistakes = state.responses.filter(r => !r.isCorrect && r.sessionId !== "active_test");
-    const questionsMap = new Map(state.questions.map(q => [q.id, q]));
-    let validMistakes = allMistakes.filter(r => questionsMap.has(r.questionId));
+    const allMistakes = getActiveResponses().filter(r => !r.isCorrect && r.sessionId !== "active_test");
+    const questionsMap = new Map();
+    for (const q of state.questions) {
+      if (q.id) questionsMap.set(q.id, q);
+      if (q.externalId) questionsMap.set(q.externalId, q);
+      if (q.questionId) questionsMap.set(q.questionId, q);
+    }
+    let validMistakes = allMistakes.filter(r => questionsMap.has(r.questionId) || (r.externalId && questionsMap.has(r.externalId)));
 
     validMistakes.sort((a, b) => (b.answeredAt || 0) - (a.answeredAt || 0));
 
@@ -4891,7 +5000,12 @@ function renderTestReview() {
   async function handleHomeAction(event) {
     event.stopPropagation();
     const action = event.currentTarget.dataset.action;
-    
+
+    if (action === "switch-catalog") {
+      await switchCatalog(event.currentTarget.value);
+      return;
+    }
+
     if (action === "view-session-overview") {
       const sessionId = event.currentTarget.dataset.sessionId;
       const session = state.sessions.find(s => s.id === sessionId);
@@ -4985,8 +5099,9 @@ function renderTestReview() {
     }
     if (action === "config") { state.view = "config"; state.notice = null; ensureConfigDefaults(); renderHome(); }
     if (action === "history") {
-      const fullTests = state.sessions.filter(s => s.mode === "full" || s.mode === "bluebook");
-      const subjectTests = state.sessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
+      const activeSessions = getActiveSessions();
+      const fullTests = activeSessions.filter(s => s.mode === "full" || s.mode === "bluebook");
+      const subjectTests = activeSessions.filter(s => s.mode !== "full" && s.mode !== "bluebook");
       if (fullTests.length === 0 && subjectTests.length > 0) {
         state.historyTab = "subject";
       } else {
@@ -5087,7 +5202,7 @@ function renderTestReview() {
     }
     if (action === "ml-retry-question") {
       const qid = event.currentTarget.dataset.qid;
-      const q = state.questions.find(x => x.id === qid);
+      const q = state.questions.find(x => x.id === qid || x.externalId === qid || x.questionId === qid);
       if (q) {
         startCustomPractice({ subject: q.subject || "both", limit: 1, isRetry: true }, [q]);
       }
@@ -5866,7 +5981,14 @@ function renderTestReview() {
             const responseData = dedupeResponses([...(payload.responses || []).map(stamp), ...embeddedResponses]);
             
             const filteredBanks = banksData.filter(record => !isDeletedRecord(record)).map(stamp);
-            const filteredQuestions = payload.questions.filter(record => !isDeletedRecord(record)).map(stamp);
+            // A backup written before v6 has no `catalog` on its questions, and
+            // an unset index key would leave them out of the read that loads
+            // them. Everything in a backup is the user's own import -- catalog
+            // questions are excluded from the payload -- so the sentinel applies
+            // to all of them.
+            const filteredQuestions = payload.questions
+              .filter(record => !isDeletedRecord(record))
+              .map(record => ({ ...stamp(record), catalog: record.catalog || LOCAL_CATALOG }));
             const studyStatesData = (payload.questionStudyState || []).map(stamp);
 
             await DB.clearAll();
@@ -5995,46 +6117,185 @@ function renderTestReview() {
   /* ===========================================================
      SHARED QUESTION CATALOG
      -----------------------------------------------------------
-     The question bank lives in D1 and is served by the worker. Locally it looks
-     like any other imported bank, except its records are re-downloadable, so
-     they are excluded from exports and from the Drive sync blob.
+     Each exam's question bank lives in D1 under its own `catalog` namespace and
+     is served by the worker. Locally each one looks like any other imported
+     bank, except its records are re-downloadable, so they are excluded from
+     exports and from the Drive sync blob.
+
+     Only the active catalog is resident in `state.questions` (see
+     refreshLocalData()), so the rest of the app reads `state.questions` and
+     `state.responses` directly and gets the active exam by construction.
      =========================================================== */
 
-  const CATALOG_BANK_ID = "sevrony-catalog";
-  const CATALOG_BANK_LABEL = "Sevrony Question Bank";
+  /**
+   * Sentinel catalog for questions the user brought themselves -- hand-imported
+   * .sat-test files and Bluebook exports. They stay resident whichever exam is
+   * selected, since they belong to no catalog.
+   *
+   * A sentinel rather than an absent field on purpose: IndexedDB leaves a record
+   * out of an index entirely when its key path is undefined, so unstamped
+   * questions would be invisible to the `catalog` index that loads them.
+   */
   // Marketing copy only -- the real count comes from /api/catalog/meta. Kept
-  // approximate so it stays true as the bank grows.
-  const CATALOG_QUESTION_COUNT_LABEL = "2,900+";
-
-  function isCatalogQuestion(record) {
-    return record?.bankId === CATALOG_BANK_ID;
+  // approximate per exam so it stays true as each bank grows.
+  function catalogLabel(catalog) {
+    return CATALOG_LABELS[catalog] || String(catalog || "").toUpperCase();
   }
 
+  function catalogBankLabel(catalog) {
+    return `Sevrony ${CATALOG_SHORT_LABELS[catalog] || catalogLabel(catalog)} Question Bank`;
+  }
+
+  function catalogCountLabel(catalog) {
+    return CATALOG_QUESTION_COUNT_LABELS[catalog] || "2,500+";
+  }
+
+  function catalogBankId(catalog) {
+    return SevApi.CATALOG_BANK_PREFIX + catalog;
+  }
+
+  /**
+   * The exam picker.
+   *
+   * One renderer for all three placements. bindHomeEvents() already attaches a
+   * `change` listener to every SELECT carrying data-action, so the option list
+   * and the handler stay in one place instead of being duplicated per view with
+   * an inline handler each.
+   */
+  function renderCatalogSelector(variant) {
+    const style = variant === "onboarding"
+      ? "margin: 0 auto 16px; padding: 6px 10px; border-radius: 6px; font-size: 14px; display: block;"
+      : "padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500;";
+    return `
+      <select class="glass-select" data-action="switch-catalog" aria-label="Choose which exam to practice"
+              style="border: 1px solid var(--border); background: var(--card); color: var(--ink); ${style}">
+        ${CATALOGS.map(catalog => `
+          <option value="${catalog}" ${state.activeCatalog === catalog ? "selected" : ""}>${catalogLabel(catalog)}</option>
+        `).join("")}
+      </select>
+    `;
+  }
+
+  /**
+   * The selected exam, validated. A hand-edited or stale localStorage value would
+   * otherwise send the client to /api/catalog/meta/<junk> and load nothing.
+   */
+  function readActiveCatalog() {
+    try {
+      const stored = localStorage.getItem("sevrony.activeCatalog");
+      if (CATALOGS.includes(stored)) return stored;
+    } catch (e) {
+      /* storage can be disabled outright */
+    }
+    return DEFAULT_CATALOG;
+  }
+
+  /** Sessions predate the picker; anything unstamped was recorded against SAT. */
+  function sessionCatalog(session) {
+    return session?.catalog || DEFAULT_CATALOG;
+  }
+
+  /**
+   * Whether a question came from a served catalog rather than from the user.
+   *
+   * Only the active catalog is ever resident, so this doubles as "belongs to the
+   * selected exam" for anything reading `state.questions`.
+   */
+  function isCatalogQuestion(record) {
+    return typeof record?.bankId === "string" && record.bankId.startsWith(SevApi.CATALOG_BANK_PREFIX);
+  }
+
+  /** Sessions belonging to the active exam. */
+  function getActiveSessions() {
+    return state.sessions.filter(s => sessionCatalog(s) === state.activeCatalog);
+  }
+
+  /**
+   * Banks whose questions are actually resident.
+   *
+   * `state.banks` holds every bank ever imported, including the catalog banks of
+   * exams that are not selected. Pairing that count with an active-only question
+   * count reads as "3 banks · 2,982 questions" once all three exams have been
+   * downloaded, which is wrong twice over.
+   */
+  function getActiveBanks() {
+    return state.banks.filter(bank => {
+      const id = String(bank?.id || "");
+      if (!id.startsWith(SevApi.CATALOG_BANK_PREFIX)) return true;
+      return id.slice(SevApi.CATALOG_BANK_PREFIX.length) === state.activeCatalog;
+    });
+  }
+
+  /**
+   * Responses belonging to the active exam.
+   *
+   * Scoped by the owning session rather than by whether the question is resident:
+   * a user who has answered PSAT 10 questions still has that history when SAT is
+   * selected, and it must not leak into SAT's metrics either way.
+   */
+  function getActiveResponses() {
+    return state.responses.filter(r => state.activeSessionIds.has(r.sessionId));
+  }
+
+  /**
+   * Switch the resident exam.
+   *
+   * Reloads local data before rendering, because the active catalog decides which
+   * questions and history are in memory at all.
+   */
+  async function switchCatalog(catalog) {
+    if (!CATALOGS.includes(catalog) || catalog === state.activeCatalog) return;
+    if (state.catalogBusy) {
+      showNotice("Hold on — a question bank is still downloading.", "error");
+      return;
+    }
+
+    state.activeCatalog = catalog;
+    try {
+      localStorage.setItem("sevrony.activeCatalog", catalog);
+    } catch (e) {
+      /* storage can be disabled outright; the switch still applies this session */
+    }
+
+    // A test in progress belongs to the exam it was started under, so leaving it
+    // resident would serve questions that are no longer loaded.
+    state.reviewSessionId = null;
+    state.mistakesSessionId = null;
+    state.lastResult = null;
+
+    setBusy("Switching question bank", `Loading your ${catalogLabel(catalog)} library.`, "import");
+    try {
+      await refreshLocalData();
+      ensureConfigDefaults();
+      captureTelemetry("Switched Catalog", { catalog });
+    } finally {
+      clearBusy(false);
+    }
+
+    renderHome();
+    await resumeCatalogIfNeeded();
+  }
+
+
+  /** How many of the active exam's catalog questions are held locally. */
   function catalogQuestionCount() {
     return state.questions.reduce((n, q) => n + (isCatalogQuestion(q) ? 1 : 0), 0);
   }
 
   /**
    * Whether to offer the switch on the dashboard.
-   *
-   * Aimed at users who imported the College Board export by hand before the
-   * catalog existed. Deliberately not shown for a Bluebook-only library: those
-   * questions are not in the catalog, so there is nothing to switch to.
    */
   function shouldOfferCatalog() {
     if (isDemoMode() || !window.SevApi) return false;
     if (localStorage.getItem("sevrony.catalogBannerDismissed")) return false;
-    if (catalogQuestionCount() > 0) return false;
-    // The Bluebook flag lives on the bank, not the question.
-    const bluebookBankIds = new Set(state.banks.filter(b => b.isBluebook).map(b => b.id));
-    return state.questions.some(q => !isDeletedRecord(q) && !bluebookBankIds.has(q.bankId));
+    return catalogQuestionCount() === 0;
   }
 
   /** One page of catalog payloads -> normalized records in IndexedDB. */
-  async function storeCatalogPage(rawQuestions, { version }) {
+  async function storeCatalogPage(rawQuestions, { version, bankId, catalog }) {
     const records = [];
     for (let i = 0; i < rawQuestions.length; i++) {
-      const record = normalizeQuestion(rawQuestions[i], CATALOG_BANK_ID, i);
+      const record = normalizeQuestion(rawQuestions[i], bankId, i);
       if (!record) continue;
       // normalizeQuestion() ends with `raw: question.raw || question`. Catalog
       // payloads have no `raw`, so it would attach the whole question to itself
@@ -6044,19 +6305,23 @@ function renderTestReview() {
       // so drop it rather than carrying a redundant copy.
       delete record.raw;
       record.catalogVersion = version;
+      // Indexed, and how refreshLocalData() finds this exam's questions again.
+      record.catalog = catalog;
       records.push(record);
     }
     await putManyChunked("questions", records, 300);
     return records.length;
   }
 
-  async function upsertCatalogBank(version, count) {
-    const existing = await DB.get("questionBanks", CATALOG_BANK_ID);
+  async function upsertCatalogBank(catalog, version, count) {
+    const bankId = catalogBankId(catalog);
+    const existing = await DB.get("questionBanks", bankId);
     await DB.put("questionBanks", {
       ...(existing || {}),
-      id: CATALOG_BANK_ID,
-      filename: CATALOG_BANK_LABEL,
-      displayTitle: CATALOG_BANK_LABEL,
+      id: bankId,
+      catalog,
+      filename: catalogBankLabel(catalog),
+      displayTitle: catalogBankLabel(catalog),
       isCatalog: true,
       catalogVersion: version,
       importedAt: existing?.importedAt || new Date().toISOString(),
@@ -6071,20 +6336,23 @@ function renderTestReview() {
    *
    * Existing users imported the same College Board export under a random bank id.
    * Because a question's primary key is its College Board external id, the
-   * catalog download rewrites those exact records in place with bankId
-   * "sevrony-catalog" -- progress and responses key off the question id, so
-   * nothing is lost. What it leaves behind is an old bank record owning nothing.
+   * catalog download rewrites those exact records in place under the catalog's
+   * bank id -- progress and responses key off the question id, so nothing is
+   * lost. What it leaves behind is an old bank record owning nothing.
    *
    * Only genuinely empty banks are tombstoned, so a bank holding questions the
    * catalog does not have survives untouched.
    *
    * Counts come from `state.questions`, which refreshLocalData() has already
    * loaded -- the questions store has no bankId index, and re-reading it here
-   * would mean a second full scan.
+   * would mean a second full scan. Catalog banks are skipped by their own flag
+   * rather than by counting: only the active exam's questions are resident, so
+   * another exam's bank would look empty and be soft-deleted.
    */
   async function retireEmptiedBanks() {
+    const allQuestions = await DB.getAll("questions");
     const counts = new Map();
-    for (const q of state.questions) {
+    for (const q of allQuestions) {
       if (isDeletedRecord(q)) continue;
       counts.set(q.bankId, (counts.get(q.bankId) || 0) + 1);
     }
@@ -6092,7 +6360,7 @@ function renderTestReview() {
     const now = Date.now();
     const retired = [];
     for (const bank of state.banks) {
-      if (bank.id === CATALOG_BANK_ID || bank.isBluebook || isDeletedRecord(bank)) continue;
+      if (bank.isCatalog || bank.isBluebook || isDeletedRecord(bank)) continue;
       if ((counts.get(bank.id) || 0) === 0) {
         await DB.put("questionBanks", { ...bank, deletedAt: now, updatedAt: now });
         retired.push(bank.id);
@@ -6109,21 +6377,27 @@ function renderTestReview() {
   }
 
   /**
-   * Download (or resume, or verify) the shared catalog and fold it into local state.
+   * Download (or resume, or verify) one exam's catalog and fold it into local state.
+   *
+   * The catalog is captured up front rather than read from state as it goes: a
+   * download takes a while, and the user can pick a different exam mid-flight.
+   *
    * @returns {Promise<boolean>} whether local data now holds the catalog
    */
-  async function downloadCatalog({ force = false, silent = false } = {}) {
+  async function downloadCatalog({ force = false, silent = false, catalog = state.activeCatalog } = {}) {
     if (!window.SevApi) {
       showNotice("The catalog client failed to load. Please refresh the page.", "error");
       return false;
     }
+    if (!requirePrivacyConsent()) return false;
     if (state.catalogBusy) return false;
     state.catalogBusy = true;
 
     if (!silent) setBusy("Getting your question bank", "Contacting Sevrony...", "import", 0);
     try {
-      const result = await SevApi.ensureCatalog({
-        force,
+      const shouldForce = force || (catalogQuestionCount() === 0);
+      const result = await SevApi.ensureCatalog(catalog, {
+        force: shouldForce,
         store: storeCatalogPage,
         onProgress: progress => {
           if (silent) return;
@@ -6139,14 +6413,14 @@ function renderTestReview() {
       }
 
       if (!silent) setBusy("Updating dashboard", "Refreshing metrics and local history.", "import");
-      await upsertCatalogBank(result.version, result.count);
+      await upsertCatalogBank(catalog, result.version, result.count);
       await refreshLocalData();
 
       const retired = await retireEmptiedBanks();
       if (retired.length) await refreshLocalData();
 
       ensureConfigDefaults();
-      captureTelemetry("Downloaded Catalog", { count: result.count, version: result.version, retiredBanks: retired.length });
+      captureTelemetry("Downloaded Catalog", { catalog, count: result.count, version: result.version, retiredBanks: retired.length });
 
       // renderHome() forces the onboarding view while there are no questions
       // (see the guard at the top of it) but nothing moves off it once questions
@@ -6186,15 +6460,18 @@ function renderTestReview() {
   }
 
   /**
-   * Boot hook. A restore brings back the catalog *bank* record but not its
-   * questions (they are excluded from backups), so re-fetch them. Also finishes
-   * a download that was interrupted mid-way.
+   * Boot and catalog-switch hook. A restore brings back the catalog *bank* record
+   * but not its questions (they are excluded from backups), so re-fetch them. Also
+   * finishes a download that was interrupted mid-way.
    */
   async function resumeCatalogIfNeeded() {
     if (!window.SevApi || isDemoMode()) return;
+    if (!DB.hasConsent?.()) return;
     try {
-      const cursor = await SevApi.catalog.getState();
-      const hasBankRecord = state.banks.some(b => b.id === CATALOG_BANK_ID && !isDeletedRecord(b));
+      const cursor = await SevApi.catalog.getState(state.activeCatalog);
+      const hasBankRecord = state.banks.some(b =>
+        (b.id === catalogBankId(state.activeCatalog) || b.id === "sevrony-catalog" || b.catalog === state.activeCatalog) && !isDeletedRecord(b)
+      );
       const localCount = catalogQuestionCount();
 
       const interrupted = cursor && !cursor.complete;
@@ -6280,6 +6557,8 @@ function renderTestReview() {
           id, externalId,
           questionId: id,
           bankId, importedAt, updatedAt: Date.now(), subject,
+          // Bluebook exports are the user's own data, not a served catalog.
+          catalog: LOCAL_CATALOG,
           test: SUBJECTS[subject] || "",
           domainCode, domain: domainLabel,
           skillCode: "", skill: "",
@@ -6379,7 +6658,7 @@ function renderTestReview() {
     const answerOptions = normalizeAnswerOptions(question.answerOptions || detail.answerOptions || []);
     const subject = normalizeSubject(question.subject || question.test || metadata.test || metadata.pPcc || metadata.primary_class_cd);
     const externalId = question.externalId || question.externalid || detail.externalid || detail.external_id || metadata.external_id || question.id;
-    const id = String(externalId || `${bankId}:${index}`);
+    const id = String(question.id || externalId || `${bankId}:${index}`);
     const type = question.type || detail.type || (answerOptions.length ? "mcq" : "spr");
     const rawCorrect = question.correctAnswers || question.correct_answer || detail.correct_answer || detail.keys || question.keys || [];
     const correctAnswers = normalizeCorrectAnswers(rawCorrect, answerOptions, type);
@@ -6391,6 +6670,9 @@ function renderTestReview() {
       id, externalId: String(externalId || id),
       questionId: question.questionId || metadata.questionId || "",
       bankId, importedAt: new Date().toISOString(), updatedAt: Date.now(), subject,
+      // Indexed. Defaults to the sentinel because this is the import path;
+      // storeCatalogPage() overwrites it with the real catalog name.
+      catalog: LOCAL_CATALOG,
       test: question.assessment || question.test || SUBJECTS[subject] || "",
       domainCode, domain,
       skillCode: question.skillCode || metadata.skill_cd || "",
@@ -6554,6 +6836,7 @@ function renderTestReview() {
 
     const activeTest = {
       id: uid("session"), mode: "custom", config, questions,
+      catalog: state.activeCatalog,
       startedAt: new Date().toISOString(),
       currentIndex: 0, currentAnswer: "",
       currentQuestionStartedAt: Date.now(),
@@ -6588,6 +6871,7 @@ function renderTestReview() {
 
     state.activeTest = {
       id: uid("session"), mode: "full", config,
+      catalog: state.activeCatalog,
       startedAt: new Date().toISOString(),
       phase: "module",
       currentModule: makeModule("rw1", "rw", 1, "Reading and Writing — Module 1", FULL_TEST.rw.seconds, rwModule1, null),
@@ -7539,6 +7823,9 @@ ${(() => {
     const totalSeconds = answered.reduce((s, r) => s + r.timeSpentSeconds, 0);
     return {
       id: test.id, mode: test.mode, subject: test.config.subject,
+      // The exam the test was started under, not the one selected now -- the two
+      // differ if the user switched banks with a test in progress.
+      catalog: sessionCatalog(test),
       startedAt: test.startedAt, completedAt, updatedAt: Date.now(),
       totalAnswered, totalCorrect, totalIncorrect: responses.length - totalCorrect,
       totalQuestionsServed: responses.length,

@@ -2,19 +2,19 @@
   "nodes": [
     {
       "id": "index.html",
-      "under_the_hood": "Static application entry point. It loads styles.css and tailwind.css, includes the Cloudflare Turnstile script for bot protection, then defers api.js, db.js, sync.js, vocab.js, scoring.js, and app.js in that dependency order. api.js is first because it publishes window.SevApi.BASE, which vocab.js reads while building its config. All local asset URLs use the v2.3.0 cache key, and the page registers sw.js after load."
+      "under_the_hood": "Static application entry point. It loads styles.css and tailwind.css, includes the Cloudflare Turnstile script for bot protection, then defers api.js, db.js, sync.js, vocab.js, scoring.js, and app.js in that dependency order. api.js is first because it publishes window.SevApi.BASE, which vocab.js reads while building its config. All local asset URLs use the v2.4.0 cache key, and the page registers sw.js after load."
     },
     {
       "id": "app.js",
-      "under_the_hood": "Primary UI and route orchestrator. It hydrates question-bank data from IndexedDB, renders the SPA shell and SAT practice flows (including tracking omitted custom test responses, option toggling, and RW passage text highlighting with boundary clamping, as well as the Mistakes Log), and owns onboarding, history, backup, tutorial, and hash/popstate routing. Onboarding provides a unified Google Sign-In flow that connects cloud sync and automatically streams the shared question catalog into IndexedDB with an interactive progress bar. Vocabulary is an independent route: an active window.Vocab session restores #vocab on startup, bypasses question-bank onboarding, and counts as restorable data when an account is synced. app.js exposes window.renderHome so vocab.js can request a UI refresh. It also conditionally loads PostHog and Sentry upon telemetry consent: PostHog with autocapture, pageviews, dead clicks, surveys, heatmaps, feature flags and session recording all disabled and a property denylist covering question text and answers, and Sentry with browser tracing sampled at 0.1 and no Session Replay integration. It also owns the client half of the shared question catalog: normalizing downloaded payloads into IndexedDB (dropping the self-referential `raw` field, which would otherwise double what is stored), retiring banks the download emptied, resuming an interrupted download at boot and after a backup restore, and excluding catalog questions from exports and backups via buildPortablePayload(). renderHome() forces the onboarding view whenever no questions are stored, so a finished catalog download moves the view off it explicitly. The feedback modal keeps a failed submission on screen with the server's own reason (a 4xx message verbatim, a quotable status code for a 5xx) instead of hiding the form behind a generic connection error and discarding the draft on a timer."
+      "under_the_hood": "Primary UI and route orchestrator. It hydrates question-bank data from IndexedDB, renders the SPA shell and SAT/PSAT practice flows (including tracking omitted custom test responses, option toggling, and RW passage text highlighting with boundary clamping, as well as the Mistakes Log), and owns onboarding, history, backup, tutorial, and hash/popstate routing. The selected catalog is SAT, PSAT 10, or PSAT 8/9; questions are indexed by catalog and only the selected bank plus local imports are resident in memory. Sessions carry the catalog that created them, so the dashboard, history, streak, responses, and Mistakes Log cannot leak another exam's data after a switch. Onboarding provides a unified Google Sign-In flow that connects cloud sync and streams the selected catalog into IndexedDB with an interactive progress bar. Catalog questions stay out of Drive backups; user data remains one small Drive blob, tagged by its session catalog until Phase 2 moves it to D1."
     },
     {
       "id": "api.js",
-      "under_the_hood": "Single source of truth for the Cloudflare Worker origin, published as window.SevApi and loaded before every other script. Owns the catalog download driver: meta, Turnstile-backed ticket, keyset paging, retry with backoff, ticket re-minting when a long download outlives a 10-minute ticket, restart on a mid-download version change, and a resume cursor persisted to appConfig after every page. The caller injects the `store` callback, because normalizing a question and writing it to IndexedDB needs app.js internals that do not belong here."
+      "under_the_hood": "Single source of truth for the Cloudflare Worker origin, published as window.SevApi and loaded before every other script. Owns the catalog download driver: catalog-scoped metadata, Turnstile-backed tickets, keyset paging, retry with backoff, ticket re-minting when a long download outlives a 10-minute ticket, restart on a mid-download version change, and one resume cursor per catalog in appConfig. The caller injects the `store` callback, because normalizing a question and writing it to IndexedDB needs app.js internals that do not belong here."
     },
     {
       "id": "db.js",
-      "under_the_hood": "IndexedDB wrapper exposed as window.SatPracticeDB. It provides promise-based get, getAll, put, putMany, remove, and clear operations for questionBanks, questions, sessions, responses, appConfig, and vocabWords. The appConfig store additionally holds the catalog download cursor under the key \"questionCatalog\", persisted after every page so an interrupted download costs at most one page."
+      "under_the_hood": "IndexedDB wrapper exposed as window.SatPracticeDB. It provides promise-based get, getAll, getAllByIndex, put, putMany, remove, and clear operations for questionBanks, questions, sessions, responses, appConfig, and vocabWords. Database v6 adds a questions.catalog index, and its off-main-thread migration renames the Phase 1 SAT bank/cursor into the sat namespace while stamping local imports as catalog=local. Download cursors live under questionCatalog_<catalog>, so one interrupted exam download cannot resume another."
     },
     {
       "id": "db-worker.js",
@@ -38,7 +38,7 @@
     },
     {
       "id": "sw.js",
-      "under_the_hood": "Network-first service worker with cache fallback for GET requests. It precaches the v2.3.0 application asset set in sat-practice-cache-v2.3.0, bypasses the browser HTTP cache during install, activates immediately, and deletes older named caches. Every worker script that importScripts or `new Worker()`s another file pins the same v2.3.0 key, so a version bump has to be applied together across index.html, sw.js (both CACHE_NAME and the precache list), db.js, db-worker.js, sync.js, sync-worker.js, privacy.html and APP_VERSION in app.js -- a file that asks for an older key is not in the new cache and fails offline. One bump per release, not per commit."
+      "under_the_hood": "Network-first service worker with cache fallback for GET requests. It precaches the v2.4.0 application asset set in sat-practice-cache-v2.4.0, bypasses the browser HTTP cache during install, activates immediately, and deletes older named caches. Every worker script that importScripts or `new Worker()`s another file pins the same v2.4.0 key, so a version bump has to be applied together across index.html, sw.js (both CACHE_NAME and the precache list), db.js, db-worker.js, sync.js, sync-worker.js, privacy.html and APP_VERSION in app.js -- a file that asks for an older key is not in the new cache and fails offline. One bump per release, not per commit."
     },
     {
       "id": "styles.css",
@@ -66,7 +66,7 @@
     },
     {
       "id": "worker/catalog.js",
-      "under_the_hood": "Read-only question catalog served out of D1 plus the admin ingestion routes. The read path never JSON.parses or JSON.stringifies a question payload -- a worker gets 10 ms of CPU per request, and re-serializing a 1 MB page would spend it all -- so a page body is assembled by concatenating D1's already-string payloads inside a hand-written envelope. Pagination is keyset over a contiguous seq column with an inclusive `since` cursor. Downloads are gated by an HMAC-SHA256 ticket that is bound to the catalog version and expires in 10 minutes; a version mismatch answers 409 so the client restarts rather than treating it as an auth failure. Whether the gate applies is declared in wrangler.toml rather than inferred from whether the secret exists, so a forgotten secret surfaces as a 503 instead of a silently ungated catalog. Missing tables read as an empty catalog so a created-but-uninitialised database does not answer 500."
+      "under_the_hood": "Read-only question catalog served out of D1 plus the admin ingestion routes. SAT, PSAT 10, and PSAT 8/9 are a closed catalog set. Each route, ticket, metadata record, page query, ETag, and version is scoped to one catalog; unsuffixed routes remain aliases for SAT so installed Phase 1 clients keep working. The questions table is keyed by (catalog, id), and uploads reject a cross-catalog id collision because IndexedDB is still keyed by id alone. The admin migrate action rebuilds the Phase 1 D1 schema in place, preserving SAT rows, while reset is reserved for a staging clean slate."
     },
     {
       "id": "wrangler.toml",
@@ -74,7 +74,7 @@
     },
     {
       "id": "sevrony-questions (D1)",
-      "under_the_hood": "Cloudflare D1 database holding the shared read-only question bank: a `questions` table keyed by College Board external id with a contiguous seq column for keyset pagination and the question JSON in a `payload` column, plus a `catalog_meta` key/value table carrying the version string and counts. Keying on the College Board id is what makes the switch from a hand-imported bank lossless: responses join questions by questionId, so answers and study state carry over even though the bank id changes. Sized well inside the free tier's 500 MB per database and 2 MB per row. Exists twice -- sevrony-questions for production and sevrony-questions-staging -- both serving the same catalog version built from one .sat-test export. The admin ingestion path creates its own schema, so a freshly created empty database needs no separate migration step and reads as an empty catalog (503) rather than a 500 until the first upload lands."
+      "under_the_hood": "Cloudflare D1 database holding the shared read-only SAT, PSAT 10, and PSAT 8/9 banks. `questions` is keyed by (catalog, College Board external id), has a contiguous per-catalog seq column for keyset pagination, and stores question JSON in payload; catalog_meta is keyed by (catalog, key) and carries each exam's version and counts. The shared database is well inside the free tier's 500 MB per-database limit and preserves headroom for Phase 2 user-data databases. It exists twice: sevrony-questions for production and sevrony-questions-staging for the required staging-first rollout."
     },
     {
       "id": "manifest.json",
@@ -318,7 +318,7 @@
     {
       "source": "sync-worker.js",
       "target": "api.js",
-      "relationship": "shares the sevrony-catalog bank id used to strip catalog questions"
+      "relationship": "shares the catalog bank-id prefix used to strip SAT and PSAT questions from Drive sync"
     }
   ]
 }

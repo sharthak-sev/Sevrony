@@ -8,7 +8,7 @@ The question bank is downloaded once from Sevrony's Cloudflare Worker after sign
 
 ## What it does
 
-- Sign in with Google to download the shared 2,900+ question bank and sync your progress across devices.
+- Choose SAT®, PSAT/NMSQT® and PSAT™ 10, or PSAT™ 8/9. Each question bank downloads from the shared catalog service and keeps its practice history separate.
 - Practice entirely offline once the question bank is downloaded.
 - Import your own `.sat-test` question banks and Bluebook result exports.
 - Run custom Math, Reading & Writing, full-test, and retry-mistakes practice sessions.
@@ -23,7 +23,7 @@ The question bank is downloaded once from Sevrony's Cloudflare Worker after sign
 
 1. Open [Sevrony](https://sharthak-sev.github.io/Sevrony/).
 2. Read and accept the in-app Privacy Policy. Acceptance is required before downloading the question bank, importing, restoring a backup, or linking Google Drive.
-3. Click **Sign in with Google**. This securely signs you in, connects cloud sync for your practice data, and automatically begins streaming the 2,900+ question bank (roughly 20 MB stream). Progress bars keep you updated in real-time, and interrupted downloads resume seamlessly.
+3. Pick an exam, then click **Sign in with Google**. This securely signs you in, connects cloud sync for your practice data, and downloads that exam's question bank. Switching exams keeps downloaded questions offline in IndexedDB, but loads only the selected exam into memory; its history, dashboard metrics, streak, and Mistakes Log are scoped to that exam.
 4. Start a practice session from the dashboard, review past tests, or build your vocabulary.
 
 You can also expand the **Advanced: import your own .sat-test file** section during setup to import a custom `.sat-test` export, or import Bluebook test results from Past Tests. Sevrony accepts broad file types in its picker for iOS compatibility, but validates the file contents during import.
@@ -145,17 +145,25 @@ It serves privacy-consent acknowledgement, feedback submission, AI vocabulary se
 
 ### Question catalog
 
-The catalog is a Cloudflare D1 database bound to the Worker as `QUESTIONS_DB`. Build it from a `.sat-test` export that lives outside this repository, then upload it:
+The catalog is a Cloudflare D1 database bound to the Worker as `QUESTIONS_DB`. SAT, PSAT 10, and PSAT 8/9 share one database but use separate catalog namespaces. This avoids multiplying D1 databases while keeping every read, version, ticket, cursor, and metadata record scoped to its exam.
+
+Always deploy and populate staging first. A bare `wrangler deploy` targets `sevrony-questions-staging`; production requires the explicit `--env production` command. Never use `--reset` against production: use `--migrate` once to convert its Phase 1 SAT schema in place.
+
+Build each export into its own local SQLite file:
 
 ```bash
-python3 tools/build_catalog_db.py path/to/export.sat-test --version 2026-05-25.1
+python3 tools/build_catalog_db.py path/to/sat-export.sat-test --catalog sat --version 2026-05-25.1 -o sat.sqlite
+python3 tools/build_catalog_db.py path/to/psat10-export.sat-test --catalog psat10 --version 2026-08-23.1 -o psat10.sqlite
+python3 tools/build_catalog_db.py path/to/psat8-9-export.sat-test --catalog psat8_9 --version 2026-08-23.1 -o psat8_9.sqlite
 ```
 
 ```bash
-python3 tools/upload_catalog.py catalog.sqlite --base https://your-worker.workers.dev --reset --verify
+python3 tools/upload_catalog.py sat.sqlite --catalog sat --base https://your-staging-worker.workers.dev --migrate --verify
+python3 tools/upload_catalog.py psat10.sqlite --catalog psat10 --base https://your-staging-worker.workers.dev --verify
+python3 tools/upload_catalog.py psat8_9.sqlite --catalog psat8_9 --base https://your-staging-worker.workers.dev --verify
 ```
 
-`catalog.sqlite` is gitignored; rebuild it rather than committing it. The uploader reads the admin key from `SEVRONY_ADMIN_KEY`, from `--admin-key-file`, or by prompting — never from a command-line argument, where it would land in shell history and in `ps` output.
+The local SQLite files are gitignored; rebuild them rather than committing them. The uploader reads the admin key from `SEVRONY_ADMIN_KEY`, from `--admin-key-file`, or by prompting — never from a command-line argument, where it would land in shell history and in `ps` output.
 
 Two properties are worth knowing when an upload goes wrong:
 

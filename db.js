@@ -2,10 +2,11 @@
   "use strict";
 
   const DB_NAME = "sat-interactive-practice";
-  const DB_VERSION = 5;
+  const DB_VERSION = 6;
   const CONSENT_KEY = "sevrony.telemetryConsent";
   const CONSENT_ACCEPTED = "accepted";
   const LEGACY_MIGRATION_KEY = "sevrony.db.plaintextMigration.v1";
+  const CATALOG_NAMESPACE_KEY = "sevrony.db.catalogNamespace.v1";
   let dbPromise = null;
 
   function hasConsent() {
@@ -24,18 +25,24 @@
   // numbers.  That multiplied IndexedDB transfer work and caused long main
   // thread tasks during every sync.  Existing encrypted records are rewritten
   // once by db-worker.js before this API serves any request.
+  //
+  // The same worker also runs the v6 multi-catalog rewrite, which renames the
+  // single "sevrony-catalog" bank to "sevrony-catalog-sat" and stamps every
+  // question with the catalog it belongs to.  That is ~3000 records, so it must
+  // not run on the main thread.
   function migrateLegacyEncryption() {
     if (typeof localStorage === 'undefined') return Promise.resolve();
-    
+
     const legacyDone = localStorage.getItem(LEGACY_MIGRATION_KEY) === "done";
     const gradingDone = localStorage.getItem("sevrony.gradingVersion") === "3";
-    
-    if (legacyDone && gradingDone) {
+    const catalogDone = localStorage.getItem(CATALOG_NAMESPACE_KEY) === "done";
+
+    if (legacyDone && gradingDone && catalogDone) {
       return Promise.resolve();
     }
 
     return new Promise((resolve, reject) => {
-      const worker = new Worker("db-worker.js?v=2.3.0");
+      const worker = new Worker("db-worker.js?v=2.4.0");
       const timer = setTimeout(() => {
         worker.terminate();
         reject(new Error("Timed out migrating local practice data."));
@@ -48,6 +55,7 @@
           worker.terminate();
           localStorage.setItem(LEGACY_MIGRATION_KEY, "done");
           localStorage.setItem("sevrony.gradingVersion", "3");
+          localStorage.setItem(CATALOG_NAMESPACE_KEY, "done");
           // The old key is no longer needed once every legacy record is plain.
           localStorage.removeItem("app_encryption_key");
           resolve();
@@ -95,6 +103,16 @@
           questions.createIndex("subject", "subject", { unique: false });
           questions.createIndex("domainCode", "domainCode", { unique: false });
           questions.createIndex("difficultyCode", "difficultyCode", { unique: false });
+          questions.createIndex("catalog", "catalog", { unique: false });
+        } else {
+          // v6: only the active catalog is loaded into memory, so the store is
+          // read through this index rather than with getAll().  Existing stores
+          // can only gain an index inside an upgrade transaction, and
+          // db-worker.js may have already created it during its own upgrade.
+          const questions = event.target.transaction.objectStore("questions");
+          if (!questions.indexNames.contains("catalog")) {
+            questions.createIndex("catalog", "catalog", { unique: false });
+          }
         }
         if (!db.objectStoreNames.contains("sessions")) {
           const sessions = db.createObjectStore("sessions", { keyPath: "id" });
@@ -156,8 +174,24 @@
     return withStore(storeName, "readonly", store => requestToPromise(store.get(key)));
   }
 
+  function stampQuestionCatalog(item) {
+    if (!item) return item;
+    if (!item.catalog) {
+      if (typeof item.bankId === "string" && item.bankId.startsWith("sevrony-catalog-")) {
+        item.catalog = item.bankId.slice("sevrony-catalog-".length);
+      } else if (item.bankId === "sevrony-catalog") {
+        item.catalog = "sat";
+        item.bankId = "sevrony-catalog-sat";
+      } else {
+        item.catalog = "local";
+      }
+    }
+    return item;
+  }
+
   function put(storeName, value) {
     requireConsent();
+    if (storeName === "questions") stampQuestionCatalog(value);
     return withStore(storeName, "readwrite", store => {
       store.put(value);
       return value;
@@ -166,6 +200,9 @@
 
   function putMany(storeName, values) {
     requireConsent();
+    if (storeName === "questions" && Array.isArray(values)) {
+      for (let i = 0; i < values.length; i++) stampQuestionCatalog(values[i]);
+    }
     return withStore(storeName, "readwrite", store => {
       for (const value of values) store.put(value);
       return values.length;

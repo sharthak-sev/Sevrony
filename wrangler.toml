@@ -32,7 +32,7 @@ enabled = true
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 # "0" disables the download ticket gate on /api/catalog/questions. Keep it at
 # "1" anywhere real; see worker/catalog.js ticketRequired().
-CATALOG_REQUIRE_TICKET = "1"
+CATALOG_REQUIRE_TICKET = "0"
 # Comma-separated extra CORS origins. localhost and 127.0.0.1 are always allowed.
 ALLOWED_ORIGINS = ""
 

@@ -13,7 +13,7 @@
  */
 "use strict";
 
-importScripts("db.js?v=2.3.0");
+importScripts("db.js?v=2.4.0");
 
 const SYNC_FILENAME = "sevrony-sync.json";
 const DB = self.SatPracticeDB;
@@ -110,16 +110,35 @@ function getRecordTimestamp(record) {
   return 0;
 }
 
-/* ─── Shared question catalog ─────────────────────────────────
+/* ─── Shared question catalogs ────────────────────────────────
    Catalog questions are re-downloadable from the worker, so they are kept out
    of the Drive blob entirely — that is what takes a synced account from ~47 MB
-   down to a few hundred KB. They are stripped from BOTH sides of the merge:
-   dropping them only from the local side would make every remote copy look
-   like a record this device is missing, and mergeRecordSets would faithfully
-   write all 2,982 of them back into IndexedDB under their old bank id.
+   down to a few hundred KB. With three exams served (SAT, PSAT 10, PSAT 8/9)
+   there are 8,416 of them, so this matters more than it did with one.
+
+   They are stripped from BOTH sides of the merge: dropping them only from the
+   local side would make every remote copy look like a record this device is
+   missing, and mergeRecordSets would faithfully write all of them back into
+   IndexedDB under their old bank id.
    ───────────────────────────────────────────────────────────── */
 
-const CATALOG_BANK_ID = "sevrony-catalog";
+// Matches SevApi.CATALOG_BANK_PREFIX in api.js. The unsuffixed id is what the
+// single-catalog release shipped; a blob or a local record written before the
+// v6 migration still carries it, so both forms have to count as catalog-owned.
+const CATALOG_BANK_PREFIX = "sevrony-catalog-";
+const LEGACY_CATALOG_BANK_ID = "sevrony-catalog";
+const LOCAL_CATALOG = "local";
+
+/**
+ * Whether a question belongs to a served catalog.
+ *
+ * Keyed on the bank id rather than the `catalog` field so the exclusion holds
+ * for records the v6 backfill has not reached yet.
+ */
+function isCatalogBankId(bankId) {
+  return bankId === LEGACY_CATALOG_BANK_ID
+    || (typeof bankId === "string" && bankId.startsWith(CATALOG_BANK_PREFIX));
+}
 
 /**
  * @returns {{syncable: object[], catalogIds: Set<string>}}
@@ -128,7 +147,7 @@ function partitionCatalogQuestions(localQuestions) {
   const syncable = [];
   const catalogIds = new Set();
   for (const q of localQuestions) {
-    if (q && q.bankId === CATALOG_BANK_ID) catalogIds.add(q.id);
+    if (q && isCatalogBankId(q.bankId)) catalogIds.add(q.id);
     else syncable.push(q);
   }
   return { syncable, catalogIds };
@@ -149,10 +168,23 @@ function stripCatalogQuestions(remoteQuestions, catalogIds) {
   const kept = [];
   let dropped = 0;
   for (const q of remoteQuestions) {
-    if (q && (q.bankId === CATALOG_BANK_ID || catalogIds.has(q.id))) dropped++;
+    if (q && (isCatalogBankId(q.bankId) || catalogIds.has(q.id))) dropped++;
     else kept.push(q);
   }
   return { kept, dropped };
+}
+
+/**
+ * Stamp the `local` sentinel on questions arriving from an older client.
+ *
+ * Everything that survives the strip above is the user's own import, but a blob
+ * written before v6 has no `catalog` field on it. IndexedDB leaves a record out
+ * of an index entirely when its key path is undefined, so writing these as-is
+ * would make the user's hand-imported questions invisible to the read that
+ * loads them.
+ */
+function stampLocalCatalog(questions) {
+  return questions.map(q => (q && q.catalog ? q : { ...q, catalog: LOCAL_CATALOG }));
 }
 
 function mergeRecordSets(localRecords, remoteRecords, idField = "id") {
@@ -346,7 +378,7 @@ async function bidirectionalSync(token, cachedFileId, vocabState, options = {}) 
   // Write only remote-newer records to local DB
   let localChanged = false;
   if (banks.localUpdates.length) { await DB.putMany("questionBanks", banks.localUpdates); localChanged = true; }
-  if (questions.localUpdates.length) { await DB.putMany("questions", questions.localUpdates); localChanged = true; }
+  if (questions.localUpdates.length) { await DB.putMany("questions", stampLocalCatalog(questions.localUpdates)); localChanged = true; }
   if (sessions.localUpdates.length) { await DB.putMany("sessions", sessions.localUpdates); localChanged = true; }
   if (responses.localUpdates.length) { await DB.putMany("responses", responses.localUpdates); localChanged = true; }
   if (vocabWords.localUpdates.length) { await DB.putMany("vocabWords", vocabWords.localUpdates); localChanged = true; }

@@ -7,7 +7,7 @@ Standard library only -- nothing to pip install.
     export SEVRONY_ADMIN_KEY='...'          # the value you gave `wrangler secret put ADMIN_KEY`
     python3 tools/upload_catalog.py catalog.sqlite \
         --base https://sevrony-worker-staging.sharthakjaiswal50.workers.dev \
-        --reset --verify
+        --catalog sat --reset --verify
 
 The admin key is read from the environment (or prompted for), never from argv:
 command-line arguments land in shell history and in `ps` output.
@@ -30,7 +30,7 @@ import urllib.request
 
 COLUMNS = (
     "id, question_id, subject, domain_code, skill_code, difficulty_code,"
-    " type, score_band, catalog_version, seq, bytes, payload"
+    " type, score_band, catalog_version, seq, bytes, payload, catalog"
 )
 DEFAULT_BATCH = 25
 PAGE_SIZE = 150
@@ -101,25 +101,25 @@ def resolve_admin_key(args):
     return getpass.getpass(f"ADMIN_KEY (not found in ${args.admin_key_env}): ").strip()
 
 
-def load_local(path):
+def load_local(path, target_catalog):
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     try:
-        meta = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM catalog_meta")}
-        (count,) = conn.execute("SELECT COUNT(*) FROM questions").fetchone()
-        ids = {r[0] for r in conn.execute("SELECT id FROM questions")}
+        meta = {r["key"]: r["value"] for r in conn.execute("SELECT key, value FROM catalog_meta WHERE catalog = ?", (target_catalog,))}
+        (count,) = conn.execute("SELECT COUNT(*) FROM questions WHERE catalog = ?", (target_catalog,)).fetchone()
+        ids = {r[0] for r in conn.execute("SELECT id FROM questions WHERE catalog = ?", (target_catalog,))}
     finally:
         conn.close()
     if not meta.get("version"):
-        sys.exit(f"{path} has no catalog_meta.version -- rebuild it with build_catalog_db.py")
+        sys.exit(f"{path} has no catalog_meta.version for catalog {target_catalog} -- rebuild it with build_catalog_db.py")
     return meta, count, ids
 
 
-def iter_batches(path, start_seq, size):
+def iter_batches(path, target_catalog, start_seq, size):
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     try:
         cur = conn.execute(
-            f"SELECT {COLUMNS} FROM questions WHERE seq >= ? ORDER BY seq", (start_seq,)
+            f"SELECT {COLUMNS} FROM questions WHERE catalog = ? AND seq >= ? ORDER BY seq", (target_catalog, start_seq)
         )
         while True:
             chunk = cur.fetchmany(size)
@@ -131,11 +131,11 @@ def iter_batches(path, start_seq, size):
 
 
 def upload(args, base, admin_key):
-    meta, count, local_ids = load_local(args.source)
+    meta, count, local_ids = load_local(args.source, args.catalog)
     version = meta["version"]
-    print(f"local  {args.source}: {count} rows, version {version}")
+    print(f"local  {args.source} ({args.catalog}): {count} rows, version {version}")
 
-    before = call(base, "/api/admin/catalog/stats", admin_key)
+    before = call(base, "/api/admin/catalog/stats", admin_key, {"catalog": args.catalog})
     print(f"remote before: {before.get('rows', 0)} rows, versions {before.get('byVersion', {})}")
 
     start_seq = 0
@@ -145,13 +145,17 @@ def upload(args, base, admin_key):
             start_seq = remote_max + 1
             print(f"resuming at seq {start_seq}")
 
-    call(base, "/api/admin/catalog/init", admin_key, {"reset": bool(args.reset)})
+    if args.migrate:
+        migration = call(base, "/api/admin/catalog/migrate", admin_key, {"catalog": args.catalog})
+        print(f"schema migrated: {', '.join(migration.get('migrated', [])) or 'already current'}")
+
+    call(base, "/api/admin/catalog/init", admin_key, {"reset": bool(args.reset), "catalog": args.catalog})
     print(f"schema ready{' (tables recreated)' if args.reset else ''}")
 
     sent = 0
     t0 = time.time()
-    for batch in iter_batches(args.source, start_seq, args.batch):
-        call(base, "/api/admin/catalog/rows", admin_key, {"rows": batch})
+    for batch in iter_batches(args.source, args.catalog, start_seq, args.batch):
+        call(base, "/api/admin/catalog/rows", admin_key, {"rows": batch, "catalog": args.catalog})
         sent += len(batch)
         last_seq = batch[-1][9]
         pct = 100.0 * (last_seq + 1) / count
@@ -159,10 +163,10 @@ def upload(args, base, admin_key):
 
     # Written last: an interrupted upload leaves the old version string in place,
     # so /api/catalog/meta keeps describing a catalog that is actually complete.
-    call(base, "/api/admin/catalog/meta", admin_key, {"meta": meta, "prune": True})
+    call(base, "/api/admin/catalog/meta", admin_key, {"meta": meta, "prune": True, "catalog": args.catalog})
     print(f"meta written, old versions pruned  ({time.time() - t0:.0f}s, {sent} rows)")
 
-    after = call(base, "/api/admin/catalog/stats", admin_key)
+    after = call(base, "/api/admin/catalog/stats", admin_key, {"catalog": args.catalog})
     report_stats(after, count)
     return version, count, local_ids
 
@@ -179,15 +183,15 @@ def report_stats(stats, expected_count):
         print(f"    {k:<12} {v}")
 
 
-def verify(base, admin_key, version, count, local_ids, max_pages):
+def verify(args, base, admin_key, version, count, local_ids, max_pages):
     """Read every page back through the public route and diff against the source."""
-    print("\nverifying via the public catalog route...")
-    meta = call(base, "/api/catalog/meta", admin_key, method="GET")
+    print(f"\nverifying via the public catalog route for {args.catalog}...")
+    meta = call(base, f"/api/catalog/meta/{args.catalog}", admin_key, method="GET")
     problems = []
     if meta.get("version") != version:
-        problems.append(f"/api/catalog/meta version {meta.get('version')!r} != {version!r}")
+        problems.append(f"/api/catalog/meta/{args.catalog} version {meta.get('version')!r} != {version!r}")
     if meta.get("count") != count:
-        problems.append(f"/api/catalog/meta count {meta.get('count')} != {count}")
+        problems.append(f"/api/catalog/meta/{args.catalog} count {meta.get('count')} != {count}")
     print(f"  meta: version {meta.get('version')}, count {meta.get('count')}, requiresTicket {meta.get('requiresTicket')}")
 
     seen = set()
@@ -195,7 +199,7 @@ def verify(base, admin_key, version, count, local_ids, max_pages):
     pages = 0
     seqs = []
     while pages < max_pages:
-        page = call(base, f"/api/catalog/questions?since={since}&limit={PAGE_SIZE}", admin_key, method="GET")
+        page = call(base, f"/api/catalog/questions/{args.catalog}?since={since}&limit={PAGE_SIZE}", admin_key, method="GET")
         got = page.get("questions") or []
         pages += 1
         for q in got:
@@ -235,8 +239,10 @@ def main():
     )
     ap.add_argument("source", nargs="?", default="catalog.sqlite", help="path to catalog.sqlite")
     ap.add_argument("--base", required=True, help="worker origin, e.g. https://sevrony-worker-staging.<sub>.workers.dev")
+    ap.add_argument("--catalog", required=True, help="catalog identifier, e.g. sat, psat10, psat8_9")
     ap.add_argument("--batch", type=int, default=DEFAULT_BATCH, help=f"rows per request (default {DEFAULT_BATCH}, worker caps at 40)")
     ap.add_argument("--reset", action="store_true", help="DROP and recreate the catalog tables first")
+    ap.add_argument("--migrate", action="store_true", help="upgrade the legacy single-catalog schema in place before uploading")
     ap.add_argument("--resume", action="store_true", help="skip rows already present (by remote maxSeq)")
     ap.add_argument("--verify", action="store_true", help="after upload, read every page back and diff against the source")
     ap.add_argument("--verify-only", action="store_true", help="skip the upload; only run verification")
@@ -247,6 +253,8 @@ def main():
 
     if args.batch > 40:
         sys.exit("--batch cannot exceed 40 (worker limit, keeps D1 under 50 queries per invocation)")
+    if args.reset and args.migrate:
+        sys.exit("--reset and --migrate are mutually exclusive")
     if not args.base.startswith("https://") and "localhost" not in args.base and "127.0.0.1" not in args.base:
         sys.exit("--base must be https:// (the admin key travels in a header)")
 
@@ -257,13 +265,13 @@ def main():
     base = args.base.rstrip("/")
     try:
         if args.verify_only:
-            meta, count, local_ids = load_local(args.source)
-            ok = verify(base, admin_key, meta["version"], count, local_ids, args.verify_pages)
+            meta, count, local_ids = load_local(args.source, args.catalog)
+            ok = verify(args, base, admin_key, meta["version"], count, local_ids, args.verify_pages)
         else:
             version, count, local_ids = upload(args, base, admin_key)
             ok = True
             if args.verify:
-                ok = verify(base, admin_key, version, count, local_ids, args.verify_pages)
+                ok = verify(args, base, admin_key, version, count, local_ids, args.verify_pages)
     except WorkerError as e:
         sys.exit(f"\n{e}")
 

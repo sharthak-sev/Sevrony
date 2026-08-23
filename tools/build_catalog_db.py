@@ -24,7 +24,7 @@ D1_MAX_ROW_BYTES = 2_000_000
 
 SCHEMA = """
 CREATE TABLE questions (
-  id              TEXT PRIMARY KEY,
+  id              TEXT NOT NULL,
   question_id     TEXT,
   subject         TEXT NOT NULL,
   domain_code     TEXT,
@@ -35,12 +35,19 @@ CREATE TABLE questions (
   catalog_version TEXT NOT NULL,
   seq             INTEGER NOT NULL,
   bytes           INTEGER NOT NULL,
-  payload         TEXT NOT NULL
+  payload         TEXT NOT NULL,
+  catalog         TEXT NOT NULL,
+  PRIMARY KEY (catalog, id)
 );
-CREATE INDEX idx_questions_seq ON questions(seq);
-CREATE INDEX idx_questions_filter ON questions(subject, domain_code, difficulty_code);
+CREATE INDEX idx_questions_seq ON questions(catalog, seq);
+CREATE INDEX idx_questions_filter ON questions(catalog, subject, domain_code, difficulty_code);
 
-CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE catalog_meta (
+  catalog TEXT NOT NULL,
+  key     TEXT NOT NULL,
+  value   TEXT NOT NULL,
+  PRIMARY KEY (catalog, key)
+);
 """
 
 
@@ -63,7 +70,7 @@ def normalize_subject(value):
     return "math"
 
 
-def build(src_path, out_path, version, force):
+def build(src_path, out_path, version, force, catalog):
     if os.path.exists(out_path):
         if not force:
             sys.exit(f"refusing to overwrite {out_path} (pass --force)")
@@ -128,6 +135,7 @@ def build(src_path, out_path, version, force):
                 seq,
                 nbytes,
                 payload,
+                catalog,
             )
         )
 
@@ -141,8 +149,8 @@ def build(src_path, out_path, version, force):
         conn.executescript(SCHEMA)
         conn.executemany(
             "INSERT INTO questions (id, question_id, subject, domain_code, skill_code,"
-            " difficulty_code, type, score_band, catalog_version, seq, bytes, payload)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            " difficulty_code, type, score_band, catalog_version, seq, bytes, payload, catalog)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             rows,
         )
         meta = {
@@ -154,7 +162,8 @@ def build(src_path, out_path, version, force):
             "formatVersion": str(doc.get("formatVersion") or ""),
         }
         conn.executemany(
-            "INSERT INTO catalog_meta (key, value) VALUES (?,?)", sorted(meta.items())
+            "INSERT INTO catalog_meta (catalog, key, value) VALUES (?,?,?)",
+            [(catalog, k, v) for k, v in sorted(meta.items())]
         )
         conn.commit()
 
@@ -185,9 +194,10 @@ def main():
     ap.add_argument("source", help="path to the .sat-test export")
     ap.add_argument("-o", "--output", default="catalog.sqlite", help="output SQLite path")
     ap.add_argument("--version", required=True, help="catalog version string, e.g. 2026-05-25.1")
+    ap.add_argument("--catalog", required=True, help="catalog identifier, e.g. sat, psat10, psat8_9")
     ap.add_argument("--force", action="store_true", help="overwrite an existing output file")
     args = ap.parse_args()
-    build(args.source, args.output, args.version, args.force)
+    build(args.source, args.output, args.version, args.force, args.catalog)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
  * the keyset cursor, the resume-from-interruption path, mid-download ticket
  * expiry, and a catalog version changing under an in-flight download.
  *
- * Usage: node tools/test_catalog_client.mjs [catalog.sqlite]
+ * Usage: node tools/test_catalog_client.mjs [catalog.sqlite] [catalog]
  */
 
 import { DatabaseSync } from "node:sqlite";
@@ -108,7 +108,7 @@ const worker = (await import("../worker/index.js")).default;
 
 const SOURCE = process.argv[2] || "catalog.sqlite";
 if (!existsSync(SOURCE)) {
-  console.error(`Missing ${SOURCE}. Build it first:\n  python3 tools/build_catalog_db.py <export.sat-test> --version 2026-05-25.1`);
+  console.error(`Missing ${SOURCE}. Build it first:\n  python3 tools/build_catalog_db.py <export.sat-test> --catalog sat --version 2026-05-25.1`);
   process.exit(2);
 }
 const WORK = join(tmpdir(), "sevrony-client-test.sqlite");
@@ -127,9 +127,10 @@ const env = {
 
 const BASE = "https://divine-silence-6016.sharthakjaiswal50.workers.dev";
 const ORIGIN = "https://sharthak-sev.github.io";
+const CATALOG = process.argv[3] || "sat";
 
-const SOURCE_COUNT = d1.__raw.prepare("SELECT COUNT(*) AS n FROM questions").get().n;
-const SOURCE_VERSION = d1.__raw.prepare("SELECT value FROM catalog_meta WHERE key='version'").get().value;
+const SOURCE_COUNT = d1.__raw.prepare("SELECT COUNT(*) AS n FROM questions WHERE catalog = ?").get(CATALOG).n;
+const SOURCE_VERSION = d1.__raw.prepare("SELECT value FROM catalog_meta WHERE catalog = ? AND key = 'version'").get(CATALOG).value;
 
 /* ----------------------------------------------------- browser-shaped globals */
 
@@ -257,10 +258,10 @@ if (!SevApi) {
 function makeStore() {
   const seen = new Map();
   const calls = [];
-  const store = async (rawQuestions, { version, bankId }) => {
+  const store = async (rawQuestions, { version, bankId, catalog }) => {
     calls.push(rawQuestions.length);
     const records = rawQuestions.map(q => {
-      const record = { ...q, bankId, catalogVersion: version };
+      const record = { ...q, bankId, catalog, catalogVersion: version };
       delete record.raw;
       return record;
     });
@@ -279,7 +280,7 @@ function resetTraffic() {
 
 /* ------------------------------------------------------------------- tests */
 
-console.log(`catalog: ${SOURCE_COUNT} questions, version ${SOURCE_VERSION}`);
+console.log(`${CATALOG}: ${SOURCE_COUNT} questions, version ${SOURCE_VERSION}`);
 
 section("full download");
 {
@@ -287,7 +288,7 @@ section("full download");
   const { store, seen, calls } = makeStore();
   const progress = [];
   const t0 = process.hrtime.bigint();
-  const result = await SevApi.ensureCatalog({ store, onProgress: p => progress.push(p) });
+  const result = await SevApi.ensureCatalog(CATALOG, { store, onProgress: p => progress.push(p) });
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
 
   eq("status is downloaded", result.status, "downloaded");
@@ -304,14 +305,14 @@ section("full download");
   );
   check(
     "every question carries the catalog bank id",
-    [...seen.values()].every(q => q.bankId === "sevrony-catalog")
+    [...seen.values()].every(q => q.bankId === `sevrony-catalog-${CATALOG}` && q.catalog === CATALOG)
   );
   note(`${traffic.questions} pages, ${calls.length} store calls, ${ms.toFixed(0)} ms`);
 }
 
 section("cursor state");
 {
-  const cursor = await SevApi.catalog.getState();
+  const cursor = await SevApi.catalog.getState(CATALOG);
   check("cursor exists", Boolean(cursor));
   eq("cursor is complete", cursor.complete, true);
   eq("cursor version matches", cursor.version, SOURCE_VERSION);
@@ -324,7 +325,7 @@ section("second run is a no-op");
 {
   resetTraffic();
   const { store, seen } = makeStore();
-  const result = await SevApi.ensureCatalog({ store });
+  const result = await SevApi.ensureCatalog(CATALOG, { store });
   eq("status is current", result.status, "current");
   eq("nothing was re-stored", seen.size, 0);
   eq("only the meta request was made", traffic.total, 1);
@@ -335,7 +336,7 @@ section("force re-download");
 {
   resetTraffic();
   const { store, seen } = makeStore();
-  const result = await SevApi.ensureCatalog({ store, force: true });
+  const result = await SevApi.ensureCatalog(CATALOG, { store, force: true });
   eq("status is downloaded", result.status, "downloaded");
   eq("all questions came down again", seen.size, SOURCE_COUNT);
 }
@@ -346,7 +347,7 @@ section("resume after an interruption");
   // questions that would not yet have been written.
   const pagesDone = 4;
   const stoppedAt = pagesDone * 150;
-  await SevApi.catalog.setState({
+  await SevApi.catalog.setState(CATALOG, {
     version: SOURCE_VERSION,
     count: SOURCE_COUNT,
     since: stoppedAt,
@@ -358,7 +359,7 @@ section("resume after an interruption");
 
   resetTraffic();
   const { store, seen } = makeStore();
-  const result = await SevApi.ensureCatalog({ store });
+  const result = await SevApi.ensureCatalog(CATALOG, { store });
 
   eq("status is resumed", result.status, "resumed");
   eq("total count is still the full catalog", result.count, SOURCE_COUNT);
@@ -368,14 +369,14 @@ section("resume after an interruption");
     traffic.questions === Math.ceil((SOURCE_COUNT - stoppedAt) / 150),
     `got ${traffic.questions} pages`
   );
-  const cursor = await SevApi.catalog.getState();
+  const cursor = await SevApi.catalog.getState(CATALOG);
   eq("the original startedAt is preserved across the resume", cursor.startedAt, 1_700_000_000_000);
   note(`resumed at question ${stoppedAt}, fetched ${seen.size} more`);
 }
 
 section("mid-download ticket expiry");
 {
-  await SevApi.catalog.clearState();
+  await SevApi.catalog.clearState(CATALOG);
   resetTraffic();
 
   // Fail page 3 with a 401 exactly once, as an expired ticket would.
@@ -392,7 +393,7 @@ section("mid-download ticket expiry");
   };
 
   const { store, seen } = makeStore();
-  const result = await SevApi.ensureCatalog({ store });
+  const result = await SevApi.ensureCatalog(CATALOG, { store });
 
   eq("the download still completed", result.count, SOURCE_COUNT);
   eq("every question arrived", seen.size, SOURCE_COUNT);
@@ -402,7 +403,7 @@ section("mid-download ticket expiry");
 
 section("version change mid-download");
 {
-  await SevApi.catalog.clearState();
+  await SevApi.catalog.clearState(CATALOG);
   resetTraffic();
 
   // Answer page 5 with the worker's real 409 shape, then let the retry through.
@@ -419,7 +420,7 @@ section("version change mid-download");
   };
 
   const { store, seen } = makeStore();
-  const result = await SevApi.ensureCatalog({ store });
+  const result = await SevApi.ensureCatalog(CATALOG, { store });
 
   eq("the download restarted and finished", result.count, SOURCE_COUNT);
   eq("every question is present after the restart", seen.size, SOURCE_COUNT);
@@ -430,7 +431,7 @@ section("version change mid-download");
 
 section("transient network failure is retried");
 {
-  await SevApi.catalog.clearState();
+  await SevApi.catalog.clearState(CATALOG);
   resetTraffic();
 
   let thrown = 0;
@@ -443,7 +444,7 @@ section("transient network failure is retried");
   };
 
   const { store, seen } = makeStore();
-  const result = await SevApi.ensureCatalog({ store });
+  const result = await SevApi.ensureCatalog(CATALOG, { store });
   eq("two dropped connections did not lose the download", seen.size, SOURCE_COUNT);
   eq("the count is still right", result.count, SOURCE_COUNT);
   eq("both failures were retried", thrown, 2);
@@ -451,7 +452,7 @@ section("transient network failure is retried");
 
 section("give up after too many failures");
 {
-  await SevApi.catalog.clearState();
+  await SevApi.catalog.clearState(CATALOG);
   resetTraffic();
 
   injectPageFailure = since => {
@@ -462,14 +463,14 @@ section("give up after too many failures");
   const { store, seen } = makeStore();
   let error = null;
   try {
-    await SevApi.ensureCatalog({ store });
+    await SevApi.ensureCatalog(CATALOG, { store });
   } catch (err) {
     error = err;
   }
   check("the failure surfaces to the caller", error instanceof Error, String(error));
   check("page 1 was still stored", seen.size > 0, `stored ${seen.size}`);
 
-  const cursor = await SevApi.catalog.getState();
+  const cursor = await SevApi.catalog.getState(CATALOG);
   check("the cursor records the incomplete state", cursor && cursor.complete === false);
   check("the cursor points past what was stored", cursor.since > 0, `since=${cursor.since}`);
   note("a later attempt resumes from this cursor rather than starting over");
@@ -477,12 +478,12 @@ section("give up after too many failures");
 
 section("abort");
 {
-  await SevApi.catalog.clearState();
+  await SevApi.catalog.clearState(CATALOG);
   resetTraffic();
 
   const controller = new AbortController();
   const { store, seen } = makeStore();
-  const pending = SevApi.ensureCatalog({ store, signal: controller.signal });
+  const pending = SevApi.ensureCatalog(CATALOG, { store, signal: controller.signal });
   setTimeout(() => controller.abort(), 5);
 
   let error = null;
@@ -498,14 +499,14 @@ section("abort");
 
 section("content integrity");
 {
-  await SevApi.catalog.clearState();
+  await SevApi.catalog.clearState(CATALOG);
   localDB = makeLocalDB();
   resetTraffic();
 
   const { store, seen } = makeStore();
-  await SevApi.ensureCatalog({ store });
+  await SevApi.ensureCatalog(CATALOG, { store });
 
-  const sourceRows = d1.__raw.prepare("SELECT id, subject, domain_code, seq FROM questions ORDER BY seq").all();
+  const sourceRows = d1.__raw.prepare("SELECT id, subject, domain_code, seq FROM questions WHERE catalog = ? ORDER BY seq").all(CATALOG);
   eq("row count matches", seen.size, sourceRows.length);
 
   let idMismatch = 0;
@@ -547,8 +548,8 @@ section("rate limits leave room for a shared network");
   for (let i = 0; i < downloads; i++) {
     clientIp = sharedIp;
     const { store, seen } = makeStore();
-    await SevApi.catalog.clearState();
-    const result = await SevApi.ensureCatalog({ store });
+    await SevApi.catalog.clearState(CATALOG);
+    const result = await SevApi.ensureCatalog(CATALOG, { store });
     results.push(seen.size);
   }
   eq(`${downloads} downloads from one IP all completed`, results.filter(n => n === SOURCE_COUNT).length, downloads);
@@ -558,7 +559,7 @@ section("rate limits leave room for a shared network");
 section("worker refuses an unticketed page");
 {
   const res = await worker.fetch(
-    new Request(`${BASE}/api/catalog/questions?since=0&limit=5`, { headers: { Origin: ORIGIN } }),
+    new Request(`${BASE}/api/catalog/questions/${CATALOG}?since=0&limit=5`, { headers: { Origin: ORIGIN } }),
     env
   );
   eq("no ticket -> 401", res.status, 401);
@@ -591,13 +592,14 @@ section("worker origin resolution");
   };
 
   eq("a deployed origin ignores an override entirely", baseFor("sharthak-sev.github.io", STAGING), PROD);
+  eq("deployed origin with nothing stored -> production", baseFor("sharthak-sev.github.io", null), PROD);
   eq("localhost honours a workers.dev override", baseFor("localhost", STAGING), STAGING);
   eq("127.0.0.1 honours it too", baseFor("127.0.0.1", STAGING), STAGING);
-  eq("localhost with nothing stored -> production", baseFor("localhost", null), PROD);
+  eq("localhost with nothing stored -> staging", baseFor("localhost", null), STAGING);
   eq("a trailing slash is trimmed", baseFor("localhost", `${STAGING}/`), STAGING);
-  eq("a non-workers.dev host is refused", baseFor("localhost", "https://evil.example.com"), PROD);
-  eq("plain http is refused", baseFor("localhost", "http://x.workers.dev"), PROD);
-  eq("localStorage being unavailable is not fatal", baseFor("localhost", undefined), PROD);
+  eq("a non-workers.dev host is refused", baseFor("localhost", "https://evil.example.com"), STAGING);
+  eq("plain http is refused", baseFor("localhost", "http://x.workers.dev"), STAGING);
+  eq("localStorage being unavailable is not fatal", baseFor("localhost", undefined), STAGING);
 }
 
 /* -------------------------------------------------------------------- report */

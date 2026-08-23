@@ -17,7 +17,13 @@
  */
 
 import { handleVocabCheck, handleConsent, handleFeedback } from "./vocab.js";
-import { handleCatalogMeta, handleCatalogTicket, handleCatalogQuestions, handleAdminCatalog } from "./catalog.js";
+import {
+  handleCatalogMeta,
+  handleCatalogTicket,
+  handleCatalogQuestions,
+  handleAdminCatalog,
+  resolveCatalog,
+} from "./catalog.js";
 import { corsHeadersFor, json, preflight } from "./http.js";
 
 /**
@@ -95,11 +101,13 @@ export default {
         return await handleAdminCatalog(request, env, pathname, cors);
       }
 
-      // ---- catalog ----
-      if (pathname === "/api/catalog/meta") {
+      if (pathname === "/api/catalog/meta" || pathname.startsWith("/api/catalog/meta/")) {
+        const suffix = pathname === "/api/catalog/meta" ? undefined : pathname.slice("/api/catalog/meta/".length);
+        const catalog = resolveCatalog(suffix);
         if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, cors);
-        if (limit(pathname)) return tooMany(cors);
-        return await handleCatalogMeta(request, env, cors);
+        if (limit("/api/catalog/meta")) return tooMany(cors);
+        if (!catalog) return json({ error: "Unknown catalog." }, 404, cors);
+        return await handleCatalogMeta(request, env, cors, catalog);
       }
 
       if (pathname === "/api/catalog/ticket") {
@@ -108,10 +116,13 @@ export default {
         return await handleCatalogTicket(request, env, ip, cors);
       }
 
-      if (pathname === "/api/catalog/questions") {
+      if (pathname === "/api/catalog/questions" || pathname.startsWith("/api/catalog/questions/")) {
+        const suffix = pathname === "/api/catalog/questions" ? undefined : pathname.slice("/api/catalog/questions/".length);
+        const catalog = resolveCatalog(suffix);
         if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, cors);
-        if (limit(pathname)) return tooMany(cors);
-        return await handleCatalogQuestions(request, env, url, cors, adminOk);
+        if (limit("/api/catalog/questions")) return tooMany(cors);
+        if (!catalog) return json({ error: "Unknown catalog." }, 404, cors);
+        return await handleCatalogQuestions(request, env, url, cors, adminOk, catalog);
       }
 
       // ---- endpoints that already shipped ----

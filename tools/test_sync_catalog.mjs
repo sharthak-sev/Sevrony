@@ -71,6 +71,7 @@ function loadSyncWorker() {
 const { partitionCatalogQuestions, stripCatalogQuestions, mergeRecordSets } = loadSyncWorker();
 
 const CATALOG = "sevrony-catalog";
+const PSAT_CATALOG = "sevrony-catalog-psat10";
 const LEGACY = "bank-8f2c1a";
 
 const q = (id, bankId, updatedAt = 1000) => ({ id, bankId, updatedAt, stem: `stem ${id}` });
@@ -84,6 +85,12 @@ section("partitionCatalogQuestions");
 
   eq("keeps only non-catalog questions", syncable.map(r => r.id), ["b2", "d4"]);
   eq("collects catalog ids", [...catalogIds].sort(), ["a1", "c3"]);
+}
+{
+  const local = [q("sat-1", CATALOG), q("psat-1", PSAT_CATALOG), q("own-1", LEGACY)];
+  const { syncable, catalogIds } = partitionCatalogQuestions(local);
+  eq("strips both the legacy SAT id and namespaced PSAT ids", syncable.map(r => r.id), ["own-1"]);
+  eq("collects ids from both catalog formats", [...catalogIds].sort(), ["psat-1", "sat-1"]);
 }
 {
   const { syncable, catalogIds } = partitionCatalogQuestions([]);

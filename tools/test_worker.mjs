@@ -230,13 +230,13 @@ section("feedback");
       type: "Bug",
       message: "catalog download stalls at page 4",
       email: "someone@example.com",
-      context: JSON.stringify({ version: "2.3.0", urlHash: "#/dashboard", userAgent: "UA", viewport: "390x844" }),
+      context: JSON.stringify({ version: "2.4.0", urlHash: "#/dashboard", userAgent: "UA", viewport: "390x844" }),
     }), { ip: "9.0.0.4" });
     const j = await r.json();
     check("feedback with a message -> 200", r.status === 200 && j.success === true, `${r.status}`);
     const f = (discordSeen?.embed.fields || []).reduce((m, x) => (m[x.name] = x.value, m), {});
     check("the report reaches Discord intact", f.Message === "catalog download stalls at page 4" && f.Email === "someone@example.com", JSON.stringify(f));
-    check("app version rides along for triage", f["App Version"] === "2.3.0" && f["Route / Hash"] === "#/dashboard", JSON.stringify(f));
+    check("app version rides along for triage", f["App Version"] === "2.4.0" && f["Route / Hash"] === "#/dashboard", JSON.stringify(f));
     check("the embed is titled by report type", discordSeen?.embed.title === "New Feedback: Bug", discordSeen?.embed.title);
   }
   {
@@ -561,28 +561,28 @@ section("admin ingestion round-trip (empty database)");
   const rows = src
     .prepare(
       "SELECT id, question_id, subject, domain_code, skill_code, difficulty_code, type," +
-        " score_band, catalog_version, seq, bytes, payload FROM questions ORDER BY seq LIMIT 30"
+        " score_band, catalog_version, seq, bytes, payload, catalog FROM questions WHERE catalog = 'sat' ORDER BY seq LIMIT 30"
     )
     .all()
     .map(r => Object.values(r));
   src.close();
 
-  const put = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { rows: rows.slice(0, 25) } }, fEnv);
+  const put = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { catalog: "sat", rows: rows.slice(0, 25) } }, fEnv);
   const putJson = await put.json();
   check("rows -> 200 and reports what it wrote", put.status === 200 && putJson.written === 25, JSON.stringify(putJson));
 
-  const tooMany = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { rows: new Array(41).fill(rows[0]) } }, fEnv);
+  const tooMany = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { catalog: "sat", rows: new Array(41).fill(rows[0]) } }, fEnv);
   check("rows over the 40-per-request cap -> 400", tooMany.status === 400, `${tooMany.status}`);
 
   const badShape = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { rows: [["only", "two"]] } }, fEnv);
   check("row with the wrong column count -> 400", badShape.status === 400, `${badShape.status}`);
 
-  const badPayload = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { rows: [[...rows[0].slice(0, 11), "not json"]] } }, fEnv);
+  const badPayload = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { catalog: "sat", rows: [[...rows[0].slice(0, 11), "not json", "sat"]] } }, fEnv);
   check("row whose payload is not a JSON object -> 400", badPayload.status === 400, `${badPayload.status}`);
 
   const metaPut = await call(
     "/api/admin/catalog/meta",
-    { method: "POST", headers: AH, body: { meta: { version: META.version, count: "25", bytes: "1234" }, prune: true } },
+    { method: "POST", headers: AH, body: { catalog: "sat", meta: { version: META.version, count: "25", bytes: "1234" }, prune: true } },
     fEnv
   );
   check("meta -> 200", metaPut.status === 200, `${metaPut.status}`);
@@ -594,9 +594,9 @@ section("admin ingestion round-trip (empty database)");
   check("round-tripped payloads still carry no `raw`", page.questions.every(q => !("raw" in q)));
 
   // prune must delete rows left over from a previous catalog version.
-  await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { rows: rows.slice(25).map(r => [...r.slice(0, 8), "old.version", ...r.slice(9)]) } }, fEnv);
+  await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { catalog: "sat", rows: rows.slice(25).map(r => [...r.slice(0, 8), "old.version", ...r.slice(9)]) } }, fEnv);
   const beforePrune = await (await call("/api/admin/catalog/stats", { method: "POST", headers: AH }, fEnv)).json();
-  await call("/api/admin/catalog/meta", { method: "POST", headers: AH, body: { meta: { version: META.version }, prune: true } }, fEnv);
+  await call("/api/admin/catalog/meta", { method: "POST", headers: AH, body: { catalog: "sat", meta: { version: META.version }, prune: true } }, fEnv);
   const afterPrune = await (await call("/api/admin/catalog/stats", { method: "POST", headers: AH }, fEnv)).json();
   check("prune drops rows from superseded versions", beforePrune.rows === 30 && afterPrune.rows === 25, `${beforePrune.rows} -> ${afterPrune.rows}`);
 
@@ -634,14 +634,14 @@ section("legacy database from an earlier import");
     const r = await call("/api/admin/catalog/init", { method: "POST", headers: AH, body: { reset: false } }, lEnv);
     const b = await r.json();
     check("init without reset -> 409, not 500", r.status === 409, `${r.status} ${JSON.stringify(b)}`);
-    check("the 409 tells the operator to use --reset", /--reset/.test(b.error || ""), b.error);
+    check("the 409 tells the operator to migrate or reset", /migrate/.test(b.error || "") && /--reset/.test(b.error || ""), b.error);
   }
   {
     const r = await call("/api/admin/catalog/init", { method: "POST", headers: AH, body: { reset: true } }, lEnv);
     check("init with reset recreates the schema -> 200", r.status === 200, `${r.status}`);
 
-    const row = ["n1", "qn1", "math", "H", "H.C.", "E", "mcq", 3, "v-legacy", 0, 24, '{"id":"n1"}'];
-    const w = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { rows: [row] } }, lEnv);
+    const row = ["n1", "qn1", "math", "H", "H.C.", "E", "mcq", 3, "v-legacy", 0, 24, '{"id":"n1"}', "sat"];
+    const w = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { catalog: "sat", rows: [row] } }, lEnv);
     const wb = await w.json();
     check("rows insert once the schema is ours", w.status === 200 && wb.written === 1, `${w.status} ${JSON.stringify(wb)}`);
 
@@ -652,6 +652,59 @@ section("legacy database from an earlier import");
 
   legacy.__close();
   if (existsSync(LEGACY)) rmSync(LEGACY);
+}
+
+section("multi-catalog schema migration");
+{
+  const MIGRATION = join(tmpdir(), "sevrony-worker-phase1-schema.sqlite");
+  if (existsSync(MIGRATION)) rmSync(MIGRATION);
+  const seed = new DatabaseSync(MIGRATION);
+  seed.exec(
+    "CREATE TABLE questions (id TEXT PRIMARY KEY, question_id TEXT, subject TEXT NOT NULL, domain_code TEXT, skill_code TEXT, difficulty_code TEXT, type TEXT, score_band INTEGER, catalog_version TEXT NOT NULL, seq INTEGER NOT NULL, bytes INTEGER NOT NULL, payload TEXT NOT NULL)"
+  );
+  seed.exec("CREATE INDEX idx_questions_seq ON questions(seq)");
+  seed.exec("CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  seed.prepare("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(
+    "legacy-sat-1", "legacy-sat-1", "math", "H", "H.1", "E", "mcq", 400, "phase1", 0, 21, '{\"id\":\"legacy-sat-1\"}'
+  );
+  seed.prepare("INSERT INTO catalog_meta VALUES (?,?)").run("version", "phase1");
+  seed.prepare("INSERT INTO catalog_meta VALUES (?,?)").run("count", "1");
+  seed.close();
+
+  const migrated = makeD1(MIGRATION);
+  const mEnv = { ...env, QUESTIONS_DB: migrated };
+  const AH = { "X-Admin-Key": ADMIN_KEY };
+  {
+    const r = await call("/api/admin/catalog/migrate", { method: "POST", headers: AH, body: { catalog: "sat" } }, mEnv);
+    const body = await r.json();
+    check("migrate upgrades the Phase 1 schema in place", r.status === 200 && body.migrated.includes("questions") && body.migrated.includes("catalog_meta"), JSON.stringify(body));
+    const question = migrated.prepare("SELECT catalog, id FROM questions").first();
+    check("migrated SAT row is assigned to the sat namespace", question?.catalog === "sat" && question.id === "legacy-sat-1", JSON.stringify(question));
+  }
+  {
+    const r = await call("/api/catalog/meta/sat", {}, mEnv);
+    const body = await r.json();
+    check("migrated SAT remains readable at the named route", r.status === 200 && body.count === 1, JSON.stringify(body));
+  }
+  {
+    const r = await call("/api/catalog/meta/not-an-exam", {}, mEnv);
+    check("unknown catalog is rejected before D1 reads", r.status === 404, `${r.status}`);
+  }
+  {
+    const row = ["psat-only-1", "psat-only-1", "math", "H", "H.1", "E", "mcq", 400, "psat-v1", 0, 20, '{\"id\":\"psat-only-1\"}', "psat10"];
+    const put = await call("/api/admin/catalog/rows", { method: "POST", headers: AH, body: { catalog: "psat10", rows: [row] } }, mEnv);
+    const meta = await call(
+      "/api/admin/catalog/meta",
+      { method: "POST", headers: AH, body: { catalog: "psat10", meta: { version: "psat-v1", count: "1", bytes: "20" } } },
+      mEnv
+    );
+    const page = await call("/api/catalog/questions/psat10?since=0&limit=5", { headers: AH }, mEnv);
+    const body = await page.json();
+    check("PSAT rows coexist with migrated SAT rows", put.status === 200 && meta.status === 200 && page.status === 200 && body.questions?.[0]?.id === "psat-only-1", JSON.stringify(body));
+  }
+
+  migrated.__close();
+  if (existsSync(MIGRATION)) rmSync(MIGRATION);
 }
 
 section("failure isolation");

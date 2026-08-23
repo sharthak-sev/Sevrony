@@ -15,24 +15,17 @@
 (function () {
   "use strict";
 
-  /** The worker that serves real users. */
+  /** The worker that serves real users in production. */
   const PROD_BASE = "https://divine-silence-6016.sharthakjaiswal50.workers.dev";
+  /** The staging worker for local testing and validation before production deploy. */
+  const STAGING_BASE = "https://sevrony-worker-staging.sharthakjaiswal50.workers.dev";
 
   /**
    * Resolve the worker origin.
    *
-   * A local build can be pointed at the staging worker so a release is
-   * exercisable end to end -- Turnstile, ticket, paging, resume -- before it
-   * reaches anyone:
-   *
-   *   localStorage.setItem("sevrony.apiBase",
-   *     "https://sevrony-worker-staging.<subdomain>.workers.dev")
-   *
-   * Restricted to loopback origins deliberately. On the deployed site this is
-   * inert, so a stray or planted value cannot redirect a real user's downloads
-   * -- or the Turnstile token that rides with them -- to another host. The
-   * alternative, editing PROD_BASE by hand to test, is a change that gets
-   * committed by accident and points every user at staging.
+   * On localhost / 127.0.0.1, defaults to STAGING_BASE so local tests automatically
+   * use the multi-catalog staging environment without requiring a manual localStorage override.
+   * An explicit localStorage.getItem("sevrony.apiBase") override is still supported.
    */
   function resolveBase() {
     const host = window.location?.hostname;
@@ -40,13 +33,12 @@
     try {
       const override = (window.localStorage?.getItem("sevrony.apiBase") || "").replace(/\/+$/, "");
       if (/^https:\/\/[a-z0-9.-]+\.workers\.dev$/i.test(override)) {
-        console.info(`[Sevrony] API base overridden for local testing: ${override}`);
         return override;
       }
     } catch {
-      /* storage can be disabled outright; fall through to production */
+      /* storage can be disabled outright; fall through to staging */
     }
-    return PROD_BASE;
+    return STAGING_BASE;
   }
 
   const BASE = resolveBase();
@@ -55,8 +47,27 @@
   const TURNSTILE_ACTION = "catalog_download";
   const TURNSTILE_SITEKEY = "0x4AAAAAAEC6PoP81MryKKvo";
 
-  const CATALOG_BANK_ID = "sevrony-catalog";
-  const CONFIG_KEY = "questionCatalog";
+  /**
+   * One catalog per exam, namespaced. The bank id and the resume-cursor key both
+   * carry the catalog name so three exams can sit in IndexedDB side by side --
+   * `sevrony-catalog-sat`, `questionCatalog_psat10`, and so on.
+   *
+   * Kept in step with CATALOG_BANK_PREFIX / CATALOG_CONFIG_KEY_PREFIX in
+   * db-worker.js, which renames the single-catalog release's unsuffixed
+   * `sevrony-catalog` bank and `questionCatalog` cursor into this shape.
+   */
+  const CATALOG_BANK_PREFIX = "sevrony-catalog-";
+  const CONFIG_KEY_PREFIX = "questionCatalog_";
+
+  /**
+   * The catalog a call falls back to when none is named.
+   *
+   * A service worker can serve this file from cache while a newer app.js is
+   * live, or the reverse. Defaulting keeps that combination on the SAT catalog
+   * instead of requesting /api/catalog/meta/undefined.
+   */
+  const DEFAULT_CATALOG = "sat";
+
   const PAGE_SIZE = 150;
   const PAGE_RETRIES = 3;
   const REQUEST_TIMEOUT_MS = 45000;
@@ -69,7 +80,6 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /** fetch with a timeout, so a stalled page cannot hang the download forever. */
   async function timedFetch(input, init = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), init.timeout || REQUEST_TIMEOUT_MS);
@@ -94,18 +104,21 @@
 
   /* -------------------------------------------------------- catalog: network */
 
-  async function meta(options = {}) {
-    const res = await timedFetch(url("/api/catalog/meta"), { signal: options.signal });
+  async function meta(catalogName = DEFAULT_CATALOG, options = {}) {
+    const res = await timedFetch(url(`/api/catalog/meta/${catalogName}`), { signal: options.signal });
     if (!res.ok) throw new Error(await readError(res));
     return res.json();
   }
 
   /**
-   * Render an invisible Turnstile widget and resolve with its token.
+   * Solve a Turnstile challenge without showing anything.
    *
-   * Mirrors vocab.js's helper, including the reason it is positioned offscreen
-   * rather than hidden: browsers throttle `display: none` subtrees and the
-   * widget hangs.
+   * The widget is rendered into a zero-sized, transparent, pointer-events:none
+   * container because Turnstile refuses to run in a detached node and will not
+   * hand back a token for one that was never laid out. Managed mode almost
+   * always resolves invisibly; if it ever needs interaction the challenge is
+   * unreachable and the timeout-callback surfaces that as an error rather than
+   * hanging.
    */
   function getTurnstileToken(action) {
     return new Promise((resolve, reject) => {
@@ -151,28 +164,35 @@
     });
   }
 
-  async function ticket(options = {}) {
+  /**
+   * Trade a Turnstile token for a short-lived download ticket.
+   *
+   * The ticket is an HMAC the worker issues once and then checks on every page
+   * request, so the human check happens a single time per download rather than
+   * on each of the ~20 pages. It is bound to the catalog, so a ticket minted for
+   * one exam cannot be replayed against another.
+   */
+  async function ticket(catalogName = DEFAULT_CATALOG, options = {}) {
     const token = await getTurnstileToken(TURNSTILE_ACTION);
     const res = await timedFetch(url("/api/catalog/ticket"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ "cf-turnstile-response": token }),
+      body: JSON.stringify({ "cf-turnstile-response": token, "catalog": catalogName }),
       signal: options.signal
     });
     if (!res.ok) throw new Error(await readError(res));
     return res.json();
   }
 
-  /**
-   * Fetch one page.
-   * @returns {{page: object}|{versionChanged: string}}
-   */
-  async function page({ since = 0, limit = PAGE_SIZE, ticket: tkt, signal } = {}) {
+  async function page(catalogName = DEFAULT_CATALOG, { since = 0, limit = PAGE_SIZE, ticket: tkt, signal } = {}) {
     const headers = {};
     if (tkt) headers["X-Catalog-Ticket"] = tkt;
-    const res = await timedFetch(url(`/api/catalog/questions?since=${since}&limit=${limit}`), { headers, signal });
+    const res = await timedFetch(url(`/api/catalog/questions/${catalogName}?since=${since}&limit=${limit}`), { headers, signal });
 
-    // 409 is the worker telling us the catalog was replaced mid-download.
+    // 409 means the catalog was re-uploaded mid-download, so the `seq` cursor
+    // this client holds no longer points where it thinks. Signalled rather than
+    // thrown: the caller re-reads meta and restarts from seq 0, which is the
+    // only way to avoid a torn mix of two versions in IndexedDB.
     if (res.status === 409) {
       const body = await res.json().catch(() => ({}));
       return { versionChanged: body.version || null };
@@ -187,49 +207,50 @@
 
   /* --------------------------------------------------------- catalog: cursor */
 
+  /**
+   * The resume cursor, one record per catalog.
+   *
+   * Held in IndexedDB rather than localStorage so it survives in the same place
+   * as the questions it describes -- a cleared localStorage with a full question
+   * store would otherwise re-download the whole catalog.
+   */
   function DB() {
     const db = window.SatPracticeDB;
     if (!db) throw new Error("Local database is not ready yet.");
     return db;
   }
 
-  async function getState() {
+  async function getState(catalogName = DEFAULT_CATALOG) {
     try {
-      const record = await DB().get("appConfig", CONFIG_KEY);
+      const record = await DB().get("appConfig", CONFIG_KEY_PREFIX + catalogName);
       return record?.value || null;
     } catch (e) {
       return null;
     }
   }
 
-  async function setState(value) {
-    await DB().put("appConfig", { key: CONFIG_KEY, value, updatedAt: Date.now() });
+  async function setState(catalogName, value) {
+    await DB().put("appConfig", { key: CONFIG_KEY_PREFIX + catalogName, value, updatedAt: Date.now() });
     return value;
   }
 
-  async function clearState() {
+  async function clearState(catalogName = DEFAULT_CATALOG) {
     try {
-      await DB().remove("appConfig", CONFIG_KEY);
+      await DB().remove("appConfig", CONFIG_KEY_PREFIX + catalogName);
     } catch (e) {
-      /* nothing stored yet */
+      /* nothing to clear is the same outcome as clearing it */
     }
   }
 
-  /* ------------------------------------------------------ catalog: the driver */
-
   /**
-   * Download the shared catalog into local storage, resuming where a previous
-   * attempt stopped.
+   * Download one exam's catalog to completion, resuming if a previous attempt
+   * stopped part-way.
    *
-   * @param {object}   opts
-   * @param {Function} opts.store       async (questions, {version}) => void -- required
-   * @param {Function} [opts.onProgress] ({downloaded, total, pct, phase}) => void
-   * @param {boolean}  [opts.force]     re-download even if already complete
-   * @param {AbortSignal} [opts.signal]
-   * @returns {Promise<{status: string, version?: string, count?: number}>}
-   *          status is "current" | "downloaded" | "resumed"
+   * `store` is injected because normalising a question and writing it to
+   * IndexedDB needs app.js internals. Everything else -- meta, ticket, paging,
+   * retries, version changes, the cursor -- is owned here.
    */
-  async function ensureCatalog(opts = {}) {
+  async function ensureCatalog(catalogName = DEFAULT_CATALOG, opts = {}) {
     const { store, onProgress, force = false, signal } = opts;
     if (typeof store !== "function") throw new Error("ensureCatalog requires a store callback.");
 
@@ -240,15 +261,13 @@
     };
 
     report("meta", 0, 0);
-    const remote = await meta({ signal });
-    let local = await getState();
+    const remote = await meta(catalogName, { signal });
+    let local = await getState(catalogName);
 
     if (!force && local && local.complete && local.version === remote.version) {
       return { status: "current", version: remote.version, count: local.count };
     }
 
-    // A version change invalidates the cursor: `seq` is only meaningful within
-    // one build of the catalog.
     let since = 0;
     let downloaded = 0;
     const resuming = !force && local && local.version === remote.version && Number.isFinite(local.since) && local.since > 0;
@@ -260,7 +279,7 @@
     let tkt = null;
     if (remote.requiresTicket) {
       report("ticket", downloaded, remote.count);
-      tkt = (await ticket({ signal })).ticket;
+      tkt = (await ticket(catalogName, { signal })).ticket;
     }
 
     let version = remote.version;
@@ -274,14 +293,12 @@
       let attempt = 0;
       for (;;) {
         try {
-          result = await page({ since, limit: remote.pageSize || PAGE_SIZE, ticket: tkt, signal });
+          result = await page(catalogName, { since, limit: remote.pageSize || PAGE_SIZE, ticket: tkt, signal });
           break;
         } catch (err) {
           if (err.name === "AbortError") throw err;
-          // A long download can outlive a 10-minute ticket; mint a fresh one
-          // and retry the same page rather than losing the whole transfer.
           if (err.status === 401 && remote.requiresTicket && attempt === 0) {
-            tkt = (await ticket({ signal })).ticket;
+            tkt = (await ticket(catalogName, { signal })).ticket;
             attempt++;
             continue;
           }
@@ -291,16 +308,14 @@
       }
 
       if (result.versionChanged) {
-        // Start over against the new build. Anything already stored is replaced
-        // by id as the new pages land.
-        const fresh = await meta({ signal });
+        const fresh = await meta(catalogName, { signal });
         remote.count = fresh.count;
         remote.version = fresh.version;
         remote.requiresTicket = fresh.requiresTicket;
         version = fresh.version;
         since = 0;
         downloaded = 0;
-        tkt = remote.requiresTicket ? (await ticket({ signal })).ticket : null;
+        tkt = remote.requiresTicket ? (await ticket(catalogName, { signal })).ticket : null;
         continue;
       }
 
@@ -308,13 +323,13 @@
       version = body.version;
       const questions = body.questions || [];
 
-      if (questions.length) await store(questions, { version, bankId: CATALOG_BANK_ID });
+      if (questions.length) {
+        await store(questions, { version, catalog: catalogName, bankId: CATALOG_BANK_PREFIX + catalogName });
+      }
       downloaded += questions.length;
       report("download", downloaded, body.count || remote.count);
 
-      // The cursor is persisted after every page, so a closed tab or a dropped
-      // connection costs at most one page on the next attempt.
-      await setState({
+      await setState(catalogName, {
         version,
         count: body.count || remote.count,
         since: body.nextSince,
@@ -328,7 +343,7 @@
       since = body.nextSince;
     }
 
-    const finalState = await setState({
+    const finalState = await setState(catalogName, {
       version,
       count: downloaded,
       expected: remote.count,
@@ -347,8 +362,9 @@
   window.SevApi = {
     BASE,
     url,
-    CATALOG_BANK_ID,
-    CONFIG_KEY,
+    CATALOG_BANK_PREFIX,
+    CONFIG_KEY_PREFIX,
+    DEFAULT_CATALOG,
     getTurnstileToken,
     catalog: { meta, ticket, page, getState, setState, clearState },
     ensureCatalog
