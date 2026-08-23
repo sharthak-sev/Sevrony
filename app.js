@@ -1815,27 +1815,55 @@ window.updateSelectAllButtons = function() {
       if (savedState === "true") {
         shellClass += " sidebar-collapsed";
       }
-      app.className = shellClass;
-      app.innerHTML = `
-        ${state.view === "vocab" && window.Vocab?.isSessionActive?.() ? '' : renderSidebar()}
-        <div class="main-content-wrapper">
-          ${state.notice ? renderNotice(state.notice) : ""}
-          ${renderIosWarningBanner()}
-          <main class="main-grid">
-            ${state.view === "results" && state.lastResult ? renderSessionDashboard(state.lastResult) : ""}
-            ${state.view === "config" ? renderTestConfig() : ""}
-            ${state.view === "history" ? renderTestHistory() : ""}
-            ${state.view === "review" ? renderTestReview() : ""}
-            ${state.view === "dashboard" ? renderDashboard() : ""}
-            ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
-            ${state.view === "mistakes-log" ? renderMistakesLog() : ""}
-            ${state.view === "vocab" ? window.Vocab.renderDashboard() : ""}
-            ${state.view === "vocab-mastered" ? window.Vocab.renderMastered() : ""}
-            ${state.view === "backup" ? renderBackupView() : ""}
-          </main>
-        </div>
+
+      const existingSidebar = app.querySelector("aside.sidebar");
+      const existingMain = app.querySelector(".main-content-wrapper");
+      const needsFullVocabScreen = state.view === "vocab" && window.Vocab?.isSessionActive?.();
+
+      const mainContentHtml = `
+        ${state.notice ? renderNotice(state.notice) : ""}
+        ${renderIosWarningBanner()}
+        <main class="main-grid">
+          ${state.view === "results" && state.lastResult ? renderSessionDashboard(state.lastResult) : ""}
+          ${state.view === "config" ? renderTestConfig() : ""}
+          ${state.view === "history" ? renderTestHistory() : ""}
+          ${state.view === "review" ? renderTestReview() : ""}
+          ${state.view === "dashboard" ? renderDashboard() : ""}
+          ${state.view === "mistakes" ? renderMistakesDashboard() : ""}
+          ${state.view === "mistakes-log" ? renderMistakesLog() : ""}
+          ${state.view === "vocab" ? window.Vocab.renderDashboard() : ""}
+          ${state.view === "vocab-mastered" ? window.Vocab.renderMastered() : ""}
+          ${state.view === "backup" ? renderBackupView() : ""}
+        </main>
       `;
-      bindHomeEvents();
+
+      if (existingSidebar && existingMain && !needsFullVocabScreen) {
+        // Persistent shell: update nav-item active states in place and update main container
+        app.className = shellClass;
+        app.querySelectorAll(".sidebar .nav-item[data-action]").forEach(btn => {
+          const action = btn.dataset.action;
+          const isViewActive = 
+            (action === "dashboard" && state.view === "dashboard") ||
+            (action === "history" && state.view === "history") ||
+            (action === "retry-mistakes" && state.view === "mistakes") ||
+            (action === "mistakes-log" && state.view === "mistakes-log") ||
+            (action === "vocab" && (state.view === "vocab" || state.view === "vocab-mastered")) ||
+            (action === "backup" && state.view === "backup");
+          btn.classList.toggle("active", Boolean(isViewActive));
+        });
+        existingMain.innerHTML = mainContentHtml;
+        bindHomeEvents();
+      } else {
+        // Full mount of shell and sidebar
+        app.className = shellClass;
+        app.innerHTML = `
+          ${needsFullVocabScreen ? '' : renderSidebar()}
+          <div class="main-content-wrapper">
+            ${mainContentHtml}
+          </div>
+        `;
+        bindHomeEvents();
+      }
     });
   }
   window.renderHome = renderHome;
@@ -4623,10 +4651,13 @@ function renderTestReview() {
     applyAllVisibleHighlights();
     for (const btn of app.querySelectorAll("[data-action]")) {
       if (btn.tagName === "SELECT" || btn.tagName === "INPUT") {
+        btn.removeEventListener("change", handleHomeAction);
         btn.addEventListener("change", handleHomeAction);
       } else if (btn.tagName === "TEXTAREA") {
+        btn.removeEventListener("input", handleHomeAction);
         btn.addEventListener("input", handleHomeAction);
       } else {
+        btn.removeEventListener("click", handleHomeAction);
         btn.addEventListener("click", handleHomeAction);
       }
     }

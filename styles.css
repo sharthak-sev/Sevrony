@@ -2999,9 +2999,6 @@ html[data-transition="drill"]::view-transition-new(root) {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.review-card, .history-card, .check-card, .domain-card, .mistake-stat-card, .hero-card, .panel, .metric-card, .bb-card {
-  animation: slide-up-fade 0.2s ease-out forwards;
-}
 
 .volume-bar-group:hover .volume-bar-tooltip {
   opacity: 1 !important;
