@@ -5697,23 +5697,21 @@ function renderTestReview() {
     }
     if (action === "wipe-all") {
       showConfirmModal("Are you sure you want to wipe ALL your data, including imported question banks? This cannot be undone.", "Wipe All Data", async () => {
-        await DB.clearAll();
-        state.lastResult = null;
-        sessionStorage.removeItem('lastResultSessionId');
-        localStorage.removeItem(TUTORIAL_DONE_KEY);
-        localStorage.removeItem('sat_vocab_state');
-        
         // Unlink Google account and clear auth state
         if (window.SevSync?.isLinked()) {
             try { await window.SevSync.unlink(); } catch (_) {}
         }
-
-        state.view = "dashboard";
-        await refreshLocalData();
-        showNotice("All data wiped successfully.", "info");
-        // Replace current history entry so back button can't return to stale state
-        window.history.replaceState({view: "onboarding"}, "", window.location.pathname);
-        renderHome(true);
+        if (window.posthog?.reset) window.posthog.reset();
+        await DB.clearAll();
+        state.lastResult = null;
+        sessionStorage.clear();
+        localStorage.removeItem(TUTORIAL_DONE_KEY);
+        localStorage.removeItem('sat_vocab_state');
+        localStorage.removeItem(TELEMETRY_CONSENT_KEY);
+        localStorage.removeItem('sevrony.syncBannerDismissed');
+        localStorage.removeItem('sevrony.catalogBannerDismissed');
+        resetTelemetryConsent();
+        window.location.replace('/');
       });
     }
 
@@ -5780,19 +5778,20 @@ function renderTestReview() {
 
     if (action === "logout") {
       showConfirmModal("Are you sure you want to log out?", "Log Out", async () => {
-        await SevSync.unlink();
+        if (window.SevSync) {
+          try { await SevSync.unlink(); } catch (_) {}
+        }
         if (window.posthog?.reset) window.posthog.reset();
         await DB.clearAll();
         state.lastResult = null;
-        sessionStorage.removeItem('lastResultSessionId');
+        sessionStorage.clear();
         localStorage.removeItem(TUTORIAL_DONE_KEY);
         localStorage.removeItem('sat_vocab_state');
-        state.view = "dashboard";
-        await refreshLocalData();
-        showNotice("Logged out successfully.", "info");
-        // Replace current history entry so back button can't return to stale state
-        window.history.replaceState({view: "onboarding"}, "", window.location.pathname);
-        renderHome(true);
+        localStorage.removeItem(TELEMETRY_CONSENT_KEY);
+        localStorage.removeItem('sevrony.syncBannerDismissed');
+        localStorage.removeItem('sevrony.catalogBannerDismissed');
+        resetTelemetryConsent();
+        window.location.replace('/');
       });
     }
     if (action === "delete-session") {
@@ -6578,8 +6577,8 @@ function renderTestReview() {
       );
       const localCount = catalogQuestionCount();
 
-      const interrupted = cursor && !cursor.complete;
-      const restoredWithoutQuestions = (hasBankRecord || (cursor && cursor.complete)) && localCount === 0;
+      const interrupted = cursor && !cursor.complete && hasBankRecord;
+      const restoredWithoutQuestions = hasBankRecord && localCount === 0;
       if (!interrupted && !restoredWithoutQuestions) return;
 
       await downloadCatalog({ force: restoredWithoutQuestions });

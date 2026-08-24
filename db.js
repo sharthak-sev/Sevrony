@@ -224,6 +224,7 @@
     await clear("questions");
     await clear("questionBanks");
     await clear("questionStudyState");
+    await clear("appConfig");
   }
 
   function remove(storeName, key) {
