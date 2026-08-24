@@ -219,7 +219,6 @@
   }
 
   async function sync(isManual = false, options = {}) {
-    if (localStorage.getItem("sat_demo_mode") === "true") return { ok: false, reason: "demo_mode" };
     if (!hasPrivacyConsent()) return { ok: false, reason: "consent_required" };
     if (!isLinked()) return { ok: false, reason: "not_linked" };
     if (!navigator.onLine) return { ok: false, reason: "offline" };

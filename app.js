@@ -114,9 +114,6 @@ window.updateSelectAllButtons = function() {
 };
 
 
-  function isDemoMode() {
-    return localStorage.getItem("sat_demo_mode") === "true";
-  }
   const TUTORIAL_STEPS = [
     {
       selector: "[data-tour-target='dashboard-hero']",
@@ -345,62 +342,6 @@ window.updateSelectAllButtons = function() {
   }
 
   async function init() {
-    if (window.location.search.includes("demo=true")) {
-      try {
-        const loading = document.getElementById("initial-loading");
-        if (loading) loading.style.display = "flex";
-        localStorage.setItem("sat_demo_mode", "true");
-        const res = await fetch("demo-state.json?t=" + Date.now());
-        const demoState = await res.json();
-        await window.SatPracticeDB.clearAll();
-        if (demoState.questionBanks) await window.SatPracticeDB.putMany("questionBanks", demoState.questionBanks);
-        if (demoState.questions) await window.SatPracticeDB.putMany("questions", demoState.questions);
-        if (demoState.sessions) await window.SatPracticeDB.putMany("sessions", demoState.sessions);
-        if (demoState.responses) await window.SatPracticeDB.putMany("responses", demoState.responses);
-        if (demoState.vocabWords) await window.SatPracticeDB.putMany("vocabWords", demoState.vocabWords);
-        if (demoState.appConfig) await window.SatPracticeDB.putMany("appConfig", demoState.appConfig);
-        localStorage.removeItem("sevrony.tutorial.v1.done");
-        localStorage.removeItem("sat_vocab_state");
-        // Clear any leftover Google auth state for a clean sandbox
-        if (window.SevSync) {
-            try { await window.SevSync.unlink(); } catch (_) {}
-        }
-        const url = new URL(window.location);
-        url.searchParams.delete("demo");
-        window.history.replaceState({exit_demo: true}, document.title, url);
-        state._justEnteredDemo = true;
-      } catch (e) {
-        console.error("Failed to load demo state:", e);
-      }
-    }
-
-    if (isDemoMode()) {
-        const banner = document.createElement("div");
-        banner.className = "demo-banner";
-        banner.innerHTML = `
-            <div class="demo-banner-content">
-                <div class="demo-indicator">
-                    <span class="pulse-dot"></span>
-                    <span class="demo-label">Demo Mode</span>
-                </div>
-                <span class="demo-text">Ready for the real thing?</span>
-            </div>
-            <button id="exit-demo-btn">Get Started</button>
-        `;
-        document.body.appendChild(banner);
-        document.getElementById("exit-demo-btn").addEventListener("click", async () => {
-            await window.SatPracticeDB.clearAll();
-            localStorage.removeItem("sat_demo_mode");
-            localStorage.removeItem("sat_vocab_state");
-            localStorage.removeItem("sevrony.tutorial.v1.done");
-            // Clear Google auth state to prevent data leak
-            if (window.SevSync) {
-                try { await window.SevSync.unlink(); } catch (_) {}
-            }
-            window.location.replace(window.location.pathname);
-        });
-    }
-
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
@@ -413,19 +354,6 @@ window.updateSelectAllButtons = function() {
     });
 
     window.addEventListener("popstate", (e) => {
-      if (e.state && e.state.exit_demo) {
-        window.SatPracticeDB.clearAll().then(() => {
-          localStorage.removeItem("sat_demo_mode");
-          localStorage.removeItem("sat_vocab_state");
-          localStorage.removeItem("sevrony.tutorial.v1.done");
-          if (window.SevSync) window.SevSync.unlink();
-          window.history.back();
-          setTimeout(() => {
-            window.location.replace(window.location.pathname);
-          }, 100);
-        });
-        return;
-      }
       if (state.tutorial.active) {
         window.history.pushState({view: "dashboard"}, "", window.location.pathname);
         return;
@@ -433,8 +361,8 @@ window.updateSelectAllButtons = function() {
       if (e.state) {
         state.view = e.state.view || "dashboard";
         
-        // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
-        if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
+        // Enforce tutorial if incomplete
+        if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true") {
            if (state.view !== "marketing" && state.view !== "privacy") {
                if (state.view !== "vocab" || !hasActiveVocabSession()) {
                    state.view = "dashboard";
@@ -479,8 +407,8 @@ window.updateSelectAllButtons = function() {
         if (["dashboard", "history", "config", "mistakes", "mistakes-log", "results", "review", "marketing", "privacy", "backup", "vocab", "vocab-mastered"].includes(hashView)) {
            let targetView = hashView;
            
-           // Enforce tutorial if incomplete (skip enforcement in demo mode — let users explore freely)
-           if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
+           // Enforce tutorial if incomplete
+           if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true") {
                if (targetView !== "marketing" && targetView !== "privacy") {
                    if (targetView !== "vocab" || !hasActiveVocabSession()) {
                        targetView = "dashboard";
@@ -515,12 +443,12 @@ window.updateSelectAllButtons = function() {
       }
     }
     
-    // Enforce tutorial if incomplete on initial load (skip enforcement in demo mode — let users explore freely)
+    // Enforce tutorial if incomplete on initial load
     if (hasActiveVocabSession()) {
         state.view = "vocab";
     }
 
-    if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true" && !isDemoMode()) {
+    if (localStorage.getItem(TUTORIAL_DONE_KEY) !== "true") {
         if (state.view !== "marketing" && state.view !== "privacy") {
             if (state.view !== "vocab" || !hasActiveVocabSession()) {
                 state.view = "dashboard";
@@ -576,32 +504,30 @@ window.updateSelectAllButtons = function() {
 
     await refreshLocalData();
 
-    // Scrub any contaminated demo data from real accounts (caused by legacy sync bug)
-    if (!isDemoMode()) {
-        const now = Date.now();
-        let scrubbed = false;
-        
-        const demoSessions = state.sessions.filter(s => s.id.startsWith("session-demo-"));
-        if (demoSessions.length > 0) {
-            console.log("Scrubbing contaminated demo sessions...");
-            demoSessions.forEach(s => { s.deletedAt = now; s.updatedAt = now; });
-            await window.SatPracticeDB.putMany("sessions", demoSessions);
-            scrubbed = true;
-        }
+    // Scrub any contaminated demo data from legacy accounts
+    const now = Date.now();
+    let scrubbed = false;
+    
+    const demoSessions = state.sessions.filter(s => s.id.startsWith("session-demo-"));
+    if (demoSessions.length > 0) {
+        console.log("Scrubbing contaminated demo sessions...");
+        demoSessions.forEach(s => { s.deletedAt = now; s.updatedAt = now; });
+        await window.SatPracticeDB.putMany("sessions", demoSessions);
+        scrubbed = true;
+    }
 
-        const demoResponses = state.responses.filter(r => r.id.startsWith("session-demo-"));
-        if (demoResponses.length > 0) {
-            console.log("Scrubbing contaminated demo responses...");
-            demoResponses.forEach(r => { r.deletedAt = now; r.updatedAt = now; });
-            await window.SatPracticeDB.putMany("responses", demoResponses);
-            scrubbed = true;
-        }
+    const demoResponses = state.responses.filter(r => r.id.startsWith("session-demo-"));
+    if (demoResponses.length > 0) {
+        console.log("Scrubbing contaminated demo responses...");
+        demoResponses.forEach(r => { r.deletedAt = now; r.updatedAt = now; });
+        await window.SatPracticeDB.putMany("responses", demoResponses);
+        scrubbed = true;
+    }
 
-        if (scrubbed) {
-            await refreshLocalData();
-            if (window.SevSync && window.SevSync.isLinked()) {
-                window.SevSync.sync(false, { silent: true });
-            }
+    if (scrubbed) {
+        await refreshLocalData();
+        if (window.SevSync && window.SevSync.isLinked()) {
+            window.SevSync.sync(false, { silent: true });
         }
     }
 
@@ -609,8 +535,7 @@ window.updateSelectAllButtons = function() {
     ensureConfigDefaults();
 
     // Cloud sync: register for background sync updates from other devices
-    // Entirely disabled in demo mode to prevent encryption key / consent race conditions
-    if (window.SevSync && !isDemoMode()) {
+    if (window.SevSync) {
       SevSync.onUpdate(() => {
         refreshLocalData().then(() => renderHome());
       });
@@ -635,7 +560,7 @@ window.updateSelectAllButtons = function() {
       });
     }
     // Auto cloud-sync on open (best-effort, non-blocking)
-    if (window.SevSync?.isLinked() && !isDemoMode()) {
+    if (window.SevSync?.isLinked()) {
       SevSync.sync(false, { silent: true }).then(result => {
         if (result.ok && result.localChanged) {
           // A sync from another device brings the catalog bank record across
@@ -683,8 +608,7 @@ window.updateSelectAllButtons = function() {
       if (state.view === "results" && !state.lastResult) {
         state.view = "dashboard";
       }
-      renderHome(false, !state._justEnteredDemo);
-      delete state._justEnteredDemo;
+      renderHome(false);
       maybeStartTutorial();
 
       // Deliberately not awaited: the dashboard is already painted, and in the
@@ -802,7 +726,7 @@ window.updateSelectAllButtons = function() {
   }
 
   function requirePrivacyConsent() {
-    if (isDemoMode() || DB.hasConsent?.()) return true;
+    if (DB.hasConsent?.()) return true;
     showNotice("Accept the Privacy Policy before importing data or connecting cloud sync.", "error");
     renderTelemetryBanner();
     return false;
@@ -837,7 +761,7 @@ window.updateSelectAllButtons = function() {
   function renderTelemetryBanner() {
     const existing = document.querySelector(".telemetry-banner");
     if (existing) existing.remove();
-    if (state.telemetryConsent || state.view === "privacy" || isDemoMode()) return;
+    if (state.telemetryConsent || state.view === "privacy") return;
 
     const banner = document.createElement("section");
     banner.className = "telemetry-banner";
@@ -1771,7 +1695,7 @@ window.updateSelectAllButtons = function() {
   }
 
   function renderIosWarningBanner() {
-    if (isDemoMode() || !isIosSafariWarningNeeded()) return "";
+    if (!isIosSafariWarningNeeded()) return "";
     return `
       <div class="banner warning-banner" style="display:flex; justify-content:space-between; align-items:flex-start; padding:12px 16px; background:var(--yellow-dim, rgba(234, 179, 8, 0.1)); border: 1px solid var(--yellow, #eab308); border-radius:8px; margin: 0 16px 16px 16px;">
         <div style="font-size: 14px; line-height: 1.5; color: var(--ink);">
@@ -1809,7 +1733,7 @@ window.updateSelectAllButtons = function() {
 
     if (!skipPush) pushHistoryState(replace);
 
-    if ((state.view === "onboarding" || state.view === "backup") && !isDemoMode()) {
+    if (state.view === "onboarding" || state.view === "backup") {
       window.SevSync?.preload();
     }
 
@@ -2185,7 +2109,7 @@ font-family: inherit !important;
   }
 
   function renderSyncWidget() {
-    if (isDemoMode() || !window.SevSync?.isLinked()) return "";
+    if (!window.SevSync?.isLinked()) return "";
     const status = SevSync.getStatus();
     
     if (status.tokenValid) sessionBubbleDismissed = false;
@@ -2862,7 +2786,7 @@ font-family: inherit !important;
         </section>
         ` : ''}
 
-        ${!isDemoMode() && !window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
+        ${!window.SevSync?.isLinked() && !localStorage.getItem('sevrony.syncBannerDismissed') && state.banks.length > 0 ? `
         <section class="panel cloud-sync-banner" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 12px; background: linear-gradient(145deg, var(--card) 0%, color-mix(in srgb, var(--line) 30%, transparent) 100%); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
           <div style="display: flex; align-items: center; gap: 16px; flex: 1; min-width: 250px;">
             <div style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink);">
@@ -2988,7 +2912,6 @@ font-family: inherit !important;
   }
 
   function renderBackupView() {
-    const _isDemoMode = isDemoMode();
     return `
       <section class="hero-card compact-hero">
         <div>
@@ -2998,7 +2921,7 @@ font-family: inherit !important;
         </div>
       </section>
 
-      ${_isDemoMode ? '' : renderCloudSyncSection()}
+      ${renderCloudSyncSection()}
 
 
 
@@ -4789,11 +4712,6 @@ function renderTestReview() {
   let isSyncingLinkedAccount = false;
   async function syncLinkedAccount({ returningUser = false, hideBusy = false } = {}) {
     if (isSyncingLinkedAccount) return;
-    if (isDemoMode()) {
-      showNotice("Cloud sync is disabled in Demo Mode. Exit demo to use your own account.", "info");
-      renderHome();
-      return;
-    }
     if (!requirePrivacyConsent()) return;
     if (!window.SevSync) {
       showNotice("Cloud sync is unavailable. Check your connection and try again.", "error");
@@ -4856,11 +4774,6 @@ function renderTestReview() {
    */
   async function signInAndSetup() {
     if (isSyncingLinkedAccount) return;
-    if (isDemoMode()) {
-      showNotice("Cloud sync is disabled in Demo Mode. Exit demo to use your own account.", "info");
-      renderHome();
-      return;
-    }
     if (!requirePrivacyConsent()) return;
     if (!window.SevSync) {
       // Sync module unavailable — fall back to a plain catalog download
@@ -6389,7 +6302,7 @@ function renderTestReview() {
    * Whether to offer the switch on the dashboard.
    */
   function shouldOfferCatalog() {
-    if (isDemoMode() || !window.SevApi) return false;
+    if (!window.SevApi) return false;
     if (localStorage.getItem("sevrony.catalogBannerDismissed")) return false;
     return catalogQuestionCount() === 0;
   }
@@ -6568,7 +6481,7 @@ function renderTestReview() {
    * finishes a download that was interrupted mid-way.
    */
   async function resumeCatalogIfNeeded() {
-    if (!window.SevApi || isDemoMode()) return;
+    if (!window.SevApi) return;
     if (!DB.hasConsent?.()) return;
     try {
       const cursor = await SevApi.catalog.getState(state.activeCatalog);

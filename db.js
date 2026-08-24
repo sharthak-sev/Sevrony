@@ -11,8 +11,7 @@
 
   function hasConsent() {
     if (typeof localStorage === 'undefined') return true; // Worker context — main thread already verified consent
-    return localStorage.getItem("sat_demo_mode") === "true" ||
-      localStorage.getItem(CONSENT_KEY) === CONSENT_ACCEPTED;
+    return localStorage.getItem(CONSENT_KEY) === CONSENT_ACCEPTED;
   }
 
   function requireConsent() {
