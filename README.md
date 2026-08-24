@@ -111,72 +111,9 @@ node tools/test_sync_catalog.mjs
 
 The catalog client tests take the SQLite database path and catalog name (`sat`, `psat10`, `psat8_9`). `tools/test_sync_catalog.mjs` and `tools/test_worker.mjs` test the bidirectional sync logic and worker endpoints.
 
-## Deployment
+## Deployment & Infrastructure
 
-### Static app
-
-Deploy the repository's static app files to the host that serves `index.html` (currently GitHub Pages). `db-worker.js` must be deployed beside `db.js`; it is a browser worker, not a Cloudflare Worker.
-
-When updating the app, deploy the matching `index.html`, `sw.js`, `api.js`, `db.js`, `db-worker.js`, `sync.js`, `sync-worker.js`, `vocab.js`, `scoring.js`, and `app.js` together so the versioned service-worker cache remains consistent.
-
-The `?v=` cache key appears in more places than `sw.js`, because several files load each other at runtime: `index.html` (script and stylesheet tags), `sw.js` (`CACHE_NAME` and the precache list), `db.js` (`new Worker("db-worker.js")`), `db-worker.js` (`importScripts('scoring.js')`), `sync.js` (`new Worker("sync-worker.js")`), `sync-worker.js` (`importScripts("db.js")`), `app.js` (`APP_VERSION`), and `privacy.html`. Bump all of them together — a file that asks for an older key is not in the new cache and will fail offline.
-
-### Cloudflare Worker
-
-The Worker lives in `worker/` as ES modules and is deployed with Wrangler:
-
-```bash
-npx wrangler deploy
-```
-
-`wrangler.toml` makes **staging the default environment**, so a bare `wrangler deploy` cannot reach production. Deploy production explicitly:
-
-```bash
-npx wrangler deploy --env production
-```
-
-It serves privacy-consent acknowledgement, feedback submission, AI vocabulary sentence validation, and the shared question catalog. Configure its secrets with `wrangler secret put`; never place them in this repository or the static frontend:
-
-| Secret | Used for |
-| --- | --- |
-| `TURNSTILE_SECRET` | Cloudflare Turnstile siteverify |
-| `GEMINI_API_KEY` | AI vocabulary sentence validation |
-| `DISCORD_WEBHOOK_URL` | Feedback relay |
-| `ADMIN_KEY` | Catalog ingestion (`/api/admin/*`) |
-| `CATALOG_TICKET_KEY` | Signing key for download tickets |
-
-`ADMIN_KEY` grants write access to the catalog. Generate it locally, set it with `wrangler secret put ADMIN_KEY`, and keep it out of source control, out of the frontend, and out of shell history.
-
-### Question catalog
-
-The catalog is a Cloudflare D1 database bound to the Worker as `QUESTIONS_DB`. SAT, PSAT 10, and PSAT 8/9 share one database but use separate catalog namespaces. This avoids multiplying D1 databases while keeping every read, version, ticket, cursor, and metadata record scoped to its exam.
-
-Always deploy and populate staging first. A bare `wrangler deploy` targets `sevrony-questions-staging`; production requires the explicit `--env production` command. Never use `--reset` against production: use `--migrate` once to convert its Phase 1 SAT schema in place.
-
-Build each export into its own local SQLite file:
-
-```bash
-python3 tools/build_catalog_db.py path/to/sat-export.sat-test --catalog sat --version 2026-05-25.1 -o sat.sqlite
-python3 tools/build_catalog_db.py path/to/psat10-export.sat-test --catalog psat10 --version 2026-08-23.1 -o psat10.sqlite
-python3 tools/build_catalog_db.py path/to/psat8-9-export.sat-test --catalog psat8_9 --version 2026-08-23.1 -o psat8_9.sqlite
-```
-
-```bash
-python3 tools/upload_catalog.py sat.sqlite --catalog sat --base https://your-staging-worker.workers.dev --migrate --verify
-python3 tools/upload_catalog.py psat10.sqlite --catalog psat10 --base https://your-staging-worker.workers.dev --verify
-python3 tools/upload_catalog.py psat8_9.sqlite --catalog psat8_9 --base https://your-staging-worker.workers.dev --verify
-```
-
-The local SQLite files are gitignored; rebuild them rather than committing them. The uploader reads the admin key from `SEVRONY_ADMIN_KEY`, from `--admin-key-file`, or by prompting — never from a command-line argument, where it would land in shell history and in `ps` output.
-
-Two properties are worth knowing when an upload goes wrong:
-
-- **Metadata is written last.** An interrupted upload leaves the previous version string describing a complete catalog, so clients keep downloading the old bank rather than a half-written one.
-- **`--verify` reads back through the public route.** It walks every page the way a browser would and diffs the ids against the source, so a passing verify means the real download path works, not just that the rows landed.
-
-Use `--resume` to continue an interrupted upload and `--verify-only` to check an existing catalog without writing.
-
-Publishing a new version is safe while people are downloading: a client whose download is invalidated mid-transfer receives a 409, re-reads the metadata, and restarts against the new version.
+For details on static asset cache coordination, Cloudflare Worker secrets, and Cloudflare D1 question catalog ingestion, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Browser notes
 
