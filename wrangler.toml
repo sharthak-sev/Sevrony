@@ -73,4 +73,4 @@ database_id = "c26f0468-d9bd-4385-99bc-7fe0ae4dde25"
 [[env.production.d1_databases]]
 binding = "FEEDBACK_DB"
 database_name = "sevrony-feedback"
-database_id = "placeholder-feedback-prod-id"
+database_id = "6cec0a7c-7b3f-4537-ac68-b84d4ffe9b7f"
