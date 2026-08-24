@@ -86,11 +86,11 @@
     },
     {
       "id": "feedback.js",
-      "under_the_hood": "2-Way Feedback Hub and Discussions module. It renders the thread list and conversation panes, handles WebP client-side screenshot compression, manages thread resolution statuses, and polls unread counts for notification badges."
+      "under_the_hood": "2-Way Feedback Hub and Discussions module. It renders the thread list and conversation panes with responsive mobile navigation and containment, handles WebP client-side screenshot compression, manages thread resolution statuses (locking resolved discussions from new replies while providing admin reopen capabilities), keeps conversations collapsed by default until selected, and polls unread counts for notification badges."
     },
     {
       "id": "worker/feedback.js",
-      "under_the_hood": "Two-way feedback backend endpoints backed by Cloudflare D1 (FEEDBACK_DB). Verifies Google OAuth bearer tokens via Google userinfo, separates Admin and User roles based on ADMIN_EMAIL, handles thread creation, replies, status toggling, and WebP attachments, and sends Discord alert notifications."
+      "under_the_hood": "Two-way feedback backend endpoints backed by Cloudflare D1 (FEEDBACK_DB). Verifies Google OAuth bearer tokens via Google userinfo, separates Admin and User roles based on ADMIN_EMAIL, handles thread creation, replies (strictly gated against resolved/closed threads), status toggling, and WebP attachments, and sends Discord alert notifications."
     },
     {
       "id": "sevrony-feedback (D1)",

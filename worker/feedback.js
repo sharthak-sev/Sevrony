@@ -317,6 +317,10 @@ export async function handleReplyThread(request, env, cors, user, threadId) {
     return json({ error: "Forbidden. You cannot reply to this thread." }, 403, cors);
   }
 
+  if (thread.status === "resolved" || thread.status === "closed") {
+    return json({ error: "This discussion is resolved and cannot receive new replies. Please reopen it or start a new discussion." }, 400, cors);
+  }
+
   let body;
   try {
     body = await request.json();

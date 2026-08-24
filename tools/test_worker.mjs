@@ -410,6 +410,18 @@ section("2-way feedback hub (D1 + Google Auth)");
     const r2 = await call(`/api/feedback/threads/${threadId}`, { method: "PATCH", headers: adminHeaders, body: { status: "resolved" } });
     const j = await r2.json();
     check("admin can update status to resolved -> 200", r2.status === 200 && j.status === "resolved", `${r2.status}`);
+
+    // 11. Cannot reply to resolved thread
+    const replyResolved = await call(`/api/feedback/threads/${threadId}/messages`, {
+      method: "POST",
+      headers: userHeaders,
+      body: { message: "Should be blocked on resolved thread" },
+    });
+    check("replying to resolved thread -> 400", replyResolved.status === 400, `${replyResolved.status}`);
+
+    // Reopen thread
+    const reopen = await call(`/api/feedback/threads/${threadId}`, { method: "PATCH", headers: adminHeaders, body: { status: "open" } });
+    check("admin can reopen thread -> 200", reopen.status === 200, `${reopen.status}`);
   }
 }
 

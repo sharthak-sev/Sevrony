@@ -175,11 +175,6 @@
       feedbackState.unreadCount = data.unreadCount || 0;
       feedbackState.isAdmin = Boolean(data.isAdmin);
       updateSidebarBadge();
-
-      // If active thread is unset and we have threads on desktop, auto-select first
-      if (!feedbackState.activeThreadId && feedbackState.threads.length > 0 && window.innerWidth > 920) {
-        await selectThread(feedbackState.threads[0].id);
-      }
     } catch (err) {
       console.error("Failed to load feedback threads:", err);
     } finally {
@@ -540,7 +535,7 @@
             </div>
           </div>
 
-          <div style="display:flex; gap:12px; align-items:center;">
+          <div class="hero-btn-group">
             <button type="button" class="btn btn-primary hero-signin-btn" data-action="link-drive">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
               <span>Sign in with Google</span>
@@ -564,10 +559,10 @@
     const hasActive = Boolean(activeThread);
 
     return `
-      <div class="feedback-hub-view">
+      <div class="feedback-hub-view ${hasActive ? "in-chat" : ""}">
         <div class="feedback-hub-header">
           <div>
-            <h2 class="feedback-hub-title">${feedbackState.isAdmin ? "👑 Admin Feedback Hub" : "Feedback & Discussions"}</h2>
+            <h2 class="feedback-hub-title">${feedbackState.isAdmin ? "Admin Feedback Hub" : "Feedback & Discussions"}</h2>
             <p class="feedback-hub-sub">${feedbackState.isAdmin ? "All user feedback threads & direct replies" : "Report bugs, request features, and track replies from developer"}</p>
           </div>
           <div>
@@ -637,10 +632,11 @@
               <div class="chat-pane-inner">
                 <!-- Chat Header -->
                 <div class="chat-pane-header">
-                  <button type="button" class="ghost-btn mobile-back-btn" data-action="mobile-back">
-                    ← Back
+                  <button type="button" class="ghost-btn mobile-back-btn" data-action="mobile-back" aria-label="Back to discussions">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    <span>Back</span>
                   </button>
-                  <div style="flex:1; min-width:0;">
+                  <div class="chat-header-main">
                     <div class="chat-title-row">
                       <span class="thread-type-badge type-badge-${(activeThread.type || "general").toLowerCase().replace(/\s+/g, "-")}">${escapeHtml(activeThread.type || "General")}</span>
                       <h3 class="chat-thread-title">${escapeHtml(activeThread.subject)}</h3>
@@ -649,23 +645,22 @@
                       Started by <strong>${escapeHtml(activeThread.user_email)}</strong> • ${timeAgo(activeThread.created_at)}
                     </div>
                   </div>
-                  ${
-                    feedbackState.isAdmin
-                      ? `
-                    <div style="display:flex; align-items:center; gap:8px;">
-                      <button type="button" class="btn btn-outline btn-sm" data-action="toggle-status" data-status="${activeThread.status}">
-                        ${activeThread.status === "resolved" ? "Reopen Discussion" : "Mark as Resolved"}
+                  <div class="chat-header-actions">
+                    ${
+                      feedbackState.isAdmin
+                        ? `
+                      <button type="button" class="btn btn-outline btn-sm status-toggle-btn" data-action="toggle-status" data-status="${activeThread.status}">
+                        <span class="desktop-label">${activeThread.status === "resolved" ? "Reopen Discussion" : "Mark as Resolved"}</span>
+                        <span class="mobile-label">${activeThread.status === "resolved" ? "Reopen" : "Resolve"}</span>
                       </button>
-                    </div>
-                  `
-                      : `
-                    <div style="display:flex; align-items:center;">
-                      <span class="thread-status-pill status-${activeThread.status || "open"}" style="font-size:12px; padding:3px 10px;">
+                    `
+                        : `
+                      <span class="thread-status-pill status-${activeThread.status || "open"}">
                         ${activeThread.status === "resolved" ? "✓ Resolved" : "● Open"}
                       </span>
-                    </div>
-                  `
-                  }
+                    `
+                    }
+                  </div>
                 </div>
 
                 <!-- Chat Messages -->
@@ -708,43 +703,79 @@
                     .join("")}
                 </div>
 
-                <!-- Pending Attachments Strip -->
+                <!-- Chat Composer or Resolved Notice -->
                 ${
-                  feedbackState.pendingAttachments.length > 0
+                  activeThread.status === "resolved" || activeThread.status === "closed"
                     ? `
-                  <div class="pending-attachments-bar">
-                    ${feedbackState.pendingAttachments
-                      .map(
-                        (att, idx) => `
-                      <div class="attachment-preview-chip">
-                        <img src="${att.data}" class="preview-thumb" alt="Attachment preview">
-                        <span>${escapeHtml(att.name)}</span>
-                        <button type="button" class="remove-att-btn" data-remove-idx="${idx}">×</button>
+                  <div class="chat-resolved-notice-box">
+                    <div class="resolved-notice-message">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="resolved-check-icon"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                      <div>
+                        <div class="resolved-notice-title">This discussion has been marked as <strong>Resolved</strong>.</div>
+                        <p class="resolved-notice-sub">${
+                          feedbackState.isAdmin
+                            ? "Replies are locked while resolved. Reopen the discussion to resume chatting."
+                            : "Replies are closed. If you have another question or need help, please start a new discussion."
+                        }</p>
                       </div>
-                    `
-                      )
-                      .join("")}
-                  </div>
-                `
-                    : ""
-                }
-
-                <!-- Chat Composer -->
-                <div class="chat-composer-box">
-                  <div class="composer-input-wrapper">
-                    <textarea id="feedback-reply-textarea" class="chat-textarea" placeholder="Write a reply... (Press Cmd+Enter to send, Ctrl+V to paste screenshot)" rows="2"></textarea>
-                    <div class="composer-toolbar">
-                      <label class="attach-btn-label">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                        <span>Attach Image (WebP)</span>
-                        <input type="file" id="feedback-reply-file" accept="image/*" multiple style="display:none;">
-                      </label>
-                      <button type="button" id="feedback-send-reply-btn" class="btn btn-primary btn-sm" ${feedbackState.sending ? "disabled" : ""}>
-                        ${feedbackState.sending ? "Sending…" : "Send Reply"}
-                      </button>
+                    </div>
+                    <div class="resolved-notice-actions">
+                      ${
+                        feedbackState.isAdmin
+                          ? `
+                        <button type="button" class="btn btn-outline btn-sm" data-action="toggle-status" data-status="${activeThread.status}">
+                          Reopen Discussion
+                        </button>
+                      `
+                          : `
+                        <button type="button" class="btn btn-primary btn-sm" data-action="new-discussion">
+                          Start New Discussion
+                        </button>
+                      `
+                      }
                     </div>
                   </div>
-                </div>
+                `
+                    : `
+                  <!-- Pending Attachments Strip -->
+                  ${
+                    feedbackState.pendingAttachments.length > 0
+                      ? `
+                    <div class="pending-attachments-bar">
+                      ${feedbackState.pendingAttachments
+                        .map(
+                          (att, idx) => `
+                        <div class="attachment-preview-chip">
+                          <img src="${att.data}" class="preview-thumb" alt="Attachment preview">
+                          <span>${escapeHtml(att.name)}</span>
+                          <button type="button" class="remove-att-btn" data-remove-idx="${idx}">×</button>
+                        </div>
+                      `
+                        )
+                        .join("")}
+                    </div>
+                  `
+                      : ""
+                  }
+
+                  <!-- Chat Composer -->
+                  <div class="chat-composer-box">
+                    <div class="composer-input-wrapper">
+                      <textarea id="feedback-reply-textarea" class="chat-textarea" placeholder="Write a reply…" rows="2"></textarea>
+                      <div class="composer-toolbar">
+                        <label class="attach-btn-label" title="Attach Image (WebP)">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                          <span class="attach-label-text">Attach Image</span>
+                          <input type="file" id="feedback-reply-file" accept="image/*" multiple style="display:none;">
+                        </label>
+                        <button type="button" id="feedback-send-reply-btn" class="btn btn-primary btn-sm" ${feedbackState.sending ? "disabled" : ""}>
+                          ${feedbackState.sending ? "Sending…" : "Send Reply"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `
+                }
               </div>
             `
             }
@@ -774,45 +805,43 @@
     });
 
     // New discussion button
-    const newBtn = root.querySelector("[data-action='new-discussion']");
-    if (newBtn) {
+    root.querySelectorAll("[data-action='new-discussion']").forEach((newBtn) => {
       newBtn.onclick = () => openNewDiscussionModal("Bug");
-    }
+    });
 
     // Anonymous legacy feedback button
-    const legacyBtn = root.querySelector("[data-action='open-legacy-feedback']");
-    if (legacyBtn) {
+    root.querySelectorAll("[data-action='open-legacy-feedback']").forEach((legacyBtn) => {
       legacyBtn.onclick = () => openNewDiscussionModal("Bug");
-    }
+    });
 
     // Mobile back
-    const mobileBack = root.querySelector("[data-action='mobile-back']");
-    if (mobileBack) {
+    root.querySelectorAll("[data-action='mobile-back']").forEach((mobileBack) => {
       mobileBack.onclick = () => {
         feedbackState.activeThreadId = null;
         feedbackState.activeThreadData = null;
         renderHubIfVisible();
       };
-    }
+    });
 
     // Toggle status (Admin only)
-    const statusBtn = root.querySelector("[data-action='toggle-status']");
-    if (statusBtn && feedbackState.activeThreadId) {
-      statusBtn.onclick = async () => {
-        const current = statusBtn.dataset.status;
-        const next = current === "resolved" || current === "closed" ? "open" : "resolved";
-        try {
-          await fetchApi(`/api/feedback/threads/${encodeURIComponent(feedbackState.activeThreadId)}`, {
-            method: "PATCH",
-            body: JSON.stringify({ status: next }),
-          });
-          await loadThreads();
-          await selectThread(feedbackState.activeThreadId);
-        } catch (e) {
-          alert(`Could not update status: ${e.message}`);
-        }
-      };
-    }
+    root.querySelectorAll("[data-action='toggle-status']").forEach((statusBtn) => {
+      if (feedbackState.activeThreadId) {
+        statusBtn.onclick = async () => {
+          const current = statusBtn.dataset.status;
+          const next = current === "resolved" || current === "closed" ? "open" : "resolved";
+          try {
+            await fetchApi(`/api/feedback/threads/${encodeURIComponent(feedbackState.activeThreadId)}`, {
+              method: "PATCH",
+              body: JSON.stringify({ status: next }),
+            });
+            await loadThreads();
+            await selectThread(feedbackState.activeThreadId);
+          } catch (e) {
+            alert(`Could not update status: ${e.message}`);
+          }
+        };
+      }
+    });
 
     // Reply file attach
     const replyFile = root.querySelector("#feedback-reply-file");
@@ -889,11 +918,12 @@
             }),
           });
           feedbackState.pendingAttachments = [];
-          await selectThread(feedbackState.activeThreadId);
+          if (replyTextarea) replyTextarea.value = "";
         } catch (err) {
           alert(`Failed to send reply: ${err.message}`);
         } finally {
           feedbackState.sending = false;
+          await selectThread(feedbackState.activeThreadId);
         }
       };
     }

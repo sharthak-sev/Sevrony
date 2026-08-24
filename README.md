@@ -17,6 +17,7 @@ The question bank is downloaded once from Sevrony's Cloudflare Worker after sign
 - Build vocabulary with spaced repetition, flashcards, multiple choice, matching, and AI-assisted sentence checks.
 - Export and restore lightweight local backups (<0.5 MB).
 - Automatic cloud sync for progress, responses, study state, and vocabulary across devices through Google Drive.
+- Two-way Feedback Hub & Discussions: submit bug reports or feature requests, exchange replies with the admin team with WebP screenshot attachments, and track resolution status in real time.
 - Install as a PWA with best-effort offline access after the app has been loaded once.
 
 ## Getting started
