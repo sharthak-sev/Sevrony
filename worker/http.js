@@ -29,7 +29,7 @@ function isAllowedOrigin(origin, env) {
 export function corsHeadersFor(request, env) {
   const origin = request.headers.get("Origin");
   const headers = {
-    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-API-Key, Authorization, X-Admin-Key, X-Catalog-Ticket, If-None-Match",
     "Access-Control-Expose-Headers": "ETag, X-Catalog-Version",
     // The ACAO value depends on the request's Origin, so caches must key on it.

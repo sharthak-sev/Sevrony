@@ -58,8 +58,9 @@ function makeD1(sqlitePath) {
       }
     },
     async exec(sql) {
-      // D1's exec() splits on newlines and runs each line as one statement.
-      for (const line of sql.split("\n").map(s => s.trim()).filter(Boolean)) db.exec(line);
+      for (const line of sql.split("\n").map(s => s.trim()).filter(Boolean)) {
+        db.exec(line.endsWith(";") ? line : line + ";");
+      }
       return { count: sql.split("\n").length };
     },
     __close: () => db.close(),
@@ -105,6 +106,25 @@ globalThis.fetch = async (url, init) => {
     // Discord answers a webhook post with 204; the body must be null at that status.
     return new Response(null, { status: 204 });
   }
+  if (String(url) === "https://www.googleapis.com/oauth2/v3/userinfo") {
+    const auth = init?.headers?.Authorization || "";
+    if (auth === "Bearer user-good-token") {
+      return new Response(JSON.stringify({ email: "student@school.edu" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (auth === "Bearer other-user-token") {
+      return new Response(JSON.stringify({ email: "another@school.edu" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (auth === "Bearer admin-good-token") {
+      return new Response(JSON.stringify({ email: "sharthakjaiswal50@gmail.com" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("Unauthorized", { status: 401 });
+  }
   if (String(url).startsWith("https://generativelanguage.googleapis.com/")) {
     // Recorded so a test can assert which model the worker actually asked for.
     geminiUrl = String(url);
@@ -122,17 +142,24 @@ const worker = (await import("../worker/index.js")).default;
 const SOURCE = process.argv[2] || "catalog.sqlite";
 const WORK = join(tmpdir(), "sevrony-worker-test.sqlite");
 const FRESH = join(tmpdir(), "sevrony-worker-fresh.sqlite");
-for (const p of [WORK, FRESH]) if (existsSync(p)) rmSync(p);
+const FEEDBACK_WORK = join(tmpdir(), "sevrony-feedback-test.sqlite");
+for (const p of [WORK, FRESH, FEEDBACK_WORK]) if (existsSync(p)) rmSync(p);
 if (!existsSync(SOURCE)) {
   console.error(`missing ${SOURCE} -- run tools/build_catalog_db.py first`);
   process.exit(2);
 }
 copyFileSync(SOURCE, WORK);
 
+const feedbackDb = makeD1(FEEDBACK_WORK);
+const feedbackSchema = readFileSync(join(new URL(".", import.meta.url).pathname, "schema_feedback.sql"), "utf8");
+await feedbackDb.exec(feedbackSchema);
+
 const ADMIN_KEY = "test-admin-key-0123456789";
 const env = {
   QUESTIONS_DB: makeD1(WORK),
+  FEEDBACK_DB: feedbackDb,
   ADMIN_KEY,
+  ADMIN_EMAIL: "sharthakjaiswal50@gmail.com",
   CATALOG_TICKET_KEY: "test-ticket-hmac-key",
   TURNSTILE_SECRET: "test-turnstile-secret",
   CATALOG_REQUIRE_TICKET: "1",
@@ -271,6 +298,118 @@ section("feedback");
       last = r.status;
     }
     check("feedback is rate limited at 5/minute per IP", last === 429, `${last}`);
+  }
+}
+
+section("2-way feedback hub (D1 + Google Auth)");
+{
+  const userHeaders = { Authorization: "Bearer user-good-token" };
+  const otherUserHeaders = { Authorization: "Bearer other-user-token" };
+  const adminHeaders = { Authorization: "Bearer admin-good-token" };
+
+  // 1. Auth enforcement
+  {
+    const r = await call("/api/feedback/threads");
+    check("threads without token -> 401", r.status === 401, `${r.status}`);
+  }
+  {
+    const r = await call("/api/feedback/threads", { headers: { Authorization: "Bearer invalid-token" } });
+    check("threads with invalid token -> 401", r.status === 401, `${r.status}`);
+  }
+
+  // 2. Create thread
+  let threadId = null;
+  {
+    discordSeen = null;
+    const body = {
+      subject: "Math SPR formatting glitch",
+      type: "Bug",
+      message: "The fraction line overlaps with exponents in Module 2.",
+      attachments: [
+        { mime_type: "image/webp", data: "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAQCdASoBAAEAAQAcJaACdLoB+AA/vlNAAA==" }
+      ]
+    };
+    const r = await call("/api/feedback/threads", { method: "POST", headers: userHeaders, body });
+    const j = await r.json();
+    check("create thread -> 201", r.status === 201 && Boolean(j.threadId), `${r.status} ${JSON.stringify(j)}`);
+    threadId = j.threadId;
+    check("thread creation notified Discord", Boolean(discordSeen?.embed?.title?.includes("Math SPR")), `${discordSeen?.embed?.title}`);
+  }
+
+  // 3. User listing threads
+  {
+    const r = await call("/api/feedback/threads", { headers: userHeaders });
+    const j = await r.json();
+    check("user threads list -> 200", r.status === 200, `${r.status}`);
+    check("user sees own thread", j.threads?.length === 1 && j.threads[0].id === threadId, `${j.threads?.length}`);
+    check("user unreadCount is 0", j.unreadCount === 0, `${j.unreadCount}`);
+    check("user is not admin", j.isAdmin === false, `${j.isAdmin}`);
+  }
+
+  // 4. Other user listing threads (isolation)
+  {
+    const r = await call("/api/feedback/threads", { headers: otherUserHeaders });
+    const j = await r.json();
+    check("other user sees 0 threads (isolation)", j.threads?.length === 0, `${j.threads?.length}`);
+  }
+
+  // 5. Admin listing threads
+  {
+    const r = await call("/api/feedback/threads", { headers: adminHeaders });
+    const j = await r.json();
+    check("admin threads list -> 200", r.status === 200, `${r.status}`);
+    check("admin sees user's thread", j.threads?.length >= 1 && j.threads.some(t => t.id === threadId), `${j.threads?.length}`);
+    check("admin is flagged as admin", j.isAdmin === true, `${j.isAdmin}`);
+    check("admin unreadCount is 1", j.unreadCount === 1, `${j.unreadCount}`);
+  }
+
+  // 6. Admin fetching thread & messages
+  {
+    const r = await call(`/api/feedback/threads/${threadId}`, { headers: adminHeaders });
+    const j = await r.json();
+    check("admin get thread -> 200", r.status === 200, `${r.status}`);
+    check("thread subject matches", j.thread?.subject === "Math SPR formatting glitch", `${j.thread?.subject}`);
+    check("messages array populated", j.messages?.length === 1, `${j.messages?.length}`);
+    check("attachment preserved with WebP mime", j.messages?.[0]?.attachments?.[0]?.mime_type === "image/webp", `${j.messages?.[0]?.attachments?.[0]?.mime_type}`);
+  }
+
+  // 7. Admin replying to thread
+  {
+    const body = {
+      message: "Thanks for reporting! We fixed this in v2.4.1."
+    };
+    const r = await call(`/api/feedback/threads/${threadId}/messages`, { method: "POST", headers: adminHeaders, body });
+    const j = await r.json();
+    check("admin reply -> 201", r.status === 201 && Boolean(j.messageId), `${r.status} ${JSON.stringify(j)}`);
+  }
+
+  // 8. User sees admin's reply and unread count = 1
+  {
+    const r = await call("/api/feedback/threads", { headers: userHeaders });
+    const j = await r.json();
+    check("user unreadCount is now 1 after admin reply", j.unreadCount === 1, `${j.unreadCount}`);
+  }
+
+  // 9. User fetches thread -> marks read
+  {
+    const r = await call(`/api/feedback/threads/${threadId}`, { headers: userHeaders });
+    const j = await r.json();
+    check("user get thread -> 200 with 2 messages", r.status === 200 && j.messages?.length === 2, `${j.messages?.length}`);
+    check("last message from admin", j.messages?.[1]?.sender_role === "admin", `${j.messages?.[1]?.sender_role}`);
+
+    const unreadRes = await call("/api/feedback/unread", { headers: userHeaders });
+    const unreadJson = await unreadRes.json();
+    check("user unreadCount cleared back to 0", unreadJson.unreadCount === 0, `${unreadJson.unreadCount}`);
+  }
+
+  // 10. Update thread status (admin only)
+  {
+    const r1 = await call(`/api/feedback/threads/${threadId}`, { method: "PATCH", headers: userHeaders, body: { status: "resolved" } });
+    check("user cannot update status -> 403", r1.status === 403, `${r1.status}`);
+
+    const r2 = await call(`/api/feedback/threads/${threadId}`, { method: "PATCH", headers: adminHeaders, body: { status: "resolved" } });
+    const j = await r2.json();
+    check("admin can update status to resolved -> 200", r2.status === 200 && j.status === "resolved", `${r2.status}`);
   }
 }
 

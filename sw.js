@@ -12,6 +12,7 @@ const ASSETS_TO_CACHE = [
   "./sync-worker.js?v=2.4.0",
   "./vocab.js?v=2.4.0",
   "./scoring.js?v=2.4.0",
+  "./feedback.js?v=2.4.0",
   "./dsat_vocabulary.json",
   "./manifest.json",
   "./logo.svg",

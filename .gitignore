@@ -11,6 +11,7 @@ dist/
 .DS_Store
 *.db
 *.sql
+!tools/schema_feedback.sql
 *.sqlite
 temp_*.txt
 *.json.gz

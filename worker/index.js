@@ -24,6 +24,15 @@ import {
   handleAdminCatalog,
   resolveCatalog,
 } from "./catalog.js";
+import {
+  authenticateFeedbackUser,
+  handleListThreads,
+  handleGetThread,
+  handleCreateThread,
+  handleReplyThread,
+  handleUpdateThreadStatus,
+  handleUnreadCheck,
+} from "./feedback.js";
 import { corsHeadersFor, json, preflight } from "./http.js";
 
 /**
@@ -41,6 +50,8 @@ const RATE_LIMITS = {
   "vocab": [5, 10_000],
   "/api/consent": [10, 60_000],
   "/api/feedback": [5, 60_000],
+  "/api/feedback/threads": [30, 60_000],
+  "/api/feedback/unread": [60, 60_000],
   "/api/catalog/meta": [30, 60_000],
   // The per-person cost gate belongs here, not on the pages: a ticket costs a
   // Turnstile solve, and one ticket is good for one download.
@@ -130,6 +141,56 @@ export default {
         if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);
         if (limit(pathname)) return tooMany(cors);
         return handleConsent(cors);
+      }
+
+      if (pathname === "/api/feedback/unread") {
+        if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, cors);
+        if (limit("/api/feedback/unread")) return tooMany(cors);
+        const user = await authenticateFeedbackUser(request, env);
+        if (!user) return json({ error: "Unauthorized. Please sign in with Google." }, 401, cors);
+        return await handleUnreadCheck(request, env, cors, user);
+      }
+
+      if (pathname === "/api/feedback/threads") {
+        if (limit("/api/feedback/threads")) return tooMany(cors);
+        const user = await authenticateFeedbackUser(request, env);
+        if (!user) return json({ error: "Unauthorized. Please sign in with Google." }, 401, cors);
+
+        if (request.method === "GET") {
+          return await handleListThreads(request, env, cors, user);
+        }
+        if (request.method === "POST") {
+          return await handleCreateThread(request, env, cors, user);
+        }
+        return json({ error: "Method not allowed" }, 405, cors);
+      }
+
+      if (pathname.startsWith("/api/feedback/threads/")) {
+        const rest = pathname.slice("/api/feedback/threads/".length);
+        const parts = rest.split("/");
+        const threadId = parts[0];
+        const subRoute = parts[1];
+
+        if (limit("/api/feedback/threads")) return tooMany(cors);
+        const user = await authenticateFeedbackUser(request, env);
+        if (!user) return json({ error: "Unauthorized. Please sign in with Google." }, 401, cors);
+
+        if (!subRoute) {
+          if (request.method === "GET") {
+            return await handleGetThread(request, env, cors, user, threadId);
+          }
+          if (request.method === "PATCH") {
+            return await handleUpdateThreadStatus(request, env, cors, user, threadId);
+          }
+          return json({ error: "Method not allowed" }, 405, cors);
+        }
+
+        if (subRoute === "messages") {
+          if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);
+          return await handleReplyThread(request, env, cors, user, threadId);
+        }
+
+        return json({ error: "Not found." }, 404, cors);
       }
 
       if (pathname === "/api/feedback") {

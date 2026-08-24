@@ -85,6 +85,18 @@
       "under_the_hood": "Primary application and PWA icon, referenced by the page, manifest, and service-worker cache list."
     },
     {
+      "id": "feedback.js",
+      "under_the_hood": "2-Way Feedback Hub and Discussions module. It renders the thread list and conversation panes, handles WebP client-side screenshot compression, manages thread resolution statuses, and polls unread counts for notification badges."
+    },
+    {
+      "id": "worker/feedback.js",
+      "under_the_hood": "Two-way feedback backend endpoints backed by Cloudflare D1 (FEEDBACK_DB). Verifies Google OAuth bearer tokens via Google userinfo, separates Admin and User roles based on ADMIN_EMAIL, handles thread creation, replies, status toggling, and WebP attachments, and sends Discord alert notifications."
+    },
+    {
+      "id": "sevrony-feedback (D1)",
+      "under_the_hood": "Cloudflare D1 database storing feedback threads, messages, and base64 WebP attachments. Separated from QUESTIONS_DB to isolate practice content from user feedback."
+    },
+    {
       "id": "tools/",
       "under_the_hood": "Operator and test tooling, not shipped to the browser. build_catalog_db.py converts .sat-test exports into per-exam SQLite databases with unique question IDs (gitignored, ~23 MB each). upload_catalog.py pushes them to the worker in 25-row batches, taking the admin key from an env var, a file or a prompt but never from argv, where it would land in shell history and ps output; it writes catalog_meta last so an interrupted upload leaves the old version string describing a complete catalog, and --verify walks every page back through the real public route. test_worker.mjs, test_catalog_client.mjs and test_sync_catalog.mjs run the worker, the download driver and the sync filter offline against the real catalogs using node:sqlite as a D1 shim, with Turnstile, Discord and Gemini replaced by a recording fetch stub so the feedback relay and the evaluator's model choice are asserted without network."
     }

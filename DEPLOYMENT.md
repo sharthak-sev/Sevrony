@@ -123,3 +123,32 @@ The uploader reads the admin key from the `SEVRONY_ADMIN_KEY` environment variab
 - **Resume & Verify Flags:**
   - `--resume`: Continue an interrupted catalog upload without re-uploading completed batches.
   - `--verify-only`: Validate an existing live catalog against a local SQLite file without writing.
+
+---
+
+## 4. 2-Way Feedback Hub (Cloudflare D1)
+
+The two-way feedback and discussion system stores discussions and compressed WebP image attachments in a dedicated Cloudflare D1 database (`FEEDBACK_DB`).
+
+### Setting Up D1 Databases
+
+Create the staging and production databases:
+
+```bash
+# 1. Create Staging Feedback Database
+npx wrangler d1 create sevrony-feedback-staging
+
+# 2. Create Production Feedback Database
+npx wrangler d1 create sevrony-feedback
+
+# 3. Apply the schema
+npx wrangler d1 execute sevrony-feedback-staging --file=tools/schema_feedback.sql
+npx wrangler d1 execute sevrony-feedback --file=tools/schema_feedback.sql --remote
+```
+
+Copy the generated `database_id` values from the output into `wrangler.toml` under `[[d1_databases]]` and `[[env.production.d1_databases]]`.
+
+### Admin Whitelist
+
+In `wrangler.toml`, set `ADMIN_EMAIL = "your-google-account@gmail.com"`. When you sign in to Sevrony with this Google account, the app automatically grants you administrative rights to view all threads, reply as Team Sevrony, and manage statuses.
+
