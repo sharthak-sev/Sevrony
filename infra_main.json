@@ -331,6 +331,51 @@
       "source": "sync-worker.js",
       "target": "api.js",
       "relationship": "shares the catalog bank-id prefix used to strip SAT and PSAT questions from Drive sync"
+    },
+    {
+      "source": "index.html",
+      "target": "feedback.js",
+      "relationship": "loads"
+    },
+    {
+      "source": "app.js",
+      "target": "feedback.js",
+      "relationship": "mounts Feedback Hub view and unread notification badge"
+    },
+    {
+      "source": "feedback.js",
+      "target": "api.js",
+      "relationship": "resolves worker API endpoints for feedback threads"
+    },
+    {
+      "source": "feedback.js",
+      "target": "sync.js",
+      "relationship": "reads cached Google OAuth access token for authenticated 2-way feedback"
+    },
+    {
+      "source": "sw.js",
+      "target": "feedback.js",
+      "relationship": "precaches"
+    },
+    {
+      "source": "worker/index.js",
+      "target": "worker/feedback.js",
+      "relationship": "routes /api/feedback/threads and /api/feedback/unread"
+    },
+    {
+      "source": "worker/feedback.js",
+      "target": "sevrony-feedback (D1)",
+      "relationship": "stores threads, messages, and WebP attachments"
+    },
+    {
+      "source": "wrangler.toml",
+      "target": "sevrony-feedback (D1)",
+      "relationship": "binds as FEEDBACK_DB"
+    },
+    {
+      "source": "tools/",
+      "target": "worker/feedback.js",
+      "relationship": "tests offline against D1 feedback schema and auth mocks"
     }
   ]
 }
