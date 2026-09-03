@@ -9177,6 +9177,64 @@ ${(() => {
     }
   }
   function findDomainLabel(subject, code) { return (DOMAIN_FALLBACKS[subject] || []).find(d => d.code === code)?.label || ""; }
+
+  function hasAnswer(value) {
+    if (typeof window !== "undefined" && typeof window.hasAnswer === "function" && window.hasAnswer !== hasAnswer) {
+      return window.hasAnswer(value);
+    }
+    return String(value || "").trim().length > 0;
+  }
+
+  function scoreAnswer(question, answer) {
+    if (typeof window !== "undefined" && typeof window.scoreAnswer === "function" && window.scoreAnswer !== scoreAnswer) {
+      return window.scoreAnswer(question, answer);
+    }
+    if (!hasAnswer(answer)) return { wasAnswered: false, isCorrect: false };
+    const expected = question.correctAnswers || (question.correctAnswer ? (Array.isArray(question.correctAnswer) ? question.correctAnswer : [question.correctAnswer]) : []);
+    if (!expected.length) return { wasAnswered: true, isCorrect: false };
+    if (question.type === "mcq" && question.answerOptions && question.answerOptions.length) {
+      const cleanExpected = expected.map(e => String(e || "").trim().toUpperCase());
+      return { wasAnswered: true, isCorrect: cleanExpected.includes(String(answer || "").trim().toUpperCase()) };
+    }
+    const cleanExpected = expected.map(e => String(e || "").trim().replace(/\s+/g, "").toLowerCase());
+    return { wasAnswered: true, isCorrect: cleanExpected.includes(String(answer || "").trim().replace(/\s+/g, "").toLowerCase()) };
+  }
+
+  function sprSanitize(value) {
+    if (typeof window !== "undefined" && typeof window.sprSanitize === "function" && window.sprSanitize !== sprSanitize) {
+      return window.sprSanitize(value);
+    }
+    if (value == null) return { sanitized: "", isValid: false };
+    let clean = "";
+    let hasDecimal = false;
+    let hasSlash = false;
+    let hasMinus = false;
+    const strVal = String(value).trim();
+    for (let i = 0; i < strVal.length; i++) {
+      const char = strVal[i];
+      if (char === '-' && i === 0 && !hasMinus) {
+        clean += char;
+        hasMinus = true;
+      } else if (/[0-9]/.test(char)) {
+        clean += char;
+      } else if (char === '.' && !hasDecimal && !hasSlash) {
+        clean += char;
+        hasDecimal = true;
+      } else if (char === '/' && !hasSlash && !hasDecimal) {
+        clean += char;
+        hasSlash = true;
+      }
+    }
+    const isValid = /^-?\d+$|^-?\d*\.\d+$|^-?\d+\/\d+$/.test(clean);
+    return { sanitized: clean, isValid };
+  }
+
+  if (typeof window !== "undefined") {
+    if (!window.hasAnswer) window.hasAnswer = hasAnswer;
+    if (!window.scoreAnswer) window.scoreAnswer = scoreAnswer;
+    if (!window.sprSanitize) window.sprSanitize = sprSanitize;
+  }
+
   function isAnsweredResponse(r) { return r?.isAnswered !== false && hasAnswer(r?.answer); }
   function formatPercent(v) { return `${Math.round((v || 0) * 100)}%`; }
 

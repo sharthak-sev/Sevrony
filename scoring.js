@@ -78,11 +78,38 @@ function scoreAnswer(question, answer) {
 }
 
 // Make globally available for app.js and db-worker.js
-if (typeof self !== 'undefined') {
+const _globalScope = typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : this));
+if (_globalScope) {
+  _globalScope.sprSanitize = sprSanitize;
+  _globalScope.parseSprValue = parseSprValue;
+  _globalScope.hasAnswer = hasAnswer;
+  _globalScope.normalizeAnswerToken = normalizeAnswerToken;
+  _globalScope.normalizeFreeResponse = normalizeFreeResponse;
+  _globalScope.scoreAnswer = scoreAnswer;
+}
+if (typeof window !== 'undefined' && window !== _globalScope) {
+  window.sprSanitize = sprSanitize;
+  window.parseSprValue = parseSprValue;
+  window.hasAnswer = hasAnswer;
+  window.normalizeAnswerToken = normalizeAnswerToken;
+  window.normalizeFreeResponse = normalizeFreeResponse;
+  window.scoreAnswer = scoreAnswer;
+}
+if (typeof self !== 'undefined' && self !== _globalScope) {
   self.sprSanitize = sprSanitize;
   self.parseSprValue = parseSprValue;
   self.hasAnswer = hasAnswer;
   self.normalizeAnswerToken = normalizeAnswerToken;
   self.normalizeFreeResponse = normalizeFreeResponse;
   self.scoreAnswer = scoreAnswer;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    sprSanitize,
+    parseSprValue,
+    hasAnswer,
+    normalizeAnswerToken,
+    normalizeFreeResponse,
+    scoreAnswer
+  };
 }
