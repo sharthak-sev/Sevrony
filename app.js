@@ -816,8 +816,25 @@ window.updateSelectAllButtons = function() {
     document.body.appendChild(banner);
   }
 
+  /* Origins allowed to initialize telemetry. Clones that forget to swap out
+     the PostHog / Sentry keys silently get a no-op instead of polluting our
+     dashboards.  Loopback is allowed for local development. */
+  const TELEMETRY_ALLOWED_ORIGINS = [
+    "https://sharthak-sev.github.io",
+  ];
+  function isTelemetryOriginAllowed() {
+    const o = window.location.origin;
+    if (TELEMETRY_ALLOWED_ORIGINS.includes(o)) return true;
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) return true;
+    return false;
+  }
+
   function enableTelemetry() {
     if (!isTelemetryAccepted()) return Promise.resolve(false);
+    if (!isTelemetryOriginAllowed()) {
+      console.warn("Telemetry disabled: unrecognized origin", window.location.origin);
+      return Promise.resolve(false);
+    }
     if (state.telemetryLoading) return state.telemetryLoading;
     state.telemetryLoading = Promise.all([loadPostHog(), loadSentry()])
       .then(() => true)
